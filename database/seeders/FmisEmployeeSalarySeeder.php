@@ -1,0 +1,192 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+
+class FmisEmployeeSalarySeeder extends Seeder
+{
+    public function run(): void
+    {
+        $salaries = [
+            [
+                'employee_id' => '15-0312',
+                'salary_grade' => 'SG-24',
+                'step' => 1,
+                'monthly_salary' => 45000.00,
+                'base_pay' => 45000.00,
+                'allowances' => 5000.00,
+                'deductions' => 9000.00,
+                'net_take_home' => 36000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '15-0313',
+                'salary_grade' => 'SG-18',
+                'step' => 1,
+                'monthly_salary' => 35000.00,
+                'base_pay' => 35000.00,
+                'allowances' => 3000.00,
+                'deductions' => 7000.00,
+                'net_take_home' => 28000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '15-0314',
+                'salary_grade' => 'SG-16',
+                'step' => 1,
+                'monthly_salary' => 32000.00,
+                'base_pay' => 32000.00,
+                'allowances' => 2500.00,
+                'deductions' => 6400.00,
+                'net_take_home' => 25600.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '15-0315',
+                'salary_grade' => 'SG-22',
+                'step' => 1,
+                'monthly_salary' => 42000.00,
+                'base_pay' => 42000.00,
+                'allowances' => 4000.00,
+                'deductions' => 8400.00,
+                'net_take_home' => 33600.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '15-0316',
+                'salary_grade' => 'SG-27',
+                'step' => 1,
+                'monthly_salary' => 60000.00,
+                'base_pay' => 60000.00,
+                'allowances' => 8000.00,
+                'deductions' => 12000.00,
+                'net_take_home' => 48000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '17-0418',
+                'salary_grade' => 'SG-20',
+                'step' => 1,
+                'monthly_salary' => 38000.00,
+                'base_pay' => 38000.00,
+                'allowances' => 3500.00,
+                'deductions' => 7600.00,
+                'net_take_home' => 30400.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '19-0205',
+                'salary_grade' => 'SG-15',
+                'step' => 1,
+                'monthly_salary' => 30000.00,
+                'base_pay' => 30000.00,
+                'allowances' => 2000.00,
+                'deductions' => 6000.00,
+                'net_take_home' => 24000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '18-0610',
+                'salary_grade' => 'SG-24',
+                'step' => 1,
+                'monthly_salary' => 45000.00,
+                'base_pay' => 45000.00,
+                'allowances' => 5000.00,
+                'deductions' => 9000.00,
+                'net_take_home' => 36000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '25-0601',
+                'salary_grade' => null,
+                'step' => null,
+                'monthly_salary' => 18000.00,
+                'base_pay' => 18000.00,
+                'allowances' => 0.00,
+                'deductions' => 3000.00,
+                'net_take_home' => 15000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '25-0715',
+                'salary_grade' => null,
+                'step' => null,
+                'monthly_salary' => 15000.00,
+                'base_pay' => 15000.00,
+                'allowances' => 0.00,
+                'deductions' => 2500.00,
+                'net_take_home' => 12500.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '26-0121',
+                'salary_grade' => null,
+                'step' => null,
+                'monthly_salary' => 12000.00,
+                'base_pay' => 12000.00,
+                'allowances' => 0.00,
+                'deductions' => 7500.00,
+                'net_take_home' => 4500.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '20-0501',
+                'salary_grade' => 'SG-15',
+                'step' => 1,
+                'monthly_salary' => 30000.00,
+                'base_pay' => 30000.00,
+                'allowances' => 2000.00,
+                'deductions' => 6000.00,
+                'net_take_home' => 24000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '25-0901',
+                'salary_grade' => null,
+                'step' => null,
+                'monthly_salary' => 25000.00,
+                'base_pay' => 25000.00,
+                'allowances' => 0.00,
+                'deductions' => 3000.00,
+                'net_take_home' => 22000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+            [
+                'employee_id' => '25-0932',
+                'salary_grade' => null,
+                'step' => null,
+                'monthly_salary' => 10000.00,
+                'base_pay' => 10000.00,
+                'allowances' => 0.00,
+                'deductions' => 1000.00,
+                'net_take_home' => 9000.00,
+                'effective_date' => '2026-01-01',
+                'status' => 'Active',
+            ],
+        ];
+
+        foreach ($salaries as $salary) {
+            $salary['created_at'] = now();
+            $salary['updated_at'] = now();
+            DB::connection('fmis')->table('employee_salaries')->updateOrInsert(
+                ['employee_id' => $salary['employee_id'], 'status' => 'Active'],
+                $salary
+            );
+        }
+    }
+}

@@ -50,34 +50,34 @@ class LoanService
         if ($user->isPermanent()) {
             $terms = $this->parseTerms(Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'));
             $salary = $this->fmisService->getSalary($user->employee_id);
-            $takeHome = $salary ? (float) $salary->net_take_home : PHP_FLOAT_MAX;
+            $takeHome = $salary ? (float) $salary->net_take_home : null;
             $rate = $this->getInterestRate($user);
 
             return [
                 'Consolidated' => [
                     'name' => 'Consolidated',
-                    'max_amount' => min(Configuration::getDecimal('permanent_max_loan_consolidated', 200000), $takeHome),
+                    'max_amount' => Configuration::getDecimal('permanent_max_loan_consolidated', 200000),
                     'take_home_pay' => $takeHome,
                     'available_terms' => $terms,
                     'interest_rate' => $rate,
                 ],
                 'Multi-Purpose' => [
                     'name' => 'Multi-Purpose',
-                    'max_amount' => min(Configuration::getDecimal('permanent_max_loan_multipurpose', 100000), $takeHome),
+                    'max_amount' => Configuration::getDecimal('permanent_max_loan_multipurpose', 100000),
                     'take_home_pay' => $takeHome,
                     'available_terms' => $terms,
                     'interest_rate' => $rate,
                 ],
                 'Emergency' => [
                     'name' => 'Emergency',
-                    'max_amount' => min(Configuration::getDecimal('permanent_max_loan_emergency', 30000), $takeHome),
+                    'max_amount' => Configuration::getDecimal('permanent_max_loan_emergency', 30000),
                     'take_home_pay' => $takeHome,
                     'available_terms' => $terms,
                     'interest_rate' => $rate,
                 ],
                 'Hospitalization' => [
                     'name' => 'Hospitalization',
-                    'max_amount' => min(Configuration::getDecimal('permanent_max_loan_hospitalization', 50000), $takeHome),
+                    'max_amount' => Configuration::getDecimal('permanent_max_loan_hospitalization', 50000),
                     'take_home_pay' => $takeHome,
                     'available_terms' => $terms,
                     'interest_rate' => $rate,

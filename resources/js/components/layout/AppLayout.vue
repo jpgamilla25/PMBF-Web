@@ -18,6 +18,7 @@
         <div class="d-flex align-items-center ms-auto">
           <!-- Cost Breakdown link -->
           <a
+            v-if="false"
             href="/cost-breakdown"
             target="_blank"
             rel="noopener"

@@ -137,7 +137,7 @@
           New employee? <strong>Register here</strong>
         </router-link>
       </div>
-      <div class="text-center mt-2">
+      <div class="text-center mt-2" v-if="false">
         <a href="/cost-breakdown" target="_blank" rel="noopener" class="text-decoration-none small text-muted">
           <i class="bi bi-bar-chart-line me-1"></i>View Project Cost Breakdown
         </a>

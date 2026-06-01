@@ -560,13 +560,16 @@ class AdminController extends Controller
     }
 
     /**
-     * Search HRIS employees and show their current pmbf role.
+     * Search registered PMBF users and show their current role.
+     * HRIS-only employees (not yet registered) are not browsable here — admins
+     * can still assign roles to them by entering the full employee_id (the
+     * assignRole endpoint will look them up via the HRIS API).
      */
     public function userTypes(Request $request): JsonResponse
     {
         $search = trim($request->input('search', ''));
 
-        $query = \App\Models\HrisEmployee::query()->where('status', 'Active');
+        $query = User::query()->where('status', 'active');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -578,29 +581,22 @@ class AdminController extends Controller
             });
         }
 
-        $employees = $query->orderBy('last_name')->orderBy('first_name')->get();
+        $users = $query->orderBy('last_name')->orderBy('first_name')->get();
 
-        // Map pmbf registered users keyed by employee_id
-        $employeeIds = $employees->pluck('employee_id');
-        $registeredUsers = User::whereIn('employee_id', $employeeIds)
-            ->get()
-            ->keyBy('employee_id');
-
-        $data = $employees->map(function ($emp) use ($registeredUsers) {
-            $user = $registeredUsers->get($emp->employee_id);
+        $data = $users->map(function ($user) {
             return [
-                'employee_id'     => $emp->employee_id,
-                'first_name'      => $emp->first_name,
-                'last_name'       => $emp->last_name,
-                'middle_name'     => $emp->middle_name,
-                'full_name'       => trim("{$emp->last_name}, {$emp->first_name} " . ($emp->middle_name ?? '')),
-                'position'        => $emp->position,
-                'department'      => $emp->department,
-                'employment_type' => $emp->employment_type,
-                'is_registered'   => $user !== null,
-                'user_id'         => $user?->id,
-                'role'            => $user?->role ?? null,
-                'email'           => $emp->email,
+                'employee_id'     => $user->employee_id,
+                'first_name'      => $user->first_name,
+                'last_name'       => $user->last_name,
+                'middle_name'     => $user->middle_name,
+                'full_name'       => trim("{$user->last_name}, {$user->first_name} " . ($user->middle_name ?? '')),
+                'position'        => $user->position,
+                'department'      => $user->department,
+                'employment_type' => $user->employment_type,
+                'is_registered'   => true,
+                'user_id'         => $user->id,
+                'role'            => $user->role,
+                'email'           => $user->email,
             ];
         });
 
@@ -624,8 +620,8 @@ class AdminController extends Controller
         $user = User::where('employee_id', $employeeId)->first();
 
         if (!$user) {
-            // Pull HRIS employee data
-            $emp = \App\Models\HrisEmployee::where('employee_id', $employeeId)->first();
+            // Pull HRIS employee data via the HRIS API
+            $emp = app(\App\Services\HrisService::class)->findByEmployeeId($employeeId);
             if (!$emp) {
                 return $this->error('Employee not found in HRIS.', 404);
             }

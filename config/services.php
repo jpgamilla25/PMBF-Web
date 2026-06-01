@@ -40,4 +40,10 @@ return [
         'model' => env('GEMINI_MODEL', 'gemini-2.0-flash'),
     ],
 
+    'hris' => [
+        'url' => env('HRIS_API_URL', 'https://api-center.philrice.gov.ph/api/v2/hris'),
+        'token' => env('HRIS_API_TOKEN'),
+        'key' => env('HRIS_API_KEY'),
+    ],
+
 ];

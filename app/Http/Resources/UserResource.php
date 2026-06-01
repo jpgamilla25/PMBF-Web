@@ -12,6 +12,12 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Always show the live HRIS pay values; fall back to the registration
+        // snapshot in the users table if HRIS is unreachable.
+        $hris = $this->employee_id
+            ? app(\App\Services\HrisService::class)->findByEmployeeId($this->employee_id)
+            : null;
+
         return [
             'id' => $this->id,
             'employee_id' => $this->employee_id,
@@ -25,12 +31,12 @@ class UserResource extends JsonResource
             'employment_type' => $this->employment_type,
             'position' => $this->position,
             'department' => $this->department,
-            'base_pay' => $this->base_pay,
-            'take_home_pay' => $this->take_home_pay,
+            'base_pay' => $hris?->base_pay ?? $this->base_pay,
+            'take_home_pay' => $hris?->take_home_pay ?? $this->take_home_pay,
             'role' => $this->role,
             'status' => $this->status,
-            'contract_start' => $this->contract_start?->toDateString(),
-            'contract_end' => $this->contract_end?->toDateString(),
+            'contract_start' => $hris?->contract_start?->toDateString() ?? $this->contract_start?->toDateString(),
+            'contract_end' => $hris?->contract_end?->toDateString() ?? $this->contract_end?->toDateString(),
         ];
     }
 }

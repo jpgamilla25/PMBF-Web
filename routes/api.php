@@ -129,17 +129,19 @@ Route::prefix('v1')->group(function () {
         });
 
         // Member
-        Route::get('profile', [MemberController::class, 'profile']);
-        Route::apiResource('dependents', MemberController::class)
-            ->only(['index', 'store', 'destroy'])
-            ->names([
-                'index' => 'dependents.index',
-                'store' => 'dependents.store',
-                'destroy' => 'dependents.destroy',
-            ]);
-        Route::get('claims', [MemberController::class, 'claims']);
-        Route::post('claims', [MemberController::class, 'storeClaim']);
-        Route::get('benefits', [MemberController::class, 'benefits']);
+        Route::prefix('member')->group(function () {
+            Route::get('profile', [MemberController::class, 'profile']);
+            Route::apiResource('dependents', MemberController::class)
+                ->only(['index', 'store', 'destroy'])
+                ->names([
+                    'index' => 'dependents.index',
+                    'store' => 'dependents.store',
+                    'destroy' => 'dependents.destroy',
+                ]);
+            Route::get('claims', [MemberController::class, 'claims']);
+            Route::post('claims', [MemberController::class, 'storeClaim']);
+            Route::get('benefits', [MemberController::class, 'benefits']);
+        });
 
         // Exemption requests (all authenticated users)
         Route::prefix('exemptions')->group(function () {

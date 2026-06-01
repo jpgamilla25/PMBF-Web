@@ -2,38 +2,46 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
-class HrisEmployee extends Model
+/**
+ * Read-only DTO hydrated from the PhilRice HRIS API response.
+ * Not an Eloquent model — there is no local HRIS table.
+ */
+class HrisEmployee
 {
-    protected $connection = 'hris';
-    protected $table = 'employees';
+    public ?string $employee_id;
+    public ?string $first_name;
+    public ?string $middle_name;
+    public ?string $last_name;
+    public ?string $suffix;
+    public ?string $email;
+    public ?string $mobile;
+    public ?string $employment_type;
+    public ?string $position;
+    public ?string $department;
+    public ?float $base_pay;
+    public ?float $take_home_pay;
+    public ?Carbon $contract_start;
+    public ?Carbon $contract_end;
+    public ?string $status;
 
-    protected $fillable = [
-        'employee_id',
-        'first_name',
-        'middle_name',
-        'last_name',
-        'suffix',
-        'email',
-        'mobile',
-        'employment_type',
-        'position',
-        'department',
-        'base_pay',
-        'take_home_pay',
-        'contract_start',
-        'contract_end',
-        'status',
-    ];
-
-    protected function casts(): array
+    public function __construct(array $attrs = [])
     {
-        return [
-            'base_pay' => 'decimal:2',
-            'take_home_pay' => 'decimal:2',
-            'contract_start' => 'date',
-            'contract_end' => 'date',
-        ];
+        $this->employee_id     = $attrs['employee_id']     ?? null;
+        $this->first_name      = $attrs['first_name']      ?? null;
+        $this->middle_name     = $attrs['middle_name']     ?? null;
+        $this->last_name       = $attrs['last_name']       ?? null;
+        $this->suffix          = $attrs['suffix']          ?? null;
+        $this->email           = $attrs['email']           ?? null;
+        $this->mobile          = $attrs['mobile']          ?? null;
+        $this->employment_type = $attrs['employment_type'] ?? null;
+        $this->position        = $attrs['position']        ?? null;
+        $this->department      = $attrs['department']      ?? null;
+        $this->base_pay        = isset($attrs['base_pay']) ? (float) $attrs['base_pay'] : null;
+        $this->take_home_pay   = isset($attrs['take_home_pay']) ? (float) $attrs['take_home_pay'] : null;
+        $this->contract_start  = !empty($attrs['contract_start']) ? Carbon::parse($attrs['contract_start']) : null;
+        $this->contract_end    = !empty($attrs['contract_end'])   ? Carbon::parse($attrs['contract_end'])   : null;
+        $this->status          = $attrs['status']          ?? null;
     }
 }

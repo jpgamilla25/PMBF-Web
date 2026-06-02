@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('suffix')->nullable();
             $table->string('email')->unique();
             $table->string('mobile')->nullable();
-            $table->enum('employment_type', ['SC', 'Permanent', 'Non-Member'])->default('Permanent');
+            $table->enum('employment_type', ['Contract of Service', 'Permanent', 'Non-Member'])->default('Permanent');
             $table->string('position')->nullable();
             $table->string('department')->nullable();
             $table->decimal('base_pay', 12, 2)->default(0);

@@ -64,14 +64,13 @@ const options = [
     count: (s) => s?.by_type?.Permanent ?? 0,
   },
   {
-    value: 'SC',
-    label: 'Service Contracts',
-    description: 'Manage SC employees, salary loans, co-maker requirements & contract-based terms',
+    value: 'Contract of Service',
+    label: 'Contract of Service',
+    description: 'Manage Contract of Service employees, salary loans, co-maker requirements & contract-based terms',
     icon: 'bi bi-file-earmark-text fs-1',
     iconBg: 'icon-orange',
     cardClass: 'card-orange',
-    btnClass: 'btn-warning',
-    count: (s) => s?.by_type?.SC ?? 0,
+    count: (s) => s?.by_type?.['Contract of Service'] ?? 0,
   },
   {
     value: 'Non-Member',

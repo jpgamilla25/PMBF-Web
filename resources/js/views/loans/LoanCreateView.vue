@@ -458,9 +458,9 @@ onMounted(async () => {
       currentStep.value = 'blocked'
       return
     }
-    // SC members can only have one active loan at a time
-    if (stats.active_loans > 0 && authStore.user?.employment_type === 'SC') {
-      blockedMessage.value = 'You already have an active Salary Loan. SC members may only have one active loan at a time. Please settle your current loan before applying again.'
+    // Contract of Service members can only have one active loan at a time
+    if (stats.active_loans > 0 && authStore.user?.employment_type === 'Contract of Service') {
+      blockedMessage.value = 'You already have an active Salary Loan. Contract of Service members may only have one active loan at a time. Please settle your current loan before applying again.'
       currentStep.value = 'blocked'
       return
     }

@@ -120,19 +120,19 @@ const originalValues = ref({})
  */
 const groupVisibility = {
   // Type-specific groups
-  sc_loan_rules: ['SC', 'all'],
+  sc_loan_rules: ['Contract of Service', 'all'],
   permanent_loan_rules: ['Permanent', 'all'],
   non_member_rules: ['Non-Member', 'all'],
   share_capital: ['Permanent', 'all'],
 
   // Only show the relevant interest rate keys per type (handled in filterConfigs)
-  interest_rates: ['Permanent', 'SC', 'Non-Member', 'all'],
+  interest_rates: ['Permanent', 'Contract of Service', 'Non-Member', 'all'],
 
   // Common groups — always visible
-  approval_workflow: ['Permanent', 'SC', 'Non-Member', 'all'],
-  dependents_coverage: ['Permanent', 'SC', 'Non-Member', 'all'],
-  notifications: ['Permanent', 'SC', 'Non-Member', 'all'],
-  security: ['Permanent', 'SC', 'Non-Member', 'all'],
+  approval_workflow: ['Permanent', 'Contract of Service', 'Non-Member', 'all'],
+  dependents_coverage: ['Permanent', 'Contract of Service', 'Non-Member', 'all'],
+  notifications: ['Permanent', 'Contract of Service', 'Non-Member', 'all'],
+  security: ['Permanent', 'Contract of Service', 'Non-Member', 'all'],
 }
 
 /**

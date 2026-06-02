@@ -92,7 +92,7 @@ class User extends Authenticatable
 
     public function isSC(): bool
     {
-        return $this->employment_type === 'SC';
+        return $this->employment_type === 'Contract of Service';
     }
 
     public function isPermanent(): bool

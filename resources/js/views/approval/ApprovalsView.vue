@@ -67,7 +67,7 @@
         </template>
         <template #cell(employment_type)="{ item }">
           <AppBadge
-            :variant="item.user?.employment_type === 'Permanent' ? 'success' : (item.user?.employment_type === 'SC' ? 'warning' : 'secondary')"
+            :variant="item.user?.employment_type === 'Permanent' ? 'success' : (item.user?.employment_type === 'Contract of Service' ? 'warning' : 'secondary')"
             :text="item.user?.employment_type ?? '-'"
           />
         </template>

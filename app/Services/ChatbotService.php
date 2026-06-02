@@ -101,7 +101,7 @@ class ChatbotService
         if ($user) {
             $userType = $user->employment_type;
             $key = match ($userType) {
-                'SC' => 'interest_rate_sc',
+                'Contract of Service' => 'interest_rate_sc',
                 'Permanent' => 'interest_rate_permanent',
                 default => 'interest_rate_non_member',
             };
@@ -129,8 +129,8 @@ class ChatbotService
             ];
         }
 
-        if (!$user || $user->employment_type === 'SC') {
-            $limits['SC'] = [
+        if (!$user || $user->employment_type === 'Contract of Service') {
+            $limits['Contract of Service'] = [
                 'Salary Loan' => Configuration::getValue('sc_max_loan_amount', '50000') . ' (or salary × contract months)',
             ];
         }
@@ -160,7 +160,7 @@ class ChatbotService
     private function getLoanTerms(?User $user): array
     {
         $terms = [
-            'SC' => Configuration::getValue('sc_available_terms', '3,6,12'),
+            'Contract of Service' => Configuration::getValue('sc_available_terms', '3,6,12'),
             'Permanent' => Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'),
             'Non-Member' => Configuration::getValue('non_member_available_terms', '3,6,12,18,24'),
         ];
@@ -172,8 +172,8 @@ class ChatbotService
         }
         $context .= "\nMaximum term: **{$maxTerm} months**";
 
-        if ($user && $user->employment_type === 'SC') {
-            $context .= "\n\n⚠️ SC terms are also limited by your remaining contract duration.";
+        if ($user && $user->employment_type === 'Contract of Service') {
+            $context .= "\n\n⚠️ Contract of Service terms are also limited by your remaining contract duration.";
         }
 
         return [
@@ -323,7 +323,7 @@ class ChatbotService
 
             if ($user) {
                 $rateKey = match ($user->employment_type) {
-                    'SC' => 'interest_rate_sc',
+                    'Contract of Service' => 'interest_rate_sc',
                     'Non-Member' => 'interest_rate_non_member',
                     default => 'interest_rate_permanent',
                 };
@@ -356,8 +356,8 @@ class ChatbotService
     {
         $types = [];
 
-        if (!$user || $user->employment_type === 'SC') {
-            $types['SC'] = ['Salary Loan'];
+        if (!$user || $user->employment_type === 'Contract of Service') {
+            $types['Contract of Service'] = ['Salary Loan'];
         }
         if (!$user || $user->employment_type === 'Permanent') {
             $types['Permanent'] = ['Consolidated', 'Multi-Purpose', 'Emergency', 'Hospitalization'];

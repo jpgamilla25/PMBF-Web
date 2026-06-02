@@ -18,7 +18,7 @@
             <label class="form-label small fw-medium mb-1">Employment Type</label>
             <select v-model="filters.employment_type" class="form-select form-select-sm" @change="fetchLogs">
               <option value="all">All Types</option>
-              <option value="SC">Service Contract (SC)</option>
+              <option value="Contract of Service">Contract of Service</option>
               <option value="Permanent">Permanent</option>
               <option value="Non-Member">Non-Member</option>
             </select>

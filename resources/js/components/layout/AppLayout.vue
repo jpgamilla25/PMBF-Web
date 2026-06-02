@@ -302,7 +302,7 @@ onMounted(() => {
 const memberTypeOptions = [
   { value: 'all', label: 'All Members', short: 'All', icon: 'bi bi-grid-3x3-gap', color: 'ctx-all' },
   { value: 'Permanent', label: 'Permanent', short: 'Perm', icon: 'bi bi-building', color: 'ctx-perm' },
-  { value: 'SC', label: 'Service Contracts', short: 'SC', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
+  { value: 'Contract of Service', label: 'Contract of Service', short: 'COS', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
   { value: 'Non-Member', label: 'Non-Members', short: 'Non', icon: 'bi bi-person-dash', color: 'ctx-non' },
 ]
 

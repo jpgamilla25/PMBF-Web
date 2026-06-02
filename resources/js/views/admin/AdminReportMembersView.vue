@@ -19,12 +19,12 @@
           <label class="form-label fw-semibold small">Employment Type</label>
           <div v-if="adminContext.memberType && adminContext.memberType !== 'all'" class="form-control form-control-sm bg-light text-muted d-flex align-items-center gap-1" style="cursor:not-allowed;">
             <i class="bi bi-lock-fill" style="font-size:0.7rem;"></i>
-            {{ adminContext.memberType === 'SC' ? 'Service Contract' : adminContext.memberType }}
+            {{ adminContext.memberType === 'Contract of Service' ? 'Contract of Service' : adminContext.memberType }}
           </div>
           <select v-else v-model="filters.employment_type" class="form-select form-select-sm">
             <option value="">All</option>
             <option value="Permanent">Permanent</option>
-            <option value="SC">Service Contract</option>
+            <option value="Contract of Service">Contract of Service</option>
             <option value="Non-Member">Non-Member</option>
           </select>
         </div>

@@ -62,7 +62,7 @@ class FmisService
     {
         $emp = $this->hrisService->findByEmployeeId($employeeId);
 
-        $configKey = $employmentType === 'SC'
+        $configKey = $employmentType === 'Contract of Service'
             ? 'sc_min_take_home_pay'
             : 'permanent_min_take_home_pay';
 

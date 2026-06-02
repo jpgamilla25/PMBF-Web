@@ -93,7 +93,7 @@ const employmentFilter = ref('')
 
 const employmentOptions = [
   { value: '', label: 'All Types' },
-  { value: 'SC', label: 'SC' },
+  { value: 'Contract of Service', label: 'Contract of Service' },
   { value: 'Permanent', label: 'Permanent' },
   { value: 'Non-Member', label: 'Non-Member' },
 ]

@@ -99,6 +99,7 @@
             v-model="depForm.form.birth_date"
             type="date"
             label="Birth Date"
+            required
             :error="depForm.errors.birth_date"
           />
         </div>
@@ -177,10 +178,10 @@ const relationshipOptions = [
 ]
 
 const coverageOptions = [
-  { value: 'none', label: 'None' },
-  { value: 'dental', label: 'Dental' },
-  { value: 'hospitalization', label: 'Hospitalization' },
-  { value: 'both', label: 'Both' },
+  { value: '', label: 'None' },
+  { value: 'Dental', label: 'Dental' },
+  { value: 'Hospitalization', label: 'Hospitalization' },
+  { value: 'Both', label: 'Both' },
 ]
 
 function formatDate(dateStr) {

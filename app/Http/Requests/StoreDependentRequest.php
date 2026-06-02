@@ -20,9 +20,9 @@ class StoreDependentRequest extends FormRequest
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],
-            'relationship' => ['required', 'string', 'in:spouse,child,parent,sibling,other'],
+            'relationship' => ['required', 'string', 'in:Spouse,Child,Parent,Sibling,Other'],
             'birth_date' => ['required', 'date', 'before:today'],
-            'coverage_type' => ['required', 'string', 'in:primary,secondary'],
+            'coverage_type' => ['nullable', 'string', 'in:Dental,Hospitalization,Both'],
         ];
     }
 }

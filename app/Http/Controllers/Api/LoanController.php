@@ -158,14 +158,25 @@ class LoanController extends Controller
             return $this->error('Unauthorized.', 403);
         }
 
-        if (!in_array($loan->status, ['pending', 'receiver_approved', 'committee_approved'])) {
+        $cancellableStatuses = [
+            'co_maker_pending', 'admin_pending', 'pending', 'receiver_approved', 'committee_approved',
+        ];
+        if (!in_array($loan->status, $cancellableStatuses)) {
             return $this->error('Only pending loans can be cancelled.', 422);
         }
 
-        $loan->update(['status' => 'cancelled', 'remarks' => 'Cancelled by ' . ($loan->user_id === $user->id ? 'applicant' : 'admin')]);
+        // Remember whether a co-maker was still awaiting consent before we change status.
+        $hadPendingCoMaker = $loan->status === 'co_maker_pending';
+
+        $loan->update([
+            'status' => 'cancelled',
+            'remarks' => 'Cancelled by ' . ($loan->user_id === $user->id ? 'applicant' : 'admin'),
+            // Invalidate any outstanding co-maker consent link.
+            'co_maker_token' => null,
+        ]);
 
         // Email all approvers + admin
-        $loan->load('user');
+        $loan->load('user', 'coMaker');
         $cancelledBy = $loan->user_id === $user->id ? 'applicant' : 'admin';
         $recipients = \App\Models\User::whereIn('role', ['receiver', 'loan_committee', 'chairperson', 'admin'])
             ->where('status', 'active')
@@ -174,6 +185,11 @@ class LoanController extends Controller
         // Also email the applicant if admin cancelled
         if ($cancelledBy === 'admin') {
             $recipients[] = $loan->user->email;
+        }
+        // Notify the co-maker — they were asked to co-sign (or already consented), so they
+        // should know the loan was cancelled and any pending request no longer needs action.
+        if ($loan->coMaker && ($hadPendingCoMaker || $loan->co_maker_status === 'approved')) {
+            $recipients[] = $loan->coMaker->email;
         }
         foreach (array_unique($recipients) as $email) {
             \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\LoanCancelledMail($loan, $cancelledBy));

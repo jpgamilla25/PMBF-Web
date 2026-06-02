@@ -75,6 +75,15 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 4,
             ],
             [
+                'key' => 'sc_max_loan_percentage',
+                'value' => '50',
+                'type' => 'decimal',
+                'group' => 'sc_loan_rules',
+                'description' => 'SC max loan as a percentage of total contract value (base pay × contract months)',
+                'suffix' => '%',
+                'sort_order' => 4,
+            ],
+            [
                 'key' => 'sc_can_extend_with_board_approval',
                 'value' => '1',
                 'type' => 'boolean',
@@ -481,14 +490,18 @@ class ConfigurationSeeder extends Seeder
         ];
 
         foreach ($configs as $config) {
+            // Insert-only: seed a key just once. Never overwrite values that already
+            // exist, so admin customizations made in the config UI are preserved on
+            // re-runs. Newly-added keys still get inserted on later runs.
+            if (DB::table('configurations')->where('key', $config['key'])->exists()) {
+                continue;
+            }
+
             $config['created_at'] = now();
             $config['updated_at'] = now();
             $config['options'] = $config['options'] ?? null;
             $config['suffix'] = $config['suffix'] ?? null;
-            DB::table('configurations')->updateOrInsert(
-                ['key' => $config['key']],
-                $config
-            );
+            DB::table('configurations')->insert($config);
         }
     }
 }

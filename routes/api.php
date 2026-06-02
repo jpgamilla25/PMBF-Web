@@ -131,13 +131,9 @@ Route::prefix('v1')->group(function () {
         // Member
         Route::prefix('member')->group(function () {
             Route::get('profile', [MemberController::class, 'profile']);
-            Route::apiResource('dependents', MemberController::class)
-                ->only(['index', 'store', 'destroy'])
-                ->names([
-                    'index' => 'dependents.index',
-                    'store' => 'dependents.store',
-                    'destroy' => 'dependents.destroy',
-                ]);
+            Route::get('dependents', [MemberController::class, 'dependents']);
+            Route::post('dependents', [MemberController::class, 'storeDependent']);
+            Route::delete('dependents/{dependent}', [MemberController::class, 'destroyDependent']);
             Route::get('claims', [MemberController::class, 'claims']);
             Route::post('claims', [MemberController::class, 'storeClaim']);
             Route::get('benefits', [MemberController::class, 'benefits']);

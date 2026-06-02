@@ -43,13 +43,17 @@ class FmisService
             $contractMonths = max(1, (int) round($contractStart->floatDiffInMonths($contractEnd)));
         }
 
+        // SC max loan = a percentage of the total contract value (base pay × contract months).
+        // Default 50% — i.e. half of what the member will earn over the remaining contract.
+        $percentage = Configuration::getDecimal('sc_max_loan_percentage', 50) / 100;
+
         return [
             'monthly_salary' => $monthlySalary,
             'contract_months' => $contractMonths,
-            'max_loan_amount' => $monthlySalary * $contractMonths,
+            'max_loan_amount' => $monthlySalary * $contractMonths * $percentage,
             'contract_start' => $contractStart?->toDateString(),
             'contract_end' => $contractEnd?->toDateString(),
-            'extended_max' => $monthlySalary * max($contractMonths, 12),
+            'extended_max' => $monthlySalary * max($contractMonths, 12) * $percentage,
         ];
     }
 

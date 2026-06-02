@@ -307,16 +307,21 @@ const memberTypeOptions = [
   { value: 'Non-Member', label: 'Non-Members', short: 'Non', icon: 'bi bi-person-dash', color: 'ctx-non' },
 ]
 
-const mainMenuItems = [
+// Dependents, Claims and Benefits are member benefits available only to Permanent employees.
+const allMainMenuItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'bi bi-speedometer2' },
   { to: '/loans', label: 'My Loans', icon: 'bi bi-cash-stack' },
   { to: '/loans/new', label: 'Apply for Loan', icon: 'bi bi-plus-circle' },
-  { to: '/dependents', label: 'Dependents', icon: 'bi bi-people' },
-  { to: '/claims', label: 'Claims', icon: 'bi bi-file-earmark-text' },
-  { to: '/benefits', label: 'Benefits', icon: 'bi bi-gift' },
+  { to: '/dependents', label: 'Dependents', icon: 'bi bi-people', permanentOnly: true },
+  { to: '/claims', label: 'Claims', icon: 'bi bi-file-earmark-text', permanentOnly: true },
+  { to: '/benefits', label: 'Benefits', icon: 'bi bi-gift', permanentOnly: true },
   { to: '/shares', label: 'My Shares', icon: 'bi bi-pie-chart' },
   { to: '/profile', label: 'Profile', icon: 'bi bi-person-gear' },
 ]
+
+const mainMenuItems = computed(() =>
+  allMainMenuItems.filter((item) => !item.permanentOnly || authStore.isPermanent)
+)
 
 const adminMenuItems = [
   { to: '/admin/user-types', label: 'User Types', icon: 'bi bi-person-gear' },

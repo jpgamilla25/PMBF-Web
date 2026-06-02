@@ -18,6 +18,7 @@ export const useAuthStore = defineStore('auth', {
     isAdmin: (state) => state.user?.role === 'admin',
     isStaff: (state) =>
       ['admin', 'receiver', 'loan_committee', 'chairperson'].includes(state.user?.role),
+    isPermanent: (state) => state.user?.employment_type === 'Permanent',
     isReceiver: (state) => state.user?.role === 'receiver',
     isLoanCommittee: (state) => state.user?.role === 'loan_committee',
     isChairperson: (state) => state.user?.role === 'chairperson',

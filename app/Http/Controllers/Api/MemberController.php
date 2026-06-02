@@ -19,6 +19,19 @@ class MemberController extends Controller
     use ApiResponse;
 
     /**
+     * Dependents, claims and benefits are member benefits reserved for Permanent
+     * employees. Returns a 403 response for anyone else, or null to proceed.
+     */
+    private function denyIfNotPermanent(Request $request): ?JsonResponse
+    {
+        if ($request->user()->employment_type !== 'Permanent') {
+            return $this->error('This feature is only available to Permanent employees.', 403);
+        }
+
+        return null;
+    }
+
+    /**
      * Get the authenticated user's profile.
      */
     public function profile(Request $request): JsonResponse
@@ -39,6 +52,8 @@ class MemberController extends Controller
      */
     public function dependents(Request $request): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         $dependents = $request->user()
             ->dependents()
             ->withCount('attachments')
@@ -56,6 +71,8 @@ class MemberController extends Controller
      */
     public function storeDependent(StoreDependentRequest $request): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         $dependent = $request->user()->dependents()->create($request->validated());
 
         return $this->success(
@@ -70,6 +87,8 @@ class MemberController extends Controller
      */
     public function destroyDependent(Request $request, Dependent $dependent): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         // Ensure the dependent belongs to the current user
         if ($dependent->user_id !== $request->user()->id) {
             return $this->error('Unauthorized.', 403);
@@ -85,6 +104,8 @@ class MemberController extends Controller
      */
     public function claims(Request $request): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         $claims = $request->user()
             ->claims()
             ->with('dependent')
@@ -100,6 +121,8 @@ class MemberController extends Controller
      */
     public function storeClaim(StoreClaimRequest $request): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         $validated = $request->validated();
 
         // If dependent_id is provided, ensure it belongs to the user
@@ -132,6 +155,8 @@ class MemberController extends Controller
      */
     public function benefits(Request $request): JsonResponse
     {
+        if ($denied = $this->denyIfNotPermanent($request)) return $denied;
+
         $benefits = $request->user()
             ->benefits()
             ->latest()

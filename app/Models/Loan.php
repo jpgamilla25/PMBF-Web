@@ -61,6 +61,19 @@ class Loan extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /**
+     * Human-facing transaction reference (e.g. TXN-2026-000003).
+     * Derived from the application year + zero-padded id so it reads as a
+     * unique reference rather than a per-member loan sequence number.
+     */
+    public function getReferenceNoAttribute(): string
+    {
+        $date = $this->applied_at ?? $this->created_at;
+        $year = $date ? $date->format('Y') : date('Y');
+
+        return sprintf('TXN-%s-%06d', $year, $this->id);
+    }
+
     public function getTotalPaidAttribute(): float
     {
         return $this->payments()->sum('amount');

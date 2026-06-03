@@ -54,7 +54,7 @@
         <p>PhilRice Mutual Benefit Fund</p>
     </div>
 
-    <div class="loan-id">Loan #{{ $loan->id }} &mdash; {{ $loan->loan_type }}</div>
+    <div class="loan-id">Ref. No. {{ $loan->reference_no }} &mdash; {{ $loan->loan_type }}</div>
 
     <div class="amount-box">
         <div class="label">Loan Amount</div>

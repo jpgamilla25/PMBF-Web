@@ -56,6 +56,6 @@ class LoanPdfController extends Controller
 
         $pdf->setPaper('A4', 'portrait');
 
-        return $pdf->stream("Loan-{$loan->id}-Summary.pdf");
+        return $pdf->stream("Loan-{$loan->reference_no}-Summary.pdf");
     }
 }

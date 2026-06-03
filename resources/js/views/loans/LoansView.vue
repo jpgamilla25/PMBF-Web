@@ -79,8 +79,8 @@
 
     <AppCard :padding="false">
       <AppTable :columns="columns" :items="items" :loading="loading" empty-text="No loans found.">
-        <template #cell(index)="{ item }">
-          {{ items.indexOf(item) + 1 + (paginationMeta.current_page - 1) * paginationMeta.per_page }}
+        <template #cell(reference_no)="{ item }">
+          <span class="font-monospace small">{{ item.reference_no ?? '—' }}</span>
         </template>
         <template #cell(loan_type)="{ value }">
           {{ formatLoanType(value) }}
@@ -133,7 +133,7 @@ const pendingCoMakerRequests = ref([])
 const respondingId = ref(null)
 
 const columns = [
-  { key: 'index', label: '#', class: 'text-center' },
+  { key: 'reference_no', label: 'Ref. No.' },
   { key: 'loan_type', label: 'Type' },
   { key: 'amount', label: 'Amount' },
   { key: 'monthly_amortization', label: 'Monthly' },

@@ -5,8 +5,13 @@
         <router-link to="/loans" class="btn btn-outline-secondary btn-sm me-3">
           <i class="bi bi-arrow-left"></i>
         </router-link>
-        <h4 class="fw-bold mb-0">Loan Details</h4>
-        <AppStatusBadge v-if="loan" :status="loan.status" class="ms-2" />
+        <div>
+          <h4 class="fw-bold mb-0 d-inline-block">Loan Details</h4>
+          <AppStatusBadge v-if="loan" :status="loan.status" class="ms-2" />
+          <div v-if="loan?.reference_no" class="text-muted small font-monospace mt-1">
+            Ref. No. {{ loan.reference_no }}
+          </div>
+        </div>
       </div>
       <div class="d-flex gap-2">
         <!-- Print PDF Button -->

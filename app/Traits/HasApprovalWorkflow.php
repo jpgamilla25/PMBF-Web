@@ -124,7 +124,13 @@ trait HasApprovalWorkflow
         // Add admin approval step if loan exceeds max amount
         if ($this->requires_admin_approval) {
             $adminApproval = $approvals->get('admin');
-            $adminStatus = $adminApproval?->status ?? ($this->status === 'admin_pending' ? 'pending' : 'approved');
+            // Only mark the admin step "approved" once the loan has actually advanced
+            // past it. While still co_maker_pending or admin_pending the admin hasn't
+            // acted yet, so it must read as pending (not auto-approved).
+            $advancedPastAdmin = in_array($this->status, [
+                'pending', 'receiver_approved', 'committee_approved', 'chairperson_approved', 'approved', 'released',
+            ], true);
+            $adminStatus = $adminApproval?->status ?? ($advancedPastAdmin ? 'approved' : 'pending');
             $progress[] = [
                 'level' => 'admin',
                 'label' => 'Admin Approval (Above Max)',

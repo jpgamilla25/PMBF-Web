@@ -23,6 +23,15 @@
         >
           <i class="bi bi-file-earmark-pdf me-1"></i>Print PDF
         </a>
+        <!-- Print Payment Breakdown Button -->
+        <a
+          v-if="loan"
+          :href="breakdownUrl"
+          target="_blank"
+          class="btn btn-outline-primary btn-sm"
+        >
+          <i class="bi bi-table me-1"></i>Print Breakdown
+        </a>
         <!-- Cancel Button (only for pending loans) -->
         <button
           v-if="loan && canCancel"
@@ -258,6 +267,12 @@ const pdfUrl = computed(() => {
   return `/api/v1/loans/${loan.value.id}/pdf?token=${token}`
 })
 
+const breakdownUrl = computed(() => {
+  if (!loan.value) return '#'
+  const token = localStorage.getItem('pmbf_token')
+  return `/api/v1/loans/${loan.value.id}/breakdown/pdf?token=${token}`
+})
+
 const canCancel = computed(() => {
   if (!loan.value) return false
   return ['co_maker_pending', 'admin_pending', 'pending', 'receiver_approved', 'committee_approved'].includes(loan.value.status)
@@ -265,7 +280,13 @@ const canCancel = computed(() => {
 
 const totalDue = computed(() => {
   if (!loan.value) return 0
-  return (Number(loan.value.monthly_amortization) || 0) * (Number(loan.value.term_months) || 0)
+  // Prefer the exact server value (principal + interest); fall back to computing it
+  // from the principal so we never show the monthly-rounding artifact (× term).
+  if (loan.value.total_payable != null) return Number(loan.value.total_payable)
+  const amount = Number(loan.value.amount) || 0
+  const rate = Number(loan.value.interest_rate) || 0
+  const months = Number(loan.value.term_months) || 0
+  return Math.round((amount + amount * (rate / 100) * months) * 100) / 100
 })
 
 const remaining = computed(() => {

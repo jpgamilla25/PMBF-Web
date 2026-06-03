@@ -205,7 +205,7 @@ class ChatbotService
         }
 
         if ($activeLoan) {
-            $totalPayable = $activeLoan->monthly_amortization * $activeLoan->term_months;
+            $totalPayable = $activeLoan->total_payable;
             $totalPaid = Payment::where('loan_id', $activeLoan->id)->sum('amount');
             $remaining = $totalPayable - $totalPaid;
             $context .= "\n💰 Active loan remaining balance: **₱" . number_format(max(0, $remaining), 2) . "**";
@@ -233,7 +233,7 @@ class ChatbotService
             ];
         }
 
-        $totalPayable = $loan->monthly_amortization * $loan->term_months;
+        $totalPayable = $loan->total_payable;
         $payments = Payment::where('loan_id', $loan->id)->get();
         $totalPaid = $payments->sum('amount');
         $remaining = max(0, $totalPayable - $totalPaid);

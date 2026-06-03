@@ -81,7 +81,7 @@ class CheckPaymentDueDates extends Command
      */
     private function getNextDueDate(Loan $loan): ?\Carbon\Carbon
     {
-        $totalPayable = $loan->monthly_amortization * $loan->term_months;
+        $totalPayable = $loan->total_payable;
         $totalPaid = $loan->payments()->sum('amount');
 
         if ($totalPaid >= $totalPayable) {

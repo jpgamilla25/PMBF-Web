@@ -252,7 +252,7 @@ class ImportController extends Controller
 
                 // Check if loan is fully paid
                 $totalPaid = $loan->payments()->sum('amount');
-                $totalPayable = $loan->monthly_amortization * $loan->term_months;
+                $totalPayable = $loan->total_payable;
                 if ($totalPaid >= $totalPayable) {
                     $loan->update(['status' => 'completed']);
                 }

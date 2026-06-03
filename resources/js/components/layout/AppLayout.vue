@@ -138,11 +138,19 @@
               v-for="item in mainMenuItems"
               :key="item.to"
               :to="item.to"
-              class="nav-link sidebar-link"
+              class="nav-link sidebar-link d-flex align-items-center"
               :class="{ active: $route.path === item.to }"
               @click="sidebarOpen = false"
             >
               <i :class="item.icon" class="me-2"></i>{{ item.label }}
+              <span
+                v-if="item.to === '/loans' && authStore.coMakerPendingCount > 0"
+                class="badge rounded-pill bg-danger ms-auto"
+                style="font-size: 0.65rem;"
+                title="Co-maker consent needed"
+              >
+                {{ authStore.coMakerPendingCount }}
+              </span>
             </router-link>
 
             <!-- Approvals section (staff) -->

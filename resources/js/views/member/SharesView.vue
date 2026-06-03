@@ -8,7 +8,7 @@
       <!-- Summary Cards -->
       <div class="row g-3 mb-4">
         <div class="col-sm-6 col-lg-4">
-          <AppStatCard title="Current Monthly Share" :value="data.current_monthly ?? 0" icon="bi bi-calendar-month" color="primary" prefix="₱" />
+          <AppStatCard title="Current Monthly Share" :value="data.current_monthly ?? 0" icon="bi bi-calendar-check" color="primary" prefix="₱" />
         </div>
         <div class="col-sm-6 col-lg-4">
           <AppStatCard title="Total Shares" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />

@@ -191,7 +191,7 @@ class AdminController extends Controller
 
         // Check if loan is fully paid (payment already saved, so sum includes it)
         $totalPaid = $loan->payments()->sum('amount');
-        $totalPayable = $loan->monthly_amortization * $loan->term_months;
+        $totalPayable = $loan->total_payable;
 
         if ($totalPaid >= $totalPayable) {
             $loan->update(['status' => 'completed']);
@@ -484,7 +484,7 @@ class AdminController extends Controller
         $collectibles = 0;
         $activeLoansForCalc = (clone $loanQuery)->whereIn('status', ['released', 'chairperson_approved'])->get();
         foreach ($activeLoansForCalc as $loan) {
-            $totalPayable = $loan->monthly_amortization * $loan->term_months;
+            $totalPayable = $loan->total_payable;
             $totalPaid = $loan->payments()->sum('amount');
             $collectibles += max(0, $totalPayable - $totalPaid);
         }

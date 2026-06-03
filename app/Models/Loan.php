@@ -79,10 +79,22 @@ class Loan extends Model
         return $this->payments()->sum('amount');
     }
 
+    /**
+     * Exact total payable = principal + flat interest (rate% per month × term).
+     * Computed from the principal, NOT from monthly_amortization × term, which
+     * would re-introduce the per-month rounding (e.g. 88,333.33 × 6 = 529,999.98
+     * instead of the correct 530,000.00).
+     */
+    public function getTotalPayableAttribute(): float
+    {
+        $interest = (float) $this->amount * ((float) $this->interest_rate / 100) * (int) $this->term_months;
+
+        return round((float) $this->amount + $interest, 2);
+    }
+
     public function getRemainingBalanceAttribute(): float
     {
-        $totalWithInterest = $this->monthly_amortization * $this->term_months;
-        return $totalWithInterest - $this->total_paid;
+        return $this->total_payable - $this->total_paid;
     }
 
     public function getNextApprovalLevelAttribute(): ?string

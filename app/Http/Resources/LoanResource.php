@@ -22,6 +22,7 @@ class LoanResource extends JsonResource
             'interest_rate' => $this->interest_rate,
             'term_months' => $this->term_months,
             'monthly_amortization' => $this->monthly_amortization,
+            'total_payable' => $this->total_payable,
             'co_maker_id' => $this->co_maker_id,
             'co_maker_status' => $this->co_maker_status,
             'co_maker_acted_at' => $this->co_maker_acted_at?->toIso8601String(),

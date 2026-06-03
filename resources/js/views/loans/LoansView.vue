@@ -120,6 +120,7 @@ import { usePagination } from '@/composables/usePagination'
 import loans from '@/services/loans'
 import exemptions from '@/services/exemptions'
 import { useNotificationStore } from '@/stores/notification'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppTable from '@/components/ui/AppTable.vue'
@@ -127,6 +128,7 @@ import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 
 const notify = useNotificationStore()
+const authStore = useAuthStore()
 const { items, meta, loading, fetch } = usePagination(loans.getLoans)
 const pendingExemptions = ref([])
 const pendingCoMakerRequests = ref([])
@@ -180,6 +182,7 @@ async function respondCoMaker(id, action) {
     const msg = data.message ?? (action === 'approve' ? 'You agreed to be the co-maker.' : 'You declined.')
     notify.success(msg)
     pendingCoMakerRequests.value = pendingCoMakerRequests.value.filter(l => l.id !== id)
+    authStore.coMakerPendingCount = pendingCoMakerRequests.value.length
   } catch (e) {
     notify.error(e.response?.data?.message || 'Failed to respond.')
   } finally {
@@ -193,6 +196,7 @@ onMounted(async () => {
   try {
     const { data } = await loans.getPendingCoMaker()
     pendingCoMakerRequests.value = data.data ?? data
+    authStore.coMakerPendingCount = pendingCoMakerRequests.value.length
   } catch (e) {
     console.error('[LoansView] co-maker fetch failed:', e)
   }

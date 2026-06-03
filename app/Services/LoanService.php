@@ -339,7 +339,7 @@ class LoanService
         $nextPayment = null;
         foreach ($active as $loan) {
             if (!$loan->released_at) continue;
-            $totalPayable = $loan->monthly_amortization * $loan->term_months;
+            $totalPayable = $loan->total_payable;
             $loanPaid = $loan->payments->sum('amount');
             if ($loanPaid >= $totalPayable) continue;
 

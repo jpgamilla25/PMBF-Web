@@ -3,6 +3,7 @@ import { useAdminContextStore } from './adminContext'
 import { watch } from 'vue'
 import authService from '../services/auth'
 import approvalsService from '../services/approvals'
+import loansService from '../services/loans'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -11,6 +12,7 @@ export const useAuthStore = defineStore('auth', {
     loading: false,
     pendingApprovalCount: 0,
     releaseCount: 0,
+    coMakerPendingCount: 0,
   }),
 
   getters: {
@@ -72,12 +74,27 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
+     * Count of loans awaiting this user's co-maker consent (drives the
+     * "My Loans" badge so co-makers know they have something to act on).
+     */
+    async fetchCoMakerPendingCount() {
+      try {
+        const { data } = await loansService.getPendingCoMaker()
+        const list = data.data ?? data
+        this.coMakerPendingCount = Array.isArray(list) ? list.length : 0
+      } catch {
+        // ignore
+      }
+    },
+
+    /**
      * Set user + token after OTP-verified login or QR login.
      */
     setAuth(user, token) {
       this.user = user
       this.setToken(token)
       this.fetchPendingApprovalCount()
+      this.fetchCoMakerPendingCount()
     },
 
     async logout() {
@@ -114,6 +131,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = token
         await this.fetchUser()
         await this.fetchPendingApprovalCount()
+        await this.fetchCoMakerPendingCount()
       }
     },
   },

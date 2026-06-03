@@ -86,11 +86,11 @@
             </div>
           </AppCard>
 
-          <!-- Approval History -->
-          <AppCard title="Approval History">
-            <div v-if="loan.approval_history && loan.approval_history.length > 0">
+          <!-- Approval Timeline -->
+          <AppCard title="Approval Timeline">
+            <div v-if="loan.approval_progress && loan.approval_progress.length > 0">
               <div
-                v-for="(step, idx) in loan.approval_history"
+                v-for="(step, idx) in loan.approval_progress"
                 :key="idx"
                 class="d-flex align-items-start mb-3"
               >
@@ -106,12 +106,12 @@
                 <div class="flex-grow-1">
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
-                      <div class="fw-semibold">{{ formatStepRole(step.role ?? step.step) }}</div>
-                      <div class="small text-muted">{{ step.acted_by ?? step.approver_name ?? '-' }}</div>
+                      <div class="fw-semibold">{{ step.label ?? formatStepRole(step.level) }}</div>
+                      <div class="small text-muted">{{ step.approver ?? '-' }}</div>
                     </div>
                     <div class="text-end">
-                      <AppStatusBadge :status="step.action ?? step.status ?? 'pending'" />
-                      <div class="small text-muted mt-1">{{ formatDate(step.acted_at ?? step.created_at) }}</div>
+                      <AppStatusBadge :status="step.status ?? 'pending'" />
+                      <div v-if="step.acted_at" class="small text-muted mt-1">{{ formatDate(step.acted_at) }}</div>
                     </div>
                   </div>
                   <div v-if="step.remarks" class="small text-muted mt-1 fst-italic">

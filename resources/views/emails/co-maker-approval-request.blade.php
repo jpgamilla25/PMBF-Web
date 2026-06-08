@@ -32,6 +32,10 @@
 
         <table width="100%" cellpadding="0" cellspacing="0">
             <tr style="border-bottom: 1px solid #f0f0f0;">
+                <td style="color: #6b7280; width: 45%;">Ref. No.</td>
+                <td style="font-weight: bold;">{{ $loan->reference_no }}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f0f0f0;">
                 <td style="color: #6b7280; width: 45%;">Applicant</td>
                 <td style="font-weight: bold;">{{ $loan->user->full_name }} ({{ $loan->user->employee_id }})</td>
             </tr>

@@ -26,6 +26,7 @@
 
         <table width="100%" cellpadding="6" style="font-size: 13px; color: #6b7280;">
             <tr><td>Applicant</td><td style="font-weight: bold; color: #111;">{{ $loan->user->full_name }} ({{ $loan->user->employee_id }})</td></tr>
+            <tr><td>Ref. No.</td><td style="font-weight: bold; color: #111;">{{ $loan->reference_no }}</td></tr>
             <tr><td>Loan Type</td><td>{{ $loan->loan_type }}</td></tr>
             <tr><td>Amount</td><td>₱{{ number_format($loan->amount, 2) }}</td></tr>
             <tr><td>Term</td><td>{{ $loan->term_months }} months</td></tr>

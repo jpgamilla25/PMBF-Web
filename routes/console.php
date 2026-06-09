@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Check overdue payments daily at 8:00 AM
 Schedule::command('payments:check-due')->dailyAt('08:00');
+
+// Sync share-capital contributions from the FMIS api-center nightly.
+Schedule::command('shares:sync-from-fmis')->dailyAt('02:30')->withoutOverlapping();

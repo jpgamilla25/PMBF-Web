@@ -46,4 +46,10 @@ return [
         'key' => env('HRIS_API_KEY'),
     ],
 
+    'fmis' => [
+        'url' => env('FMIS_API_URL', 'https://api-center.philrice.gov.ph/api/v2/fmis'),
+        'token' => env('FMIS_API_TOKEN', env('HRIS_API_TOKEN')),
+        'key' => env('FMIS_API_KEY', env('HRIS_API_KEY')),
+    ],
+
 ];

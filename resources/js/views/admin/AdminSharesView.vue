@@ -6,6 +6,10 @@
         <span v-if="pendingRequests.length" class="badge bg-danger rounded-pill align-self-center">
           {{ pendingRequests.length }} pending request(s)
         </span>
+        <AppButton variant="outline-secondary" size="sm" :loading="syncing" :disabled="syncing" @click="syncFromFmis">
+          <i v-if="!syncing" class="bi bi-arrow-repeat me-1"></i>
+          {{ syncing ? 'Syncing…' : `Sync ${filterYear} from FMIS` }}
+        </AppButton>
         <AppButton variant="primary" size="sm" @click="openAddModal">
           <i class="bi bi-plus-lg me-1"></i>Set Share
         </AppButton>
@@ -176,6 +180,9 @@ const rejectReqId = ref(null)
 const rejectRemarks = ref('')
 const rejecting = ref(false)
 
+// FMIS sync
+const syncing = ref(false)
+
 let debounceTimer = null
 function debouncedFetch() {
   clearTimeout(debounceTimer)
@@ -247,6 +254,20 @@ async function handleSave() {
   } catch (e) {
     notify.error(e.response?.data?.message || 'Failed to save.')
   } finally { saving.value = false }
+}
+
+async function syncFromFmis() {
+  if (syncing.value) return
+  if (!confirm(`Pull share-capital contributions for ${filterYear.value} from the FMIS api-center? This may take 1-2 minutes.`)) return
+  syncing.value = true
+  try {
+    const { data } = await sharesService.syncFromFmis({ year: filterYear.value })
+    const msg = data.data?.summary || data.message || 'FMIS sync complete.'
+    notify.success(msg)
+    await fetchShares()
+  } catch (e) {
+    notify.error(e.response?.data?.message || 'FMIS sync failed.')
+  } finally { syncing.value = false }
 }
 
 async function approveReq(id) {

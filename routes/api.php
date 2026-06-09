@@ -234,6 +234,7 @@ Route::prefix('v1')->group(function () {
             Route::get('shares', [\App\Http\Controllers\Api\ShareController::class, 'index']);
             Route::post('shares', [\App\Http\Controllers\Api\ShareController::class, 'store']);
             Route::post('shares/bulk', [\App\Http\Controllers\Api\ShareController::class, 'bulkStore']);
+            Route::post('shares/sync-from-fmis', [\App\Http\Controllers\Api\ShareController::class, 'syncFromFmis']);
             Route::get('shares/pending-requests', [\App\Http\Controllers\Api\ShareController::class, 'pendingRequests']);
             Route::post('shares/requests/{shareUpdateRequest}/approve', [\App\Http\Controllers\Api\ShareController::class, 'approveRequest']);
             Route::post('shares/requests/{shareUpdateRequest}/reject', [\App\Http\Controllers\Api\ShareController::class, 'rejectRequest']);

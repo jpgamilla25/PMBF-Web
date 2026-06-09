@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 
 class ShareController extends Controller
 {
@@ -244,6 +245,45 @@ class ShareController extends Controller
         );
 
         return $this->success(null, 'Share update approved. Will reflect next month.');
+    }
+
+    /**
+     * Admin: Trigger a synchronous sync from the FMIS api-center.
+     * Defaults to the current calendar year; pass `year` to scope to a specific one.
+     * Does NOT touch the nightly since-cursor — this is a manual refresh, not a delta pull.
+     */
+    public function syncFromFmis(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'year' => 'nullable|integer|min:2020|max:2100',
+        ]);
+
+        $year = $validated['year'] ?? (int) now()->year;
+
+        $startedAt = now();
+        $exitCode = Artisan::call('shares:sync-from-fmis', [
+            '--year' => $year,
+            '--no-update-cursor' => true,
+        ]);
+        $output = Artisan::output();
+
+        if ($exitCode !== 0) {
+            return $this->error('Sync failed. See logs for details.', 502);
+        }
+
+        // Pull the "Done — X upserted, Y skipped" tail for the UI message.
+        $summary = '';
+        if (preg_match('/Done — (\d+) upserted, (\d+) skipped/u', $output, $m)) {
+            $summary = "{$m[1]} rows synced, {$m[2]} skipped (unknown employee)";
+        }
+
+        return $this->success([
+            'year' => $year,
+            'started_at' => $startedAt->toIso8601String(),
+            'finished_at' => now()->toIso8601String(),
+            'duration_seconds' => (int) $startedAt->diffInSeconds(now()),
+            'summary' => $summary,
+        ], $summary !== '' ? "FMIS sync complete: {$summary}." : 'FMIS sync complete.');
     }
 
     /**

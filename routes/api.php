@@ -235,9 +235,15 @@ Route::prefix('v1')->group(function () {
             Route::post('shares', [\App\Http\Controllers\Api\ShareController::class, 'store']);
             Route::post('shares/bulk', [\App\Http\Controllers\Api\ShareController::class, 'bulkStore']);
             Route::post('shares/sync-from-fmis', [\App\Http\Controllers\Api\ShareController::class, 'syncFromFmis']);
+            Route::get('shares/analytics', [\App\Http\Controllers\Api\ShareController::class, 'analytics']);
+            Route::get('shares/members/{user}', [\App\Http\Controllers\Api\ShareController::class, 'memberShares']);
             Route::get('shares/pending-requests', [\App\Http\Controllers\Api\ShareController::class, 'pendingRequests']);
             Route::post('shares/requests/{shareUpdateRequest}/approve', [\App\Http\Controllers\Api\ShareController::class, 'approveRequest']);
             Route::post('shares/requests/{shareUpdateRequest}/reject', [\App\Http\Controllers\Api\ShareController::class, 'rejectRequest']);
+
+            // Scheduler monitor
+            Route::get('schedule',          [\App\Http\Controllers\Api\AdminScheduleController::class, 'index']);
+            Route::post('schedule/run',     [\App\Http\Controllers\Api\AdminScheduleController::class, 'run']);
 
             // User Type Management
             Route::get('activity-logs',       [AdminController::class, 'activityLogs']);

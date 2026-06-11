@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\FmisShareContribution;
+use App\Models\ScheduleRun;
 use App\Models\ShareCapital;
 use App\Models\ShareUpdateRequest;
-use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -248,6 +249,106 @@ class ShareController extends Controller
     }
 
     /**
+     * Admin: Per-member monthly breakdown for the requested year, combining
+     * curated share_capitals values with the raw FMIS rows for cross-check.
+     */
+    public function memberShares(\App\Models\User $user, Request $request): JsonResponse
+    {
+        $year = (int) $request->input('year', now()->year);
+
+        $shareRows = ShareCapital::where('user_id', $user->id)
+            ->where('year', $year)
+            ->orderBy('month')
+            ->get();
+
+        $fmisRows = FmisShareContribution::where('employee_id', $user->employee_id)
+            ->where('year', $year)
+            ->orderBy('month')
+            ->get();
+
+        $shareByMonth = $shareRows->keyBy('month');
+        $fmisByMonth = $fmisRows->keyBy('month');
+
+        $months = [];
+        for ($m = 1; $m <= 12; $m++) {
+            $s = $shareByMonth->get($m);
+            $f = $fmisByMonth->get($m);
+            $months[] = [
+                'month' => $m,
+                'curated_amount' => $s ? (float) $s->amount : null,
+                'fmis_amount' => $f ? (float) $f->amount : null,
+                'dv_number' => $f?->dv_number,
+                'dv_date' => $f?->dv_date?->toDateString(),
+                'fund' => $f?->fund,
+                'voided' => (bool) ($f?->voided ?? false),
+                'remarks' => $s?->remarks,
+            ];
+        }
+
+        $yearTotals = FmisShareContribution::where('employee_id', $user->employee_id)
+            ->selectRaw('year, SUM(amount) AS total')
+            ->groupBy('year')
+            ->orderBy('year', 'desc')
+            ->get()
+            ->map(fn ($row) => ['year' => (int) $row->year, 'total' => (float) $row->total]);
+
+        return $this->success([
+            'user' => [
+                'id' => $user->id,
+                'employee_id' => $user->employee_id,
+                'first_name' => $user->first_name,
+                'last_name' => $user->last_name,
+                'middle_name' => $user->middle_name,
+                'employment_type' => $user->employment_type,
+                'department' => $user->department,
+            ],
+            'year' => $year,
+            'months' => $months,
+            'totals' => [
+                'curated' => (float) $shareRows->sum('amount'),
+                'fmis' => (float) $fmisRows->sum('amount'),
+                'lifetime_fmis' => (float) FmisShareContribution::where('employee_id', $user->employee_id)->sum('amount'),
+            ],
+            'years_with_data' => $yearTotals,
+        ]);
+    }
+
+    /**
+     * Admin: Aggregate counters split between FMIS contributions whose
+     * employee_id is registered in PMBF and those that aren't.
+     */
+    public function analytics(Request $request): JsonResponse
+    {
+        $year = (int) $request->input('year', now()->year);
+
+        $rows = FmisShareContribution::query()
+            ->leftJoin('users', 'users.employee_id', '=', 'fmis_share_contributions.employee_id')
+            ->where('fmis_share_contributions.year', $year)
+            ->selectRaw('
+                COUNT(DISTINCT CASE WHEN users.id IS NOT NULL THEN fmis_share_contributions.employee_id END) AS registered_employees,
+                COALESCE(SUM(CASE WHEN users.id IS NOT NULL THEN fmis_share_contributions.amount END), 0) AS registered_total,
+                COUNT(DISTINCT CASE WHEN users.id IS NULL THEN fmis_share_contributions.employee_id END) AS unregistered_employees,
+                COALESCE(SUM(CASE WHEN users.id IS NULL THEN fmis_share_contributions.amount END), 0) AS unregistered_total
+            ')
+            ->first();
+
+        $latestSync = FmisShareContribution::max('updated_at');
+
+        return $this->success([
+            'year' => $year,
+            'registered' => [
+                'employees' => (int) ($rows->registered_employees ?? 0),
+                'total_amount' => (float) ($rows->registered_total ?? 0),
+            ],
+            'unregistered' => [
+                'employees' => (int) ($rows->unregistered_employees ?? 0),
+                'total_amount' => (float) ($rows->unregistered_total ?? 0),
+            ],
+            'last_synced_at' => $latestSync,
+        ]);
+    }
+
+    /**
      * Admin: Trigger a synchronous sync from the FMIS api-center.
      * Defaults to the current calendar year; pass `year` to scope to a specific one.
      * Does NOT touch the nightly since-cursor — this is a manual refresh, not a delta pull.
@@ -258,22 +359,50 @@ class ShareController extends Controller
             'year' => 'nullable|integer|min:2020|max:2100',
         ]);
 
+        // Full-year syncs against the live FMIS API can run several minutes
+        // when paginating thousands of rows — well past php.ini's default
+        // 60s max_execution_time. Lift the cap for this request only and
+        // keep processing if the admin closes the tab mid-run.
+        @set_time_limit(0);
+        @ignore_user_abort(true);
+
         $year = $validated['year'] ?? (int) now()->year;
 
         $startedAt = now();
+        $runRow = ScheduleRun::create([
+            'command' => "shares:sync-from-fmis --year={$year}",
+            'expression' => null,
+            'status' => 'running',
+            'started_at' => $startedAt,
+            'manual' => true,
+        ]);
+
+        $startedMs = microtime(true);
         $exitCode = Artisan::call('shares:sync-from-fmis', [
             '--year' => $year,
             '--no-update-cursor' => true,
         ]);
         $output = Artisan::output();
+        $durationMs = (int) round((microtime(true) - $startedMs) * 1000);
+
+        $runRow->update([
+            'status' => $exitCode === 0 ? 'success' : 'failed',
+            'exit_code' => $exitCode,
+            'finished_at' => now(),
+            'duration_ms' => $durationMs,
+            'output_excerpt' => mb_substr($output, -4000),
+        ]);
 
         if ($exitCode !== 0) {
             return $this->error('Sync failed. See logs for details.', 502);
         }
 
-        // Pull the "Done — X upserted, Y skipped" tail for the UI message.
+        // Surface the row count summary from the new bulk output, fall back to the
+        // old format for compatibility with any callers running an older binary.
         $summary = '';
-        if (preg_match('/Done — (\d+) upserted, (\d+) skipped/u', $output, $m)) {
+        if (preg_match('/Done — (\d+) raw rows, (\d+) registered, (\d+) unregistered/u', $output, $m)) {
+            $summary = "{$m[1]} rows synced — {$m[2]} registered, {$m[3]} unregistered";
+        } elseif (preg_match('/Done — (\d+) upserted, (\d+) skipped/u', $output, $m)) {
             $summary = "{$m[1]} rows synced, {$m[2]} skipped (unknown employee)";
         }
 
@@ -283,6 +412,7 @@ class ShareController extends Controller
             'finished_at' => now()->toIso8601String(),
             'duration_seconds' => (int) $startedAt->diffInSeconds(now()),
             'summary' => $summary,
+            'schedule_run_id' => $runRow->id,
         ], $summary !== '' ? "FMIS sync complete: {$summary}." : 'FMIS sync complete.');
     }
 

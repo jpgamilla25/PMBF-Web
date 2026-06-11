@@ -339,6 +339,7 @@ const adminMenuItems = [
   { to: '/admin/config', label: 'Configuration', icon: 'bi bi-gear' },
   { to: '/admin/reports', label: 'Reports', icon: 'bi bi-file-earmark-bar-graph' },
   { to: '/admin/shares', label: 'Share Capital', icon: 'bi bi-pie-chart' },
+  { to: '/admin/schedule', label: 'Schedule Monitor', icon: 'bi bi-clock-history' },
   { to: '/admin/import', label: 'Import Data', icon: 'bi bi-upload' },
   { to: '/admin/mobile-settings', label: 'Mobile App', icon: 'bi bi-phone' },
 ]

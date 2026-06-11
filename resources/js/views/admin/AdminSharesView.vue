@@ -16,6 +16,52 @@
       </div>
     </div>
 
+    <!-- Analytics: registered vs unregistered FMIS contributions -->
+    <div class="row g-3 mb-4">
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Registered Members</div>
+          <div class="fs-4 fw-bold text-success">
+            {{ Number(analytics.registered?.employees ?? 0).toLocaleString() }}
+          </div>
+          <div class="small text-muted">
+            &#8369;{{ Number(analytics.registered?.total_amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }} this {{ filterYear }}
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Unregistered Employees</div>
+          <div class="fs-4 fw-bold text-warning">
+            {{ Number(analytics.unregistered?.employees ?? 0).toLocaleString() }}
+          </div>
+          <div class="small text-muted">
+            &#8369;{{ Number(analytics.unregistered?.total_amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }} held in FMIS only
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">FMIS Total ({{ filterYear }})</div>
+          <div class="fs-4 fw-bold text-primary">
+            &#8369;{{ Number(fmisGrandTotal).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}
+          </div>
+          <div class="small text-muted">
+            {{ Number((analytics.registered?.employees ?? 0) + (analytics.unregistered?.employees ?? 0)).toLocaleString() }} unique employees
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Last FMIS Sync</div>
+          <div class="fs-6 fw-semibold">
+            {{ analytics.last_synced_at ? formatSyncTime(analytics.last_synced_at) : 'Never' }}
+          </div>
+          <div class="small text-muted">Refreshes on each manual sync</div>
+        </AppCard>
+      </div>
+    </div>
+
     <!-- Pending Requests -->
     <AppCard v-if="pendingRequests.length" title="Pending Update Requests" class="mb-4">
       <div v-for="req in pendingRequests" :key="req.id" class="d-flex align-items-center justify-content-between py-2 border-bottom">
@@ -85,6 +131,9 @@
             <td class="fw-semibold">&#8369;{{ Number(m.total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
             <td>&#8369;{{ Number(m.latest_amount ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
             <td class="text-end">
+              <button class="btn btn-sm btn-outline-secondary me-1" @click="openViewModal(m)" title="View per-month shares">
+                <i class="bi bi-eye"></i>
+              </button>
               <button class="btn btn-sm btn-outline-primary" @click="openEditModal(m)">
                 <i class="bi bi-pencil me-1"></i>Edit
               </button>
@@ -127,6 +176,8 @@
       </template>
     </AppModal>
 
+    <!-- View Member Shares Modal -->
+    <MemberSharesModal :show="showViewModal" :user-id="viewUserId" :initial-year="filterYear" @close="closeViewModal" />
     <!-- Reject Modal -->
     <AppModal :show="showRejectModal" title="Reject Share Update" @close="showRejectModal = false">
       <AppInput v-model="rejectRemarks" type="textarea" label="Reason for rejection *" placeholder="Why are you rejecting this request?" required />
@@ -139,7 +190,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useNotificationStore } from '@/stores/notification'
 import { useAdminContextStore } from '@/stores/adminContext'
 import sharesService from '@/services/shares'
@@ -151,6 +202,7 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppSearchSelect from '@/components/ui/AppSearchSelect.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
+import MemberSharesModal from '@/components/ui/MemberSharesModal.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 
 const notify = useNotificationStore()
@@ -180,8 +232,39 @@ const rejectReqId = ref(null)
 const rejectRemarks = ref('')
 const rejecting = ref(false)
 
+// View member shares
+const showViewModal = ref(false)
+const viewUserId = ref(null)
+
+function openViewModal(m) {
+  viewUserId.value = m.user_id
+  showViewModal.value = true
+}
+
+function closeViewModal() {
+  showViewModal.value = false
+  viewUserId.value = null
+}
+
 // FMIS sync
 const syncing = ref(false)
+const analytics = ref({})
+const fmisGrandTotal = computed(() =>
+  Number(analytics.value.registered?.total_amount ?? 0) + Number(analytics.value.unregistered?.total_amount ?? 0)
+)
+
+function formatSyncTime(iso) {
+  try {
+    return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch { return iso }
+}
+
+async function fetchAnalytics() {
+  try {
+    const { data } = await sharesService.getAnalytics({ year: filterYear.value })
+    analytics.value = data.data ?? data
+  } catch { /* ignore */ }
+}
 
 let debounceTimer = null
 function debouncedFetch() {
@@ -264,7 +347,7 @@ async function syncFromFmis() {
     const { data } = await sharesService.syncFromFmis({ year: filterYear.value })
     const msg = data.data?.summary || data.message || 'FMIS sync complete.'
     notify.success(msg)
-    await fetchShares()
+    await Promise.all([fetchShares(), fetchAnalytics()])
   } catch (e) {
     notify.error(e.response?.data?.message || 'FMIS sync failed.')
   } finally { syncing.value = false }
@@ -296,9 +379,11 @@ async function rejectReq() {
 }
 
 watch(() => adminContext.memberType, fetchShares)
+watch(filterYear, fetchAnalytics)
 
 onMounted(() => {
   fetchShares()
   fetchPendingRequests()
+  fetchAnalytics()
 })
 </script>

@@ -55,6 +55,13 @@
           <AppStatusBadge :status="value" />
         </template>
         <template #cell(actions)="{ item }">
+          <button
+            class="btn btn-sm btn-outline-secondary me-1"
+            title="View shares"
+            @click="openShares(item.id)"
+          >
+            <i class="bi bi-pie-chart"></i>
+          </button>
           <router-link :to="`/admin/members/${item.id}`" class="btn btn-sm btn-outline-primary">
             <i class="bi bi-eye me-1"></i>View
           </router-link>
@@ -68,6 +75,8 @@
         />
       </template>
     </AppCard>
+
+    <MemberSharesModal :show="showSharesModal" :user-id="sharesUserId" @close="closeShares" />
   </AppLayout>
 </template>
 
@@ -84,9 +93,23 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
+import MemberSharesModal from '@/components/ui/MemberSharesModal.vue'
 
 const adminContext = useAdminContextStore()
 const { items, meta, loading, filters, fetch } = usePagination(admin.getMembers)
+
+const showSharesModal = ref(false)
+const sharesUserId = ref(null)
+
+function openShares(userId) {
+  sharesUserId.value = userId
+  showSharesModal.value = true
+}
+
+function closeShares() {
+  showSharesModal.value = false
+  sharesUserId.value = null
+}
 
 const searchQuery = ref('')
 const employmentFilter = ref('')

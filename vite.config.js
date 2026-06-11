@@ -22,10 +22,10 @@ export default defineConfig({
             '@': '/resources/js',
         },
     },
-    server: {
-        host: 'pmbf_web.test',
-        hmr: {
-            host: 'pmbf_web.test',
-        },
-    },
+    // server: {
+    //     host: 'pmbf_web.test',
+    //     hmr: {
+    //         host: 'pmbf_web.test',
+    //     },
+    // },
 });

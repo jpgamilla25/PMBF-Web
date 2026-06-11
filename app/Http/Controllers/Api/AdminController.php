@@ -449,7 +449,10 @@ class AdminController extends Controller
             ->pluck('count', 'employment_type');
 
         // ── Loan query (context-aware) ──
-        $loanQuery = Loan::query();
+        // Cancelled and disapproved loans are excluded from every dashboard
+        // rollup so they don't inflate totals, the by-status chart, or the
+        // "recent" feed.
+        $loanQuery = Loan::query()->whereNotIn('status', ['cancelled', 'disapproved']);
         if ($empType && $empType !== 'all') {
             $loanQuery->whereHas('user', fn ($q) => $q->where('employment_type', $empType));
         }
@@ -534,6 +537,7 @@ class AdminController extends Controller
                 'by_status' => $loansByStatus,
                 'recent' => LoanResource::collection(
                     Loan::with('user')
+                        ->whereNotIn('status', ['cancelled', 'disapproved'])
                         ->when($empType && $empType !== 'all', fn ($q) => $q->whereHas('user', fn ($q2) => $q2->where('employment_type', $empType)))
                         ->latest()->take(5)->get()
                 ),

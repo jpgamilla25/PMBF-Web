@@ -14,7 +14,7 @@ export const useAdminContextStore = defineStore('adminContext', {
       const labels = {
         all: 'All Members',
         Permanent: 'Permanent',
-        SC: 'Service Contracts',
+        'Contract of Service': 'Contract of Service',
         'Non-Member': 'Non-Members',
       }
       return labels[state.memberType] || 'All Members'
@@ -24,7 +24,7 @@ export const useAdminContextStore = defineStore('adminContext', {
       const colors = {
         all: 'primary',
         Permanent: 'success',
-        SC: 'warning',
+        'Contract of Service': 'warning',
         'Non-Member': 'secondary',
       }
       return colors[state.memberType] || 'primary'

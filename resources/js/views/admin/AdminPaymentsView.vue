@@ -1,8 +1,26 @@
 <template>
   <AppLayout>
     <div class="d-flex align-items-center justify-content-between mb-4">
-      <h4 class="fw-bold mb-0">Cash Payments</h4>
-      <div class="d-flex gap-2">
+      <h4 class="fw-bold mb-0">Payments</h4>
+      <div class="d-flex gap-2 align-items-center">
+        <select
+          v-model.number="fmisYear"
+          class="form-select form-select-sm"
+          style="width: auto;"
+          :disabled="syncing"
+          @change="fetchFmisAnalytics"
+        >
+          <option v-for="y in fmisYearOptions" :key="y" :value="y">{{ y }}</option>
+        </select>
+        <AppButton
+          variant="outline-secondary"
+          :loading="syncing"
+          :disabled="syncing"
+          @click="syncFromFmis"
+        >
+          <i v-if="!syncing" class="bi bi-arrow-repeat me-1"></i>
+          {{ syncing ? 'Syncing…' : `Sync ${fmisYear} payroll deductions` }}
+        </AppButton>
         <AppButton variant="outline-success" @click="showImportModal = true">
           <i class="bi bi-upload me-1"></i>Import CSV
         </AppButton>
@@ -11,6 +29,55 @@
         </AppButton>
       </div>
     </div>
+
+    <!-- FMIS payroll-deduction analytics -->
+    <div class="row g-3 mb-4">
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Registered Members ({{ fmisYear }})</div>
+          <div class="fs-4 fw-bold text-success">
+            {{ Number(fmisAnalytics.registered?.employees ?? 0).toLocaleString() }}
+          </div>
+          <div class="small text-muted">
+            &#8369;{{ formatPeso(fmisAnalytics.registered?.total_amount ?? 0) }} deducted
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Unregistered Employees</div>
+          <div class="fs-4 fw-bold text-warning">
+            {{ Number(fmisAnalytics.unregistered?.employees ?? 0).toLocaleString() }}
+          </div>
+          <div class="small text-muted">
+            &#8369;{{ formatPeso(fmisAnalytics.unregistered?.total_amount ?? 0) }} held in FMIS only
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">FMIS Payroll Total ({{ fmisYear }})</div>
+          <div class="fs-4 fw-bold text-primary">
+            &#8369;{{ formatPeso(fmisGrandTotal) }}
+          </div>
+          <div class="small text-muted">
+            {{ Number((fmisAnalytics.registered?.employees ?? 0) + (fmisAnalytics.unregistered?.employees ?? 0)).toLocaleString() }} unique employees
+          </div>
+        </AppCard>
+      </div>
+      <div class="col-sm-6 col-lg-3">
+        <AppCard padding>
+          <div class="text-muted small">Last FMIS Sync</div>
+          <div class="fs-6 fw-semibold">
+            {{ fmisAnalytics.last_synced_at ? formatSyncTime(fmisAnalytics.last_synced_at) : 'Never' }}
+          </div>
+          <div class="small text-muted">Refreshes on each manual sync</div>
+        </AppCard>
+      </div>
+    </div>
+
+    <!-- Pending FMIS Allocations -->
+    <PendingFmisAllocations ref="pendingPanel" @after-apply="onAllocationApplied" />
 
     <!-- Filters -->
     <div class="card mb-3">
@@ -68,8 +135,20 @@
           {{ items.indexOf(item) + 1 + (meta.currentPage - 1) * meta.perPage }}
         </template>
         <template #cell(member)="{ item }">
-          <div class="fw-semibold">{{ item.member?.full_name ?? item.member_name ?? '-' }}</div>
-          <small class="text-muted">{{ item.member?.employee_id ?? '' }}</small>
+          <div class="d-flex align-items-center gap-2">
+            <div>
+              <div class="fw-semibold">{{ item.member?.full_name ?? item.member_name ?? '-' }}</div>
+              <small class="text-muted">{{ item.member?.employee_id ?? '' }}</small>
+            </div>
+            <button
+              v-if="item.member?.id"
+              class="btn btn-sm btn-link p-0"
+              title="View FMIS payroll deductions"
+              @click="openFmisModal(item.member.id)"
+            >
+              <i class="bi bi-credit-card-2-back"></i>
+            </button>
+          </div>
         </template>
         <template #cell(loan)="{ item }">
           <span class="small">{{ formatLoanType(item.loan?.loan_type ?? item.loan_type) }}</span>
@@ -179,6 +258,12 @@
       </template>
     </AppModal>
 
+    <MemberPaymentsModal
+      :show="showFmisModal"
+      :user-id="fmisUserId"
+      @close="closeFmisModal"
+    />
+
     <!-- Import Payments Modal -->
     <AppModal :show="showImportModal" title="Import Payments from CSV" @close="closeImportModal">
       <div class="mb-3">
@@ -230,12 +315,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { usePagination } from '@/composables/usePagination'
 import { useForm } from '@/composables/useForm'
 import { useNotificationStore } from '@/stores/notification'
 import { useAdminContextStore } from '@/stores/adminContext'
 import admin from '@/services/admin'
+import loanPaymentsService from '@/services/loanPayments'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppTable from '@/components/ui/AppTable.vue'
@@ -244,6 +330,8 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 import AppSearchSelect from '@/components/ui/AppSearchSelect.vue'
+import MemberPaymentsModal from '@/components/ui/MemberPaymentsModal.vue'
+import PendingFmisAllocations from '@/components/ui/PendingFmisAllocations.vue'
 
 const notification = useNotificationStore()
 const adminContext = useAdminContextStore()
@@ -508,9 +596,70 @@ async function handleImport() {
   }
 }
 
+// ─── FMIS Payroll Deductions ───────────────────────────────
+const currentYear = new Date().getFullYear()
+const fmisYear = ref(currentYear)
+const fmisYearOptions = Array.from({ length: 6 }, (_, i) => currentYear - i)
+const syncing = ref(false)
+const fmisAnalytics = ref({})
+const fmisGrandTotal = computed(() =>
+  Number(fmisAnalytics.value.registered?.total_amount ?? 0) + Number(fmisAnalytics.value.unregistered?.total_amount ?? 0)
+)
+
+const showFmisModal = ref(false)
+const fmisUserId = ref(null)
+
+function formatPeso(n) {
+  return Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })
+}
+
+function formatSyncTime(iso) {
+  try {
+    return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch { return iso }
+}
+
+async function fetchFmisAnalytics() {
+  try {
+    const { data } = await loanPaymentsService.getAnalytics({ year: fmisYear.value })
+    fmisAnalytics.value = data.data ?? data
+  } catch { /* ignore */ }
+}
+
+async function syncFromFmis() {
+  if (syncing.value) return
+  if (!confirm(`Pull payroll-deduction loan payments for ${fmisYear.value} from the FMIS api-center? This may take 1–2 minutes.`)) return
+  syncing.value = true
+  try {
+    const { data } = await loanPaymentsService.syncFromFmis({ year: fmisYear.value })
+    notification.success(data.data?.summary || data.message || 'FMIS sync complete.')
+    await Promise.all([fetchFmisAnalytics(), fetch(meta.currentPage)])
+  } catch (e) {
+    notification.error(e.response?.data?.message || 'FMIS sync failed.')
+  } finally { syncing.value = false }
+}
+
+function openFmisModal(userId) {
+  fmisUserId.value = userId
+  showFmisModal.value = true
+}
+
+function closeFmisModal() {
+  showFmisModal.value = false
+  fmisUserId.value = null
+}
+
+const pendingPanel = ref(null)
+function onAllocationApplied() {
+  // An allocation became a real payment → refresh the main table and analytics.
+  fetch(meta.currentPage)
+  fetchFmisAnalytics()
+}
+
 onMounted(() => {
   // default: This Month
   applyPreset(datePresets[0])
   applyContextFilter()
+  fetchFmisAnalytics()
 })
 </script>

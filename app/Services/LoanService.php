@@ -97,6 +97,16 @@ class LoanService
     }
 
     /**
+     * Categorize a loan type for FMIS-link decisions. Emergency loans bundle
+     * into the same payroll deduction as the member's regular loan, so the
+     * linker needs to know which bucket each loan falls into.
+     */
+    public static function categoryOf(?string $loanType): string
+    {
+        return $loanType === 'Emergency' ? 'emergency' : 'regular';
+    }
+
+    /**
      * Parse comma-separated term string into sorted int array.
      */
     private function parseTerms(string $terms): array

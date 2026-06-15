@@ -15,6 +15,8 @@ class Payment extends Model
         'payment_date',
         'remarks',
         'receipt_path',
+        'fmis_dv_number',
+        'auto_linked',
     ];
 
     protected function casts(): array
@@ -22,6 +24,7 @@ class Payment extends Model
         return [
             'amount' => 'decimal:2',
             'payment_date' => 'date',
+            'auto_linked' => 'boolean',
         ];
     }
 

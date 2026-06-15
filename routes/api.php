@@ -237,6 +237,15 @@ Route::prefix('v1')->group(function () {
             Route::post('shares/sync-from-fmis', [\App\Http\Controllers\Api\ShareController::class, 'syncFromFmis']);
             Route::get('shares/analytics', [\App\Http\Controllers\Api\ShareController::class, 'analytics']);
             Route::get('shares/members/{user}', [\App\Http\Controllers\Api\ShareController::class, 'memberShares']);
+
+            // Loan Payments (FMIS payroll deductions)
+            Route::get('loan-payments', [\App\Http\Controllers\Api\LoanPaymentController::class, 'index']);
+            Route::get('loan-payments/analytics', [\App\Http\Controllers\Api\LoanPaymentController::class, 'analytics']);
+            Route::get('loan-payments/members/{user}', [\App\Http\Controllers\Api\LoanPaymentController::class, 'memberPayments']);
+            Route::post('loan-payments/sync-from-fmis', [\App\Http\Controllers\Api\LoanPaymentController::class, 'syncFromFmis']);
+            Route::get('loan-payments/pending', [\App\Http\Controllers\Api\LoanPaymentController::class, 'pending']);
+            Route::post('loan-payments/pending/{fmisLoanPayment}/apply', [\App\Http\Controllers\Api\LoanPaymentController::class, 'applyPending']);
+            Route::post('loan-payments/link', [\App\Http\Controllers\Api\LoanPaymentController::class, 'runLinker']);
             Route::get('shares/pending-requests', [\App\Http\Controllers\Api\ShareController::class, 'pendingRequests']);
             Route::post('shares/requests/{shareUpdateRequest}/approve', [\App\Http\Controllers\Api\ShareController::class, 'approveRequest']);
             Route::post('shares/requests/{shareUpdateRequest}/reject', [\App\Http\Controllers\Api\ShareController::class, 'rejectRequest']);

@@ -118,24 +118,61 @@ class AdminController extends Controller
     }
 
     /**
-     * List all payments.
+     * List all payments — merges locally-recorded payments with FMIS payroll-
+     * deduction rows so the admin sees one unified list. Each row carries a
+     * `source` field of either 'recorded' or 'fmis' so the UI can label
+     * them, and FMIS rows expose `dv_number` in place of `or_number`.
      */
     public function payments(Request $request): JsonResponse
     {
+        $localCollection = $this->collectLocalPayments($request);
+        $fmisCollection = $this->collectFmisPayments($request);
+
+        $merged = $localCollection->concat($fmisCollection)
+            ->sortByDesc('payment_date')
+            ->values();
+
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, (int) $request->input('per_page', 15));
+        $total = $merged->count();
+        $offset = ($page - 1) * $perPage;
+        $items = $merged->slice($offset, $perPage)->values()->all();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+
+        return response()->json([
+            'data' => $items,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function collectLocalPayments(Request $request): \Illuminate\Support\Collection
+    {
+        // Skip the locally-recorded list when the filter excludes its methods.
+        $method = $request->input('payment_method');
+        if ($method && $method === 'payroll_deduction' && $request->boolean('fmis_only', false)) {
+            return collect();
+        }
+
         $query = Payment::with(['loan.user', 'recorder']);
 
         if ($request->filled('employment_type')) {
-            $query->whereHas('loan.user', function ($q) use ($request) {
-                $q->where('employment_type', $request->input('employment_type'));
-            });
+            $query->whereHas('loan.user', fn ($q) => $q->where('employment_type', $request->input('employment_type')));
         }
 
         if ($request->filled('loan_id')) {
             $query->where('loan_id', $request->input('loan_id'));
         }
 
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->input('payment_method'));
+        if ($method) {
+            $query->where('payment_method', $method);
         }
 
         if ($request->filled('from')) {
@@ -152,17 +189,129 @@ class AdminController extends Controller
 
         if ($request->filled('search')) {
             $s = $request->input('search');
-            $query->whereHas('loan.user', function ($q) use ($s) {
-                $q->where('first_name', 'like', "%{$s}%")
-                  ->orWhere('last_name', 'like', "%{$s}%")
-                  ->orWhere('employee_id', 'like', "%{$s}%")
-                  ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", ["%{$s}%"]);
+            $query->where(function ($q) use ($s) {
+                $q->whereHas('loan.user', function ($q2) use ($s) {
+                    $q2->where('first_name', 'like', "%{$s}%")
+                        ->orWhere('last_name', 'like', "%{$s}%")
+                        ->orWhere('employee_id', 'like', "%{$s}%")
+                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) like ?", ["%{$s}%"]);
+                })->orWhere('or_number', 'like', "%{$s}%");
             });
         }
 
-        $payments = $query->latest('payment_date')->paginate($request->input('per_page', 15));
+        return $query->get()->map(fn (Payment $p) => $this->formatLocalPayment($p));
+    }
 
-        return $this->paginated($payments, PaymentResource::class);
+    /**
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function collectFmisPayments(Request $request): \Illuminate\Support\Collection
+    {
+        // FMIS rows are payroll deductions — exclude them when the filter is
+        // a non-payroll method.
+        $method = $request->input('payment_method');
+        if ($method && $method !== 'payroll_deduction') {
+            return collect();
+        }
+
+        $query = \App\Models\FmisLoanPayment::query()
+            ->leftJoin('users', 'users.employee_id', '=', 'fmis_loan_payments.employee_id')
+            ->select(
+                'fmis_loan_payments.*',
+                'users.id as user_id',
+                'users.first_name as user_first_name',
+                'users.last_name as user_last_name',
+                'users.middle_name as user_middle_name',
+                'users.employment_type as user_employment_type',
+                'users.department as user_department',
+            );
+
+        if ($request->filled('employment_type')) {
+            $query->where('users.employment_type', $request->input('employment_type'));
+        }
+
+        if ($request->filled('from')) {
+            $query->where('fmis_loan_payments.dv_date', '>=', $request->input('from'));
+        }
+
+        if ($request->filled('to')) {
+            $query->where('fmis_loan_payments.dv_date', '<=', $request->input('to'));
+        }
+
+        if ($request->filled('or_number')) {
+            $query->where('fmis_loan_payments.dv_number', 'like', '%' . $request->input('or_number') . '%');
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->input('search');
+            $query->where(function ($q) use ($s) {
+                $q->where('fmis_loan_payments.employee_id', 'like', "%{$s}%")
+                    ->orWhere('users.first_name', 'like', "%{$s}%")
+                    ->orWhere('users.last_name', 'like', "%{$s}%")
+                    ->orWhere('fmis_loan_payments.dv_number', 'like', "%{$s}%");
+            });
+        }
+
+        return $query->get()->map(fn ($row) => $this->formatFmisPayment($row));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatLocalPayment(Payment $p): array
+    {
+        $loan = $p->relationLoaded('loan') ? $p->loan : null;
+        $user = $loan && $loan->relationLoaded('user') ? $loan->user : null;
+        $recorder = $p->relationLoaded('recorder') ? $p->recorder : null;
+
+        return [
+            'id' => 'local-' . $p->id,
+            'source' => 'recorded',
+            'amount' => $p->amount,
+            'or_number' => $p->or_number,
+            'payment_method' => $p->payment_method,
+            'payment_date' => $p->payment_date?->toDateString(),
+            'loan' => $loan ? ['id' => $loan->id, 'loan_type' => $loan->loan_type] : null,
+            'member' => $user ? [
+                'id' => $user->id,
+                'full_name' => $user->full_name,
+                'employee_id' => $user->employee_id,
+                'employment_type' => $user->employment_type,
+            ] : null,
+            'recorder' => $recorder ? ['id' => $recorder->id, 'full_name' => $recorder->full_name] : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatFmisPayment(object $row): array
+    {
+        $fullName = trim((string) ($row->user_last_name ?? '') . ', ' . (string) ($row->user_first_name ?? ''), ', ');
+
+        return [
+            'id' => 'fmis-' . $row->employee_id . '-' . $row->year . '-' . $row->month,
+            'source' => 'fmis',
+            'amount' => $row->amount,
+            'or_number' => $row->dv_number,
+            'payment_method' => 'payroll_deduction',
+            'payment_date' => $row->dv_date,
+            'loan' => null,
+            'member' => $row->user_id ? [
+                'id' => (int) $row->user_id,
+                'full_name' => $fullName,
+                'employee_id' => $row->employee_id,
+                'employment_type' => $row->user_employment_type,
+            ] : [
+                'id' => null,
+                'full_name' => 'Unregistered employee',
+                'employee_id' => $row->employee_id,
+                'employment_type' => null,
+            ],
+            'recorder' => null,
+            'fund' => $row->fund,
+            'voided' => (bool) $row->voided,
+        ];
     }
 
     /**

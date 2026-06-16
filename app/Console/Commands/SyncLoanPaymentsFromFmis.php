@@ -153,10 +153,12 @@ class SyncLoanPaymentsFromFmis extends Command
             return;
         }
 
+        // FMIS sends one row per DV — a single (employee, month) may now have
+        // multiple DVs (e.g. 1st + 2nd half payroll). Unique key is the DV.
         FmisLoanPayment::upsert(
             $fmisRows,
-            ['employee_id', 'year', 'month'],
-            ['amount', 'dv_number', 'dv_date', 'fund', 'voided', 'fmis_updated_at', 'updated_at']
+            ['employee_id', 'dv_number'],
+            ['amount', 'year', 'month', 'dv_date', 'fund', 'voided', 'fmis_updated_at', 'updated_at']
         );
     }
 }

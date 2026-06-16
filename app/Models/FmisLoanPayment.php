@@ -16,7 +16,6 @@ class FmisLoanPayment extends Model
         'fund',
         'voided',
         'fmis_updated_at',
-        'linked_at',
     ];
 
     protected function casts(): array
@@ -26,7 +25,6 @@ class FmisLoanPayment extends Model
             'voided' => 'boolean',
             'dv_date' => 'date',
             'fmis_updated_at' => 'datetime',
-            'linked_at' => 'datetime',
         ];
     }
 

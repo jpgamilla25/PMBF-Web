@@ -155,11 +155,7 @@ class AdminController extends Controller
      */
     private function collectLocalPayments(Request $request): \Illuminate\Support\Collection
     {
-        // Skip the locally-recorded list when the filter excludes its methods.
         $method = $request->input('payment_method');
-        if ($method && $method === 'payroll_deduction' && $request->boolean('fmis_only', false)) {
-            return collect();
-        }
 
         $query = Payment::with(['loan.user', 'recorder']);
 
@@ -215,7 +211,10 @@ class AdminController extends Controller
         }
 
         $query = \App\Models\FmisLoanPayment::query()
-            ->leftJoin('users', 'users.employee_id', '=', 'fmis_loan_payments.employee_id')
+            // Inner join — only surface FMIS rows whose employee_id matches a
+            // registered PMBF member. Unregistered rows live in the landing
+            // table but stay out of the unified payments view.
+            ->join('users', 'users.employee_id', '=', 'fmis_loan_payments.employee_id')
             ->select(
                 'fmis_loan_payments.*',
                 'users.id as user_id',
@@ -297,16 +296,11 @@ class AdminController extends Controller
             'payment_method' => 'payroll_deduction',
             'payment_date' => $row->dv_date,
             'loan' => null,
-            'member' => $row->user_id ? [
+            'member' => [
                 'id' => (int) $row->user_id,
                 'full_name' => $fullName,
                 'employee_id' => $row->employee_id,
                 'employment_type' => $row->user_employment_type,
-            ] : [
-                'id' => null,
-                'full_name' => 'Unregistered employee',
-                'employee_id' => $row->employee_id,
-                'employment_type' => null,
             ],
             'recorder' => null,
             'fund' => $row->fund,

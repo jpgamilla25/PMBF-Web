@@ -5,7 +5,5 @@ export default {
   getAnalytics: (params = {}) => api.get('/admin/loan-payments/analytics', { params }),
   getMemberPayments: (userId, params = {}) => api.get(`/admin/loan-payments/members/${userId}`, { params }),
   syncFromFmis: (data = {}) => api.post('/admin/loan-payments/sync-from-fmis', data, { timeout: 300000 }),
-  getPending: (params = {}) => api.get('/admin/loan-payments/pending', { params }),
-  applyPending: (fmisId, allocations) => api.post(`/admin/loan-payments/pending/${fmisId}/apply`, { allocations }),
-  runLinker: () => api.post('/admin/loan-payments/link', {}, { timeout: 300000 }),
+  getByMonth: (params = {}) => api.get('/admin/loan-payments/by-month', { params }),
 }

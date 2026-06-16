@@ -25,10 +25,12 @@ class LoanService
         if ($user->isSC()) {
             $allTerms = $this->parseTerms(Configuration::getValue('sc_available_terms', '3,6,12'));
             $contractMonths = $scMax['contract_months'];
-            // Only show terms that fit within contract duration
-            $terms = array_values(array_filter($allTerms, fn ($t) => $t <= $contractMonths));
-            if (empty($terms) && $contractMonths > 0) {
-                $terms = [$contractMonths];
+            $remainingMonths = $scMax['remaining_contract_months'];
+            // Only show terms that fit within the REMAINING contract — a member
+            // can't commit to a 12-month loan when only 4 months are left.
+            $terms = array_values(array_filter($allTerms, fn ($t) => $t <= $remainingMonths));
+            if (empty($terms) && $remainingMonths > 0) {
+                $terms = [$remainingMonths];
             }
 
             return [
@@ -38,6 +40,7 @@ class LoanService
                     'extended_max' => $scMax['extended_max'],
                     'monthly_salary' => $scMax['monthly_salary'],
                     'contract_months' => $contractMonths,
+                    'remaining_contract_months' => $remainingMonths,
                     'contract_end' => $scMax['contract_end'],
                     'requires_co_maker' => Configuration::getBool('sc_requires_co_maker', true),
                     'can_request_extension' => Configuration::getBool('sc_can_extend_with_board_approval', true),
@@ -97,16 +100,6 @@ class LoanService
     }
 
     /**
-     * Categorize a loan type for FMIS-link decisions. Emergency loans bundle
-     * into the same payroll deduction as the member's regular loan, so the
-     * linker needs to know which bucket each loan falls into.
-     */
-    public static function categoryOf(?string $loanType): string
-    {
-        return $loanType === 'Emergency' ? 'emergency' : 'regular';
-    }
-
-    /**
      * Parse comma-separated term string into sorted int array.
      */
     private function parseTerms(string $terms): array
@@ -129,7 +122,7 @@ class LoanService
      *  - exemption_type: string|null
      *  - details: array (salary info, limits, etc.)
      */
-    public function checkEligibility(User $user, string $loanType, ?float $requestedAmount = null): array
+    public function checkEligibility(User $user, string $loanType, ?float $requestedAmount = null, ?int $requestedTerm = null): array
     {
         $types = $this->getAvailableLoanTypes($user);
 
@@ -146,6 +139,43 @@ class LoanService
         $typeConfig = $types[$loanType];
         $salary = $this->fmisService->getSalary($user->employee_id);
         $payCheck = $this->fmisService->meetsMinimumPay($user->employee_id, $user->employment_type);
+
+        // ── Check 0: Contract of Service term must fit remaining contract ──
+        if ($user->isSC() && Configuration::getBool('sc_term_based_on_contract', true) && $user->contract_end) {
+            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($user->contract_end, false)));
+
+            if ($remainingMonths === 0) {
+                return [
+                    'eligible' => false,
+                    'message' => 'Your contract has expired or ends today. A new salary loan cannot be released.',
+                    'can_request_exemption' => false,
+                    'exemption_type' => null,
+                    'details' => ['remaining_contract_months' => 0],
+                ];
+            }
+
+            if ($requestedTerm !== null && $requestedTerm > $remainingMonths) {
+                $hasExtensionExemption = $this->exemptionService->hasActiveExemption($user, 'extend_term', $loanType);
+                if (!$hasExtensionExemption) {
+                    return [
+                        'eligible' => false,
+                        'message' => sprintf(
+                            'Term of %d months exceeds your remaining contract (%d month%s). Pick a shorter term or request a board extension.',
+                            $requestedTerm,
+                            $remainingMonths,
+                            $remainingMonths === 1 ? '' : 's'
+                        ),
+                        'can_request_exemption' => Configuration::getBool('sc_can_extend_with_board_approval', true),
+                        'exemption_type' => 'extend_term',
+                        'details' => [
+                            'requested_term' => $requestedTerm,
+                            'remaining_contract_months' => $remainingMonths,
+                            'extension_cap_months' => (int) Configuration::getValue('sc_extension_max_months', 12),
+                        ],
+                    ];
+                }
+            }
+        }
 
         // ── Check 1: Minimum pay requirement ──────────────────
         if (!$payCheck['meets_requirement']) {
@@ -275,15 +305,33 @@ class LoanService
             }
         }
 
-        // SC: enforce contract-based term
+        // Contract of Service: hard-reject when term exceeds remaining contract
+        // months unless an extend_term exemption is active for this loan type.
         if ($user->isSC() && Configuration::getBool('sc_term_based_on_contract', true) && $user->contract_end) {
-            $maxMonths = max(1, (int) now()->diffInMonths($user->contract_end));
-            // If extend exemption approved, allow up to 12 months
-            if ($months > $maxMonths) {
+            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($user->contract_end, false)));
+
+            if ($months > $remainingMonths) {
                 $exemption = $this->exemptionService->getActiveExemption($user, 'extend_term', $data['loan_type']);
-                $maxMonths = $exemption ? (int) Configuration::getValue('sc_extension_max_months', 12) : $maxMonths;
+                if (!$exemption) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'term_months' => sprintf(
+                            'Term of %d months exceeds your remaining contract (%d month%s). Choose a shorter term or request a board extension.',
+                            $months,
+                            $remainingMonths,
+                            $remainingMonths === 1 ? '' : 's'
+                        ),
+                    ]);
+                }
+                $extensionCap = (int) Configuration::getValue('sc_extension_max_months', 12);
+                if ($months > $extensionCap) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'term_months' => sprintf(
+                            'Even with a board-approved extension, the maximum term is %d months.',
+                            $extensionCap
+                        ),
+                    ]);
+                }
             }
-            $months = min($months, $maxMonths);
         }
 
         $amortization = $this->calculateAmortization($amount, $rate, $months);

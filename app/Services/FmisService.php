@@ -28,7 +28,7 @@ class FmisService
     /**
      * Calculate max loan amount for SC based on base pay × contract months.
      *
-     * @return array{monthly_salary: float, contract_months: int, max_loan_amount: float, contract_start: string|null, contract_end: string|null, extended_max: float}
+     * @return array{monthly_salary: float, contract_months: int, remaining_contract_months: int, max_loan_amount: float, contract_start: string|null, contract_end: string|null, extended_max: float}
      */
     public function calculateScMaxLoan(string $employeeId): array
     {
@@ -43,17 +43,25 @@ class FmisService
             $contractMonths = max(1, (int) round($contractStart->floatDiffInMonths($contractEnd)));
         }
 
-        // SC max loan = a percentage of the total contract value (base pay × contract months).
-        // Default 50% — i.e. half of what the member will earn over the remaining contract.
+        // Remaining contract months from today — what's left to deduct against.
+        // Floor at zero (an expired contract should yield no eligible term).
+        $remainingContractMonths = 0;
+        if ($contractEnd) {
+            $remainingContractMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
+        }
+
+        // SC max loan = a percentage of the value of the REMAINING contract.
+        // Default 50% — i.e. half of what the member will earn before contract ends.
         $percentage = Configuration::getDecimal('sc_max_loan_percentage', 50) / 100;
 
         return [
             'monthly_salary' => $monthlySalary,
             'contract_months' => $contractMonths,
-            'max_loan_amount' => $monthlySalary * $contractMonths * $percentage,
+            'remaining_contract_months' => $remainingContractMonths,
+            'max_loan_amount' => $monthlySalary * $remainingContractMonths * $percentage,
             'contract_start' => $contractStart?->toDateString(),
             'contract_end' => $contractEnd?->toDateString(),
-            'extended_max' => $monthlySalary * max($contractMonths, 12) * $percentage,
+            'extended_max' => $monthlySalary * max($remainingContractMonths, 12) * $percentage,
         ];
     }
 

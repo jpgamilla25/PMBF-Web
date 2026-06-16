@@ -76,8 +76,8 @@
       </div>
     </div>
 
-    <!-- Pending FMIS Allocations -->
-    <PendingFmisAllocations ref="pendingPanel" @after-apply="onAllocationApplied" />
+    <!-- FMIS Payments by Month (tabular, read-only) -->
+    <FmisPaymentsByMonth ref="byMonthPanel" />
 
     <!-- Filters -->
     <div class="card mb-3">
@@ -331,7 +331,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 import AppSearchSelect from '@/components/ui/AppSearchSelect.vue'
 import MemberPaymentsModal from '@/components/ui/MemberPaymentsModal.vue'
-import PendingFmisAllocations from '@/components/ui/PendingFmisAllocations.vue'
+import FmisPaymentsByMonth from '@/components/ui/FmisPaymentsByMonth.vue'
 
 const notification = useNotificationStore()
 const adminContext = useAdminContextStore()
@@ -649,12 +649,7 @@ function closeFmisModal() {
   fmisUserId.value = null
 }
 
-const pendingPanel = ref(null)
-function onAllocationApplied() {
-  // An allocation became a real payment → refresh the main table and analytics.
-  fetch(meta.currentPage)
-  fetchFmisAnalytics()
-}
+const byMonthPanel = ref(null)
 
 onMounted(() => {
   // default: This Month

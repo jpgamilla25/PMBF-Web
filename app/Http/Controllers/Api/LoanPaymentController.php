@@ -6,10 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\FmisLoanPayment;
 use App\Models\ScheduleRun;
 use App\Models\User;
-use App\Services\LinkFmisLoanPaymentsService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
 
 class LoanPaymentController extends Controller
@@ -112,22 +112,32 @@ class LoanPaymentController extends Controller
     {
         $year = (int) $request->input('year', now()->year);
 
-        $rows = FmisLoanPayment::where('employee_id', $user->employee_id)
+        // FMIS now sends one row per DV — a member can have multiple DVs in a
+        // single month. Group them and surface the monthly total plus the
+        // individual DV breakdown.
+        $allRows = FmisLoanPayment::where('employee_id', $user->employee_id)
             ->where('year', $year)
-            ->orderBy('month')
-            ->get()
-            ->keyBy('month');
+            ->orderBy('month')->orderBy('dv_date')
+            ->get();
+
+        $byMonth = $allRows->groupBy('month');
 
         $months = [];
         for ($m = 1; $m <= 12; $m++) {
-            $f = $rows->get($m);
+            $monthRows = $byMonth->get($m, collect());
+
             $months[] = [
                 'month' => $m,
-                'amount' => $f ? (float) $f->amount : null,
-                'dv_number' => $f?->dv_number,
-                'dv_date' => $f?->dv_date?->toDateString(),
-                'fund' => $f?->fund,
-                'voided' => (bool) ($f?->voided ?? false),
+                'amount' => $monthRows->isEmpty() ? null : (float) $monthRows->sum(fn ($r) => (float) $r->amount),
+                'dv_count' => $monthRows->count(),
+                'dvs' => $monthRows->map(fn ($r) => [
+                    'dv_number' => $r->dv_number,
+                    'dv_date' => $r->dv_date?->toDateString(),
+                    'amount' => (float) $r->amount,
+                    'fund' => $r->fund,
+                    'voided' => (bool) $r->voided,
+                ])->values()->all(),
+                'voided' => $monthRows->where('voided', true)->isNotEmpty() && $monthRows->where('voided', false)->isEmpty(),
                 'method' => 'Payroll Deduction',
             ];
         }
@@ -152,7 +162,7 @@ class LoanPaymentController extends Controller
             'year' => $year,
             'months' => $months,
             'totals' => [
-                'year' => (float) $rows->sum('amount'),
+                'year' => (float) $allRows->sum('amount'),
                 'lifetime' => (float) FmisLoanPayment::where('employee_id', $user->employee_id)->sum('amount'),
             ],
             'years_with_data' => $yearTotals,
@@ -160,156 +170,108 @@ class LoanPaymentController extends Controller
     }
 
     /**
-     * Pending FMIS rows that could not be auto-matched. Each row carries the
-     * member's active loans and a suggested split when one exists.
+     * Tabular list of FMIS payroll-deduction payments grouped per
+     * (employee, year, month) inside a date range. Each row carries the
+     * summed amount and the list of DVs that contributed.
      */
-    public function pending(Request $request, LinkFmisLoanPaymentsService $linker): JsonResponse
+    public function byMonth(Request $request): JsonResponse
     {
-        $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
-        $year = $request->filled('year') ? (int) $request->input('year') : null;
-        $search = $request->input('search');
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'search' => ['nullable', 'string', 'max:200'],
+            'employment_type' => ['nullable', 'string', 'max:50'],
+            'registered_only' => ['nullable', 'boolean'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $from = isset($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : null;
+        $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : null;
+        $search = $validated['search'] ?? null;
+        $employmentType = $validated['employment_type'] ?? null;
+        $registeredOnly = (bool) ($validated['registered_only'] ?? true);
+        $perPage = (int) ($validated['per_page'] ?? 20);
+        $page = (int) ($validated['page'] ?? 1);
 
         $query = FmisLoanPayment::query()
-            ->whereNull('linked_at')
             ->where('voided', false)
-            // Restrict the queue to FMIS rows whose employee is a registered
-            // PMBF member — unregistered rows have nothing to allocate to.
-            ->whereExists(function ($q) {
-                $q->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->from('users')
-                    ->whereColumn('users.employee_id', 'fmis_loan_payments.employee_id');
+            ->when($from, fn ($q) => $q->where('dv_date', '>=', $from))
+            ->when($to, fn ($q) => $q->where('dv_date', '<=', $to))
+            ->when($registeredOnly || $employmentType, function ($q) use ($employmentType) {
+                $q->whereExists(function ($sub) use ($employmentType) {
+                    $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                        ->from('users')
+                        ->whereColumn('users.employee_id', 'fmis_loan_payments.employee_id');
+                    if ($employmentType) {
+                        $sub->where('users.employment_type', $employmentType);
+                    }
+                });
             })
-            ->orderByDesc('dv_date');
+            ->when(is_string($search) && $search !== '', function ($q) use ($search) {
+                $q->where(function ($q2) use ($search) {
+                    $q2->where('fmis_loan_payments.employee_id', 'like', "%{$search}%")
+                        ->orWhere('fmis_loan_payments.dv_number', 'like', "%{$search}%")
+                        ->orWhereExists(function ($sub) use ($search) {
+                            $sub->select(\Illuminate\Support\Facades\DB::raw(1))
+                                ->from('users')
+                                ->whereColumn('users.employee_id', 'fmis_loan_payments.employee_id')
+                                ->where(function ($u) use ($search) {
+                                    $u->where('first_name', 'like', "%{$search}%")
+                                        ->orWhere('last_name', 'like', "%{$search}%");
+                                });
+                        });
+                });
+            })
+            ->orderByDesc('year')->orderByDesc('month')->orderBy('employee_id');
 
-        if ($year !== null) {
-            $query->where('year', $year);
-        }
+        $rows = $query->get();
 
-        if (is_string($search) && $search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('employee_id', 'like', "%{$search}%")
-                    ->orWhere('dv_number', 'like', "%{$search}%");
-            });
-        }
+        $buckets = $rows->groupBy(fn (FmisLoanPayment $r) => "{$r->employee_id}|{$r->year}|{$r->month}")->values();
 
-        $paginator = $query->paginate($perPage);
+        $total = $buckets->count();
+        $totalAmount = (float) $rows->sum(fn (FmisLoanPayment $r) => (float) $r->amount);
+        $offset = ($page - 1) * $perPage;
+        $sliced = $buckets->slice($offset, $perPage)->values();
+        $lastPage = max(1, (int) ceil($total / $perPage));
 
-        $items = collect($paginator->items())->map(function (FmisLoanPayment $row) use ($linker) {
-            $info = $linker->suggestionFor($row);
-            $user = $row->user()->first();
+        $items = $sliced->map(function (\Illuminate\Support\Collection $bucketRows) {
+            $first = $bucketRows->first();
+            $user = User::where('employee_id', $first->employee_id)->first();
 
             return [
-                'fmis_id' => $row->id,
-                'employee_id' => $row->employee_id,
+                'bucket_key' => "{$first->employee_id}|{$first->year}|{$first->month}",
+                'employee_id' => $first->employee_id,
                 'member' => $user ? [
                     'id' => $user->id,
                     'full_name' => $user->full_name,
                     'employment_type' => $user->employment_type,
                 ] : null,
-                'year' => $row->year,
-                'month' => $row->month,
-                'amount' => (float) $row->amount,
-                'dv_number' => $row->dv_number,
-                'dv_date' => $row->dv_date?->toDateString(),
-                'fund' => $row->fund,
-                'suggestion' => $info['suggestion'],
-                'active_loans' => $info['active_loans'],
-                'reason' => $info['reason'],
+                'year' => (int) $first->year,
+                'month' => (int) $first->month,
+                'total_amount' => (float) $bucketRows->sum(fn (FmisLoanPayment $r) => (float) $r->amount),
+                'dv_count' => $bucketRows->count(),
+                'dvs' => $bucketRows->sortBy('dv_date')->values()->map(fn (FmisLoanPayment $r) => [
+                    'dv_number' => $r->dv_number,
+                    'dv_date' => $r->dv_date?->toDateString(),
+                    'amount' => (float) $r->amount,
+                    'fund' => $r->fund,
+                ])->all(),
             ];
         });
 
         return response()->json([
             'data' => $items,
             'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_amount' => $totalAmount,
+                'from' => $from?->toDateString(),
+                'to' => $to?->toDateString(),
             ],
         ]);
-    }
-
-    /**
-     * Apply a chosen split to a pending FMIS row.
-     */
-    public function applyPending(Request $request, FmisLoanPayment $fmisLoanPayment, LinkFmisLoanPaymentsService $linker): JsonResponse
-    {
-        $validated = $request->validate([
-            'allocations' => 'required|array|min:1',
-            'allocations.*.loan_id' => 'required|integer|exists:loans,id',
-            'allocations.*.amount' => 'required|numeric|min:0.01',
-        ]);
-
-        if ($fmisLoanPayment->linked_at !== null) {
-            return $this->error('This FMIS row is already linked.', 422);
-        }
-
-        $sum = array_sum(array_column($validated['allocations'], 'amount'));
-        if (round($sum, 2) > round((float) $fmisLoanPayment->amount + 0.01, 2)) {
-            return $this->error('Allocation totals exceed the FMIS amount.', 422);
-        }
-
-        $linker->applyManual(
-            $fmisLoanPayment,
-            $validated['allocations'],
-            $request->user()?->id
-        );
-
-        return $this->success(null, 'FMIS row applied to ' . count($validated['allocations']) . ' loan(s).');
-    }
-
-    /**
-     * Run the linker now and report counts.
-     */
-    public function runLinker(LinkFmisLoanPaymentsService $linker): JsonResponse
-    {
-        @set_time_limit(0);
-        @ignore_user_abort(true);
-
-        $startedAt = now();
-        $runRow = ScheduleRun::create([
-            'command' => 'loan-payments:link',
-            'expression' => null,
-            'status' => 'running',
-            'started_at' => $startedAt,
-            'manual' => true,
-        ]);
-
-        $startedMs = microtime(true);
-        try {
-            $result = $linker->linkPending();
-            $durationMs = (int) round((microtime(true) - $startedMs) * 1000);
-
-            $runRow->update([
-                'status' => 'success',
-                'exit_code' => 0,
-                'finished_at' => now(),
-                'duration_ms' => $durationMs,
-                'output_excerpt' => sprintf(
-                    'scanned=%d linked=%d queued=%d voided_reversed=%d',
-                    $result['scanned'],
-                    $result['linked'],
-                    $result['queued'],
-                    $result['voided_reversed']
-                ),
-            ]);
-        } catch (\Throwable $e) {
-            $runRow->update([
-                'status' => 'failed',
-                'exit_code' => 1,
-                'finished_at' => now(),
-                'output_excerpt' => mb_substr($e->getMessage(), -4000),
-            ]);
-            return $this->error('Linker failed: ' . $e->getMessage(), 500);
-        }
-
-        return $this->success($result, sprintf(
-            'Linked %d, queued %d, voided-reversed %d (scanned %d).',
-            $result['linked'],
-            $result['queued'],
-            $result['voided_reversed'],
-            $result['scanned']
-        ));
     }
 
     /**

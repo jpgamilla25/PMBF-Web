@@ -57,7 +57,8 @@ class LoanController extends Controller
         $eligibility = $this->loanService->checkEligibility(
             $user,
             $validated['loan_type'],
-            (float) $validated['amount']
+            (float) $validated['amount'],
+            isset($validated['term_months']) ? (int) $validated['term_months'] : null
         );
 
         if (!$eligibility['eligible']) {
@@ -207,12 +208,14 @@ class LoanController extends Controller
         $request->validate([
             'loan_type' => 'required|string',
             'amount' => 'required|numeric|min:1000',
+            'term_months' => 'nullable|integer|min:1|max:120',
         ]);
 
         $result = $this->loanService->checkEligibility(
             $request->user(),
             $request->loan_type,
-            (float) $request->amount
+            (float) $request->amount,
+            $request->filled('term_months') ? (int) $request->term_months : null
         );
 
         return $this->success($result, $result['message']);

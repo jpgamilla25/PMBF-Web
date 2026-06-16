@@ -38,22 +38,29 @@
       </div>
     </AppCard>
 
-    <!-- ─── Step 1: Loan Application Form ───────────────── -->
-    <AppCard v-if="currentStep === 'form'" title="Loan Application">
-      <AppLoading :loading="typesLoading" text="Loading loan types..." />
+    <!-- ─── Loan Application Form (form + live summary side-by-side) ───── -->
+    <div v-if="currentStep === 'form'" class="row g-3">
+      <div class="col-lg-7">
+        <AppCard title="Loan Application">
+          <AppLoading :loading="typesLoading" text="Loading loan types..." />
 
-      <form v-if="!typesLoading" @submit.prevent="handleSubmit">
-        <div class="row">
-          <div class="col-md-6">
+          <form v-if="!typesLoading" @submit.prevent="submitApplication">
             <AppInput v-model="form.loan_type" label="Loan Type" type="select" :options="loanTypeOptions" :error="errors.loan_type" required @change="onTypeChange" />
 
-            <!-- Show max amount info for selected type -->
             <div v-if="selectedTypeInfo" class="alert alert-light small mt-2 mb-3">
               <div v-if="selectedTypeInfo.max_amount">
                 <i class="bi bi-info-circle me-1"></i>
                 Max loan: <strong>&#8369;{{ Number(selectedTypeInfo.max_amount).toLocaleString() }}</strong>
                 <span v-if="selectedTypeInfo.monthly_salary">
-                  (&#8369;{{ Number(selectedTypeInfo.monthly_salary).toLocaleString() }}/mo &#215; {{ selectedTypeInfo.contract_months }} months)
+                  (&#8369;{{ Number(selectedTypeInfo.monthly_salary).toLocaleString() }}/mo &#215; {{ selectedTypeInfo.remaining_contract_months ?? selectedTypeInfo.contract_months }} months)
+                </span>
+              </div>
+              <div v-if="selectedTypeInfo.remaining_contract_months != null" class="text-warning mt-1">
+                <i class="bi bi-calendar-check me-1"></i>
+                <strong>{{ selectedTypeInfo.remaining_contract_months }} month{{ selectedTypeInfo.remaining_contract_months === 1 ? '' : 's' }}</strong>
+                remaining on your contract — term options are capped accordingly.
+                <span v-if="selectedTypeInfo.contract_end" class="text-muted">
+                  (contract ends {{ selectedTypeInfo.contract_end }})
                 </span>
               </div>
               <div v-if="selectedTypeInfo.requires_co_maker" class="text-warning mt-1">
@@ -63,18 +70,18 @@
                 <i class="bi bi-arrow-up-circle me-1"></i>You can request a higher amount with approval
               </div>
             </div>
-          </div>
-          <div class="col-md-6">
-            <AppInput v-model="form.amount" label="Loan Amount (&#8369;)" type="number" placeholder="Enter amount" :error="errors.amount" required @input="onAmountInput" />
-          </div>
-        </div>
 
-        <div class="row">
-          <div class="col-md-6">
-            <AppInput v-model="form.term_months" label="Term (Months)" type="select" :options="computedTermOptions" :error="errors.term_months" required />
-          </div>
-          <div v-if="selectedTypeInfo?.requires_co_maker" class="col-md-6">
+            <div v-if="!form.loan_type" class="alert alert-secondary small mb-3">
+              <i class="bi bi-info-circle me-1"></i>
+              Select a loan type to unlock the rest of the form.
+            </div>
+
+            <AppInput v-model="form.amount" label="Loan Amount (&#8369;)" type="number" placeholder="Enter amount" :error="errors.amount" required :disabled="!form.loan_type" @input="onAmountInput" />
+
+            <AppInput v-model="form.term_months" label="Term (Months)" type="select" :options="computedTermOptions" :error="errors.term_months" required :disabled="!form.loan_type" />
+
             <AppSearchSelect
+              v-if="selectedTypeInfo?.requires_co_maker"
               v-model="form.co_maker_id"
               label="Co-Maker (Permanent Employee) *"
               :options="coMakerOptions"
@@ -83,92 +90,84 @@
               placeholder="Search by name or ID..."
               hint="Required: a Permanent employee must co-sign your loan"
               remote
+              :disabled="!form.loan_type"
               @search="searchCoMakers"
             />
-          </div>
-        </div>
 
-        <!-- Amount warning -->
-        <div v-if="amountExceedsMax" class="alert alert-warning small">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          Amount exceeds max of <strong>&#8369;{{ Number(selectedTypeInfo?.max_amount ?? 0).toLocaleString() }}</strong>.
-          This loan will require <strong>Admin approval</strong> before proceeding to the normal approval chain.
-        </div>
+            <div v-if="amountExceedsMax" class="alert alert-warning small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Amount exceeds max of <strong>&#8369;{{ Number(selectedTypeInfo?.max_amount ?? 0).toLocaleString() }}</strong>.
+              This loan will require <strong>Admin approval</strong> before proceeding to the normal approval chain.
+            </div>
 
-        <AppInput v-model="form.purpose" label="Purpose" type="textarea" placeholder="Briefly describe the purpose of this loan" :error="errors.purpose" required />
-
-        <div class="d-flex justify-content-end">
-          <router-link to="/loans" class="btn btn-outline-secondary me-2">Cancel</router-link>
-          <AppButton type="button" variant="primary" @click="goToReview">
-            <i class="bi bi-eye me-1"></i>Review Application
-          </AppButton>
-        </div>
-      </form>
-    </AppCard>
-
-    <!-- ─── Step: Review & Confirm ──────────────────────── -->
-    <AppCard v-if="currentStep === 'review'" title="Review & Submit Application">
-      <div class="alert alert-info small mb-4">
-        <i class="bi bi-info-circle me-1"></i>
-        Please review your loan application details before submitting.
+            <AppInput v-model="form.purpose" label="Purpose" type="textarea" placeholder="Briefly describe the purpose of this loan" :error="errors.purpose" required :disabled="!form.loan_type" />
+          </form>
+        </AppCard>
       </div>
 
-      <div class="card bg-light mb-4">
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <div class="text-muted small">Applicant</div>
-              <div class="fw-bold">{{ authStore.fullName }}</div>
-              <div class="text-muted small">{{ authStore.user?.employment_type }} &mdash; {{ authStore.user?.department }}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Loan Type</div>
-              <div class="fw-bold">{{ form.loan_type }}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Loan Amount</div>
-              <div class="fw-bold fs-5 text-primary">&#8369;{{ Number(form.amount).toLocaleString() }}</div>
-              <div v-if="amountExceedsMax" class="text-warning small">
-                <i class="bi bi-exclamation-triangle me-1"></i>Exceeds max — requires Admin approval first
+      <div class="col-lg-5">
+        <AppCard title="Application Summary" class="summary-card">
+          <div v-if="!form.loan_type" class="text-center text-muted py-4">
+            <i class="bi bi-clipboard-data fs-1"></i>
+            <div class="small mt-2">Fill in the form to see your application summary.</div>
+          </div>
+
+          <div v-else>
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="text-muted small">Applicant</div>
+                <div class="fw-bold">{{ authStore.fullName }}</div>
+                <div class="text-muted small">{{ authStore.user?.employment_type }} &mdash; {{ authStore.user?.department }}</div>
+              </div>
+              <div class="col-12">
+                <div class="text-muted small">Loan Type</div>
+                <div class="fw-bold">{{ form.loan_type }}</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-muted small">Loan Amount</div>
+                <div class="fw-bold fs-5 text-primary">&#8369;{{ Number(form.amount || 0).toLocaleString() }}</div>
+                <div v-if="amountExceedsMax" class="text-warning small">
+                  <i class="bi bi-exclamation-triangle me-1"></i>Exceeds max — requires Admin approval first
+                </div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-muted small">Term</div>
+                <div class="fw-bold">{{ form.term_months || '—' }} {{ form.term_months ? 'months' : '' }}</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-muted small">Interest Rate</div>
+                <div class="fw-bold">{{ reviewData.interest_rate }}% / month</div>
+              </div>
+              <div class="col-sm-6">
+                <div class="text-muted small">Est. Monthly Amortization</div>
+                <div class="fw-bold">&#8369;{{ Number(reviewData.monthly_amortization).toLocaleString() }}</div>
+              </div>
+              <div class="col-12">
+                <div class="text-muted small">Est. Total Payable</div>
+                <div class="fw-bold text-primary">&#8369;{{ Number(reviewData.total_payable).toLocaleString() }}</div>
+              </div>
+              <div v-if="reviewData.co_maker_name" class="col-12">
+                <div class="text-muted small">Co-Maker</div>
+                <div class="fw-bold">{{ reviewData.co_maker_name }}</div>
+              </div>
+              <div v-if="form.purpose" class="col-12">
+                <div class="text-muted small">Purpose</div>
+                <div class="small">{{ form.purpose }}</div>
               </div>
             </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Term</div>
-              <div class="fw-bold">{{ form.term_months }} months</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Interest Rate</div>
-              <div class="fw-bold">{{ reviewData.interest_rate }}% / month</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Est. Monthly Amortization</div>
-              <div class="fw-bold">&#8369;{{ Number(reviewData.monthly_amortization).toLocaleString() }}</div>
-            </div>
-            <div class="col-sm-6">
-              <div class="text-muted small">Est. Total Payable</div>
-              <div class="fw-bold">&#8369;{{ Number(reviewData.total_payable).toLocaleString() }}</div>
-            </div>
-            <div v-if="reviewData.co_maker_name" class="col-sm-6">
-              <div class="text-muted small">Co-Maker</div>
-              <div class="fw-bold">{{ reviewData.co_maker_name }}</div>
-            </div>
-            <div class="col-12">
-              <div class="text-muted small">Purpose</div>
-              <div>{{ form.purpose }}</div>
+
+            <hr />
+
+            <div class="d-grid gap-2">
+              <AppButton variant="primary" :loading="processing" :disabled="!form.loan_type" @click="submitApplication">
+                <i class="bi bi-send me-1"></i>Submit Application
+              </AppButton>
+              <router-link to="/loans" class="btn btn-outline-secondary btn-sm">Cancel</router-link>
             </div>
           </div>
-        </div>
+        </AppCard>
       </div>
-
-      <div class="d-flex justify-content-between">
-        <button class="btn btn-outline-secondary" @click="currentStep = 'form'">
-          <i class="bi bi-arrow-left me-1"></i>Edit Application
-        </button>
-        <AppButton variant="primary" :loading="processing" @click="handleSubmit">
-          <i class="bi bi-send me-1"></i>Confirm & Submit
-        </AppButton>
-      </div>
-    </AppCard>
+    </div>
 
     <!-- ─── Step: OTP Verification ──────────────────────── -->
     <AppCard v-if="currentStep === 'otp'" title="OTP Verification">
@@ -377,11 +376,27 @@ const amountExceedsMax = computed(() => {
   return Number(form.amount) > info.max_amount
 })
 
-const reviewData = ref({
-  interest_rate: 0,
-  monthly_amortization: 0,
-  total_payable: 0,
-  co_maker_name: '',
+// Live summary — recomputes as the user types, no separate review step needed.
+const reviewData = computed(() => {
+  const rate = getEstimatedRate()
+  const amount = Number(form.amount) || 0
+  const months = Number(form.term_months) || 0
+  const totalInterest = months > 0 ? amount * (rate / 100) * months : 0
+  const totalPayable = amount + totalInterest
+  const monthly = months > 0 ? totalPayable / months : 0
+
+  let coMakerName = ''
+  if (form.co_maker_id) {
+    const cm = coMakerOptions.value.find(o => String(o.value) === String(form.co_maker_id))
+    coMakerName = cm?.label ?? ''
+  }
+
+  return {
+    interest_rate: rate,
+    monthly_amortization: Math.round(monthly * 100) / 100,
+    total_payable: Math.round(totalPayable * 100) / 100,
+    co_maker_name: coMakerName,
+  }
 })
 
 function onTypeChange() {
@@ -404,43 +419,25 @@ function onAmountInput() {
   }
 }
 
-function goToReview() {
-  // Basic validation
+function validateForm() {
   if (!form.loan_type || !form.amount || !form.term_months || !form.purpose) {
     notify.error('Please fill in all required fields.')
-    return
+    return false
   }
   if (Number(form.amount) < minLoanAmount.value) {
     notify.error(`Minimum loan amount is ₱${minLoanAmount.value.toLocaleString()}.`)
-    return
+    return false
   }
   if (selectedTypeInfo.value?.requires_co_maker && !form.co_maker_id) {
     notify.error('Please select a co-maker.')
-    return
+    return false
   }
+  return true
+}
 
-  // Calculate review data
-  const rate = getEstimatedRate()
-  const amount = Number(form.amount)
-  const months = Number(form.term_months)
-  const totalInterest = amount * (rate / 100) * months
-  const totalPayable = amount + totalInterest
-  const monthly = totalPayable / months
-
-  let coMakerName = ''
-  if (form.co_maker_id) {
-    const cm = coMakerOptions.value.find(o => String(o.value) === String(form.co_maker_id))
-    coMakerName = cm?.label ?? ''
-  }
-
-  reviewData.value = {
-    interest_rate: rate,
-    monthly_amortization: Math.round(monthly * 100) / 100,
-    total_payable: Math.round(totalPayable * 100) / 100,
-    co_maker_name: coMakerName,
-  }
-
-  currentStep.value = 'review'
+async function submitApplication() {
+  if (!validateForm()) return
+  await handleSubmit()
 }
 
 function getEstimatedRate() {

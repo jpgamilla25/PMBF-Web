@@ -142,20 +142,6 @@
           <i class="bi bi-bar-chart-line me-1"></i>View Project Cost Breakdown
         </a>
       </div>
-
-      <!-- Demo -->
-      <div class="alert alert-light border mt-3 mb-0 small">
-        <div class="fw-semibold mb-2"><i class="bi bi-info-circle me-1"></i>Demo Accounts</div>
-        <table class="table table-sm table-borderless mb-0" style="font-size: 0.8rem;">
-          <tbody>
-            <tr><td class="text-muted py-0">Admin</td><td class="py-0 fw-medium">15-0312 (Jayson Gamilla)</td></tr>
-            <tr><td class="text-muted py-0">Member</td><td class="py-0 fw-medium">15-0313 (Art Arocena)</td></tr>
-            <tr><td class="text-muted py-0">Receiver</td><td class="py-0 fw-medium">15-0314 (Ronnie Rimando)</td></tr>
-            <tr><td class="text-muted py-0">Committee</td><td class="py-0 fw-medium">15-0315 (Timothy Rivera)</td></tr>
-            <tr><td class="text-muted py-0">Chairperson</td><td class="py-0 fw-medium">15-0316 (PMBF Chair)</td></tr>
-          </tbody>
-        </table>
-      </div>
     </template>
   </GuestLayout>
 </template>

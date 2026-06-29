@@ -5,19 +5,66 @@ namespace App\Services;
 use App\Models\Configuration;
 use App\Models\FmisEmployeeSalary;
 use App\Models\HrisEmployee;
+use App\Models\User;
+use Carbon\Carbon;
 
 class FmisService
 {
     public function __construct(private readonly HrisService $hrisService) {}
 
     /**
+     * Resolve an employee's profile (employment type, salary, contract dates)
+     * from the HRIS API. Falls back to the member's local registration snapshot
+     * when the API is unavailable, so loan eligibility doesn't break to zero
+     * during an outage. The HRIS API remains the source of truth when reachable.
+     */
+    public function resolveEmployee(string $employeeId): ?HrisEmployee
+    {
+        $emp = $this->hrisService->findByEmployeeId($employeeId);
+        if ($emp) {
+            return $emp;
+        }
+
+        $user = User::where('employee_id', $employeeId)->first();
+        if (!$user) {
+            return null;
+        }
+
+        return new HrisEmployee([
+            'employee_id'     => $user->employee_id,
+            'employment_type' => $user->employment_type,
+            'base_pay'        => $user->base_pay,
+            'take_home_pay'   => $user->take_home_pay,
+            'contract_start'  => $user->contract_start?->toDateString(),
+            'contract_end'    => $user->contract_end?->toDateString(),
+            'status'          => $user->status === 'active' ? 'Active' : $user->status,
+        ]);
+    }
+
+    /**
+     * Employment type from HRIS (with local fallback).
+     */
+    public function getEmploymentType(string $employeeId): ?string
+    {
+        return $this->resolveEmployee($employeeId)?->employment_type;
+    }
+
+    /**
+     * Contract end date from HRIS (with local fallback).
+     */
+    public function getContractEnd(string $employeeId): ?Carbon
+    {
+        return $this->resolveEmployee($employeeId)?->contract_end;
+    }
+
+    /**
      * Get the employee's salary as a non-persisted FmisEmployeeSalary, sourced
-     * from the HRIS API. Field names are preserved so existing callers
-     * (`$salary->monthly_salary`, `$salary->net_take_home`, etc.) keep working.
+     * from the HRIS API (with local fallback). Field names are preserved so
+     * callers (`$salary->monthly_salary`, `$salary->net_take_home`) keep working.
      */
     public function getSalary(string $employeeId): ?FmisEmployeeSalary
     {
-        $emp = $this->hrisService->findByEmployeeId($employeeId);
+        $emp = $this->resolveEmployee($employeeId);
         if (!$emp) {
             return null;
         }
@@ -32,7 +79,7 @@ class FmisService
      */
     public function calculateScMaxLoan(string $employeeId): array
     {
-        $emp = $this->hrisService->findByEmployeeId($employeeId);
+        $emp = $this->resolveEmployee($employeeId);
 
         $monthlySalary = $emp ? (float) $emp->base_pay : 0.0;
         $contractStart = $emp?->contract_start;
@@ -72,7 +119,7 @@ class FmisService
      */
     public function meetsMinimumPay(string $employeeId, string $employmentType): array
     {
-        $emp = $this->hrisService->findByEmployeeId($employeeId);
+        $emp = $this->resolveEmployee($employeeId);
 
         $configKey = $employmentType === 'Contract of Service'
             ? 'sc_min_take_home_pay'

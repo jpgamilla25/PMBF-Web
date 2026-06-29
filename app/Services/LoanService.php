@@ -16,13 +16,40 @@ class LoanService
     ) {}
 
     /**
+     * Effective employment type — sourced from HRIS (with local fallback) so the
+     * loan flow follows the live record, not a stale users-table snapshot.
+     */
+    private function employmentType(User $user): string
+    {
+        return $this->fmisService->getEmploymentType($user->employee_id) ?? (string) $user->employment_type;
+    }
+
+    private function isSC(User $user): bool
+    {
+        return $this->employmentType($user) === 'Contract of Service';
+    }
+
+    private function isPermanent(User $user): bool
+    {
+        return $this->employmentType($user) === 'Permanent';
+    }
+
+    /**
+     * Contract end date from HRIS (with local fallback).
+     */
+    private function contractEnd(User $user): ?\Carbon\Carbon
+    {
+        return $this->fmisService->getContractEnd($user->employee_id);
+    }
+
+    /**
      * Get available loan types with max amounts from config.
      */
     public function getAvailableLoanTypes(User $user): array
     {
         $scMax = $this->fmisService->calculateScMaxLoan($user->employee_id);
 
-        if ($user->isSC()) {
+        if ($this->isSC($user)) {
             $allTerms = $this->parseTerms(Configuration::getValue('sc_available_terms', '3,6,12'));
             $contractMonths = $scMax['contract_months'];
             $remainingMonths = $scMax['remaining_contract_months'];
@@ -50,7 +77,7 @@ class LoanService
             ];
         }
 
-        if ($user->isPermanent()) {
+        if ($this->isPermanent($user)) {
             $terms = $this->parseTerms(Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'));
             $salary = $this->fmisService->getSalary($user->employee_id);
             $takeHome = $salary ? (float) $salary->net_take_home : null;
@@ -137,12 +164,14 @@ class LoanService
         }
 
         $typeConfig = $types[$loanType];
+        $employmentType = $this->employmentType($user);
+        $contractEnd = $this->contractEnd($user);
         $salary = $this->fmisService->getSalary($user->employee_id);
-        $payCheck = $this->fmisService->meetsMinimumPay($user->employee_id, $user->employment_type);
+        $payCheck = $this->fmisService->meetsMinimumPay($user->employee_id, $employmentType);
 
         // ── Check 0: Contract of Service term must fit remaining contract ──
-        if ($user->isSC() && Configuration::getBool('sc_term_based_on_contract', true) && $user->contract_end) {
-            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($user->contract_end, false)));
+        if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && $contractEnd) {
+            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($remainingMonths === 0) {
                 return [
@@ -187,7 +216,7 @@ class LoanService
                     'eligible' => false,
                     'message' => sprintf(
                         '%s members need at least ₱%s %s. Your FMIS record shows ₱%s.',
-                        $user->employment_type,
+                        $employmentType,
                         number_format($payCheck['required_amount'], 2),
                         $payCheck['field_checked'] === 'net_take_home' ? 'net take-home pay' : 'base pay',
                         number_format($payCheck['actual_amount'], 2)
@@ -256,8 +285,8 @@ class LoanService
      */
     public function getInterestRate(User $user): float
     {
-        if ($user->isSC()) return Configuration::getDecimal('interest_rate_sc', 1.50);
-        if ($user->isPermanent()) return Configuration::getDecimal('interest_rate_permanent', 1.00);
+        if ($this->isSC($user)) return Configuration::getDecimal('interest_rate_sc', 1.50);
+        if ($this->isPermanent($user)) return Configuration::getDecimal('interest_rate_permanent', 1.00);
         return Configuration::getDecimal('interest_rate_non_member', 2.00);
     }
 
@@ -307,8 +336,8 @@ class LoanService
 
         // Contract of Service: hard-reject when term exceeds remaining contract
         // months unless an extend_term exemption is active for this loan type.
-        if ($user->isSC() && Configuration::getBool('sc_term_based_on_contract', true) && $user->contract_end) {
-            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($user->contract_end, false)));
+        if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && ($contractEnd = $this->contractEnd($user))) {
+            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($months > $remainingMonths) {
                 $exemption = $this->exemptionService->getActiveExemption($user, 'extend_term', $data['loan_type']);
@@ -337,7 +366,7 @@ class LoanService
         $amortization = $this->calculateAmortization($amount, $rate, $months);
 
         $coMakerId = $data['co_maker_id'] ?? null;
-        $needsCoMakerApproval = $user->isSC() && $coMakerId &&
+        $needsCoMakerApproval = $this->isSC($user) && $coMakerId &&
             Configuration::getBool('sc_requires_co_maker', true);
 
         // Initial status: co_maker_pending if co-maker required, else admin_pending if above max, else pending

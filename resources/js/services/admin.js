@@ -57,6 +57,9 @@ export default {
   getReportShares(params = {}) {
     return api.get('/admin/reports/shares', { params })
   },
+  getReportLedger(params = {}) {
+    return api.get('/admin/reports/ledger', { params })
+  },
   downloadReportCsv(type, params = {}) {
     return api.get(`/admin/reports/${type}/csv`, { params, responseType: 'blob' })
   },

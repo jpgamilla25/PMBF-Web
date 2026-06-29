@@ -147,6 +147,12 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
+    path: '/admin/reports/ledger',
+    name: 'admin-report-ledger',
+    component: () => import('../views/admin/AdminReportLedgerView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
     path: '/admin/shares',
     name: 'admin-shares',
     component: () => import('../views/admin/AdminSharesView.vue'),

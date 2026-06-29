@@ -398,6 +398,127 @@ class ReportController extends Controller
         return $query;
     }
 
+    // ── Loan Ledger Report ─────────────────────────────────────────
+
+    /**
+     * Per-member loan ledger: each member's loans, each with its payment
+     * schedule and a running balance — mirrors the cooperative's SC ledger.
+     * Filter by employment_type (Contract of Service / Permanent) and/or user.
+     */
+    public function ledger(Request $request): JsonResponse
+    {
+        $excluded = ['cancelled', 'disapproved', 'co_maker_declined'];
+
+        $query = User::query()
+            ->whereHas('loans', fn ($q) => $q->whereNotIn('status', $excluded))
+            ->with(['loans' => function ($q) use ($excluded) {
+                $q->whereNotIn('status', $excluded)
+                    ->with(['coMaker', 'payments'])
+                    ->orderBy('created_at');
+            }]);
+
+        if ($request->filled('employment_type')) {
+            $query->where('employment_type', $request->input('employment_type'));
+        }
+        if ($request->filled('user_id')) {
+            $query->where('id', $request->input('user_id'));
+        }
+        if ($request->filled('search')) {
+            $s = $request->input('search');
+            $query->where(fn ($q) => $q->where('first_name', 'LIKE', "%{$s}%")
+                ->orWhere('last_name', 'LIKE', "%{$s}%")
+                ->orWhere('employee_id', 'LIKE', "%{$s}%"));
+        }
+
+        $members = $query->orderBy('last_name')->orderBy('first_name')->get()
+            ->map(function (User $u) {
+                // Loans are ordered oldest → newest (query orderBy created_at).
+                $loans = $u->loans->map(fn ($l) => $this->formatLedgerLoan($l))->values();
+
+                // AA SUMMARY columns: BALANCE = latest outstanding loan's remaining;
+                // PREVIOUS LOAN BAL = remaining on any older still-unpaid loans.
+                $outstanding = $loans->filter(fn ($l) => $l['remaining'] > 0.01)->values();
+                $balance = $outstanding->isNotEmpty() ? $outstanding->last()['remaining'] : 0.0;
+                $previous = $outstanding->isNotEmpty()
+                    ? round($outstanding->slice(0, -1)->sum('remaining'), 2)
+                    : 0.0;
+
+                return [
+                    'employee_id'           => $u->employee_id,
+                    'full_name'             => $u->full_name,
+                    'division'              => $u->department,
+                    'employment_type'       => $u->employment_type,
+                    'previous_loan_balance' => $previous,
+                    'balance'               => round($balance, 2),
+                    'loans'                 => $loans,
+                ];
+            })
+            ->filter(fn ($m) => $m['loans']->isNotEmpty())
+            ->values();
+
+        $allLoans = $members->flatMap(fn ($m) => $m['loans']);
+        $summary = [
+            'member_count'      => $members->count(),
+            'loan_count'        => $allLoans->count(),
+            'total_principal'   => round($allLoans->sum('principal'), 2),
+            'total_payable'     => round($allLoans->sum('total'), 2),
+            'total_paid'        => round($allLoans->sum('total_paid'), 2),
+            'total_outstanding' => round($allLoans->sum('remaining'), 2),
+            'total_previous'    => round($members->sum('previous_loan_balance'), 2),
+            'total_balance'     => round($members->sum('balance'), 2),
+        ];
+
+        return $this->success([
+            'members' => $members,
+            'summary' => $summary,
+        ]);
+    }
+
+    /**
+     * Format a single loan as a ledger block: header figures + payment
+     * schedule with a running balance (total payable minus each payment).
+     */
+    private function formatLedgerLoan($loan): array
+    {
+        $principal = (float) $loan->amount;
+        $interest  = round($principal * ((float) $loan->interest_rate / 100) * (int) $loan->term_months, 2);
+        $total     = $loan->total_payable; // principal + interest (exact)
+
+        $running = $total;
+        $rows = $loan->payments->sortBy('payment_date')->values()->map(function ($p) use (&$running) {
+            $running = round($running - (float) $p->amount, 2);
+            return [
+                'date'      => $p->payment_date?->format('Y-m-d'),
+                'or_number' => $p->or_number,
+                'amount'    => (float) $p->amount,
+                'balance'   => max(0, $running),
+                'method'    => $p->payment_method,
+            ];
+        });
+
+        $totalPaid = (float) $loan->payments->sum('amount');
+
+        return [
+            'reference_no'        => $loan->reference_no,
+            'loan_no'             => $loan->id,
+            'loan_type'           => $loan->loan_type,
+            'co_maker'            => $loan->coMaker?->full_name,
+            'term_months'         => $loan->term_months,
+            'interest_rate'       => (float) $loan->interest_rate,
+            'principal'           => round($principal, 2),
+            'interest'            => $interest,
+            'total'               => $total,
+            'monthly_amortization'=> (float) $loan->monthly_amortization,
+            // Semi-monthly (per-payday) deduction — payroll runs twice a month.
+            'semi_monthly'        => round((float) $loan->monthly_amortization / 2, 2),
+            'status'              => $loan->status,
+            'released_at'         => $loan->released_at?->format('Y-m-d'),
+            'payments'            => $rows,
+            'total_paid'          => round($totalPaid, 2),
+            'remaining'           => max(0, round($total - $totalPaid, 2)),
+        ];
+    }
+
     // ── Helpers ────────────────────────────────────────────────────
 
     private function formatLoan($loan): array

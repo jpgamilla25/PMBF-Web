@@ -13,12 +13,22 @@
             <h6 class="fw-bold mb-1">{{ r.title }}</h6>
             <p class="text-muted small flex-grow-1 mb-3">{{ r.desc }}</p>
             <div class="d-flex gap-2">
-              <span class="badge" :style="{ background: r.bg, color: r.color }">
-                <i class="bi bi-filetype-pdf me-1"></i>PDF
-              </span>
-              <span class="badge" :style="{ background: r.bg, color: r.color }">
-                <i class="bi bi-filetype-csv me-1"></i>CSV
-              </span>
+              <template v-if="r.key === 'ledger'">
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-window me-1"></i>Web
+                </span>
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-printer me-1"></i>Print
+                </span>
+              </template>
+              <template v-else>
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </span>
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-filetype-csv me-1"></i>CSV
+                </span>
+              </template>
             </div>
           </div>
         </div>
@@ -69,6 +79,15 @@ const reportTypes = [
     route: '/admin/reports/shares',
     color: '#92400e',
     bg: '#fef3c7',
+  },
+  {
+    key: 'ledger',
+    title: 'Loan Ledger',
+    desc: 'Per-member loan ledger (SC & Permanent) — each loan with principal, interest, total, amortization, and a payment schedule with running balance.',
+    icon: 'bi bi-journal-text fs-4',
+    route: '/admin/reports/ledger',
+    color: '#0e7490',
+    bg: '#cffafe',
   },
 ]
 </script>

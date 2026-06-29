@@ -177,6 +177,7 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/members/csv',       [\App\Http\Controllers\Api\ReportController::class, 'membersCsv']);
             Route::get('reports/shares',            [\App\Http\Controllers\Api\ReportController::class, 'shares']);
             Route::get('reports/shares/csv',        [\App\Http\Controllers\Api\ReportController::class, 'sharesCsv']);
+            Route::get('reports/ledger',            [\App\Http\Controllers\Api\ReportController::class, 'ledger']);
             // Legacy summary report
             Route::get('reports', [AdminController::class, 'reports']);
             Route::get('exemptions', [ExemptionController::class, 'index']);

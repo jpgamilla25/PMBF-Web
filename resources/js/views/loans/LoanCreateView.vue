@@ -58,16 +58,36 @@
               <div v-if="selectedTypeInfo.remaining_contract_months != null" class="text-warning mt-1">
                 <i class="bi bi-calendar-check me-1"></i>
                 <strong>{{ selectedTypeInfo.remaining_contract_months }} month{{ selectedTypeInfo.remaining_contract_months === 1 ? '' : 's' }}</strong>
-                remaining on your contract — term options are capped accordingly.
+                remaining on your contract
                 <span v-if="selectedTypeInfo.contract_end" class="text-muted">
-                  (contract ends {{ selectedTypeInfo.contract_end }})
-                </span>
+                  (ends {{ selectedTypeInfo.contract_end }})</span>.
+                <!-- Spell out which standard terms survived the contract cap, so
+                     "5 months remaining" but "only 3 months offered" isn't a puzzle. -->
+                <template v-if="computedTermOptions.length">
+                  Your loan must be fully repaid before it ends, so only
+                  <strong>{{ computedTermOptions.map(o => o.value).join(', ') }}</strong>
+                  of the standard terms fit.
+                </template>
               </div>
               <div v-if="selectedTypeInfo.requires_co_maker" class="text-warning mt-1">
                 <i class="bi bi-exclamation-triangle me-1"></i>Requires a Permanent employee as co-maker
               </div>
               <div v-if="selectedTypeInfo.can_request_extension" class="text-muted mt-1">
                 <i class="bi bi-arrow-up-circle me-1"></i>You can request a higher amount with approval
+              </div>
+            </div>
+
+            <!-- Surfaced as soon as a loan type is chosen, so the member isn't
+                 told they're ineligible only after filling in the whole form. -->
+            <div v-if="eligibilityWarning" class="alert alert-danger small mb-3">
+              <div class="fw-semibold mb-1">
+                <i class="bi bi-x-octagon me-1"></i>You are not currently eligible for this loan
+              </div>
+              <div>{{ eligibilityWarning.message }}</div>
+              <div v-if="eligibilityWarning.canRequestExemption" class="mt-2">
+                <button type="button" class="btn btn-sm btn-outline-danger" @click="requestExemptionFromWarning">
+                  <i class="bi bi-envelope-paper me-1"></i>Request special approval
+                </button>
               </div>
             </div>
 
@@ -78,7 +98,18 @@
 
             <AppInput v-model="form.amount" label="Loan Amount (&#8369;)" type="number" placeholder="Enter amount" :error="errors.amount" required :disabled="!form.loan_type" @input="onAmountInput" />
 
-            <AppInput v-model="form.term_months" label="Term (Months)" type="select" :options="computedTermOptions" :error="errors.term_months" required :disabled="!form.loan_type" />
+            <AppInput
+              v-model="form.term_months"
+              label="Term (Months)"
+              type="select"
+              :options="computedTermOptions"
+              :error="errors.term_months"
+              required
+              :disabled="!form.loan_type || !computedTermOptions.length"
+            />
+            <div v-if="form.loan_type && !computedTermOptions.length" class="alert alert-warning small py-2">
+              <i class="bi bi-exclamation-triangle me-1"></i>{{ noTermsReason }}
+            </div>
 
             <AppSearchSelect
               v-if="selectedTypeInfo?.requires_co_maker"
@@ -169,26 +200,28 @@
       </div>
     </div>
 
-    <!-- ─── Step: OTP Verification ──────────────────────── -->
-    <AppCard v-if="currentStep === 'otp'" title="OTP Verification">
-      <div class="alert alert-info small">
-        <i class="bi bi-envelope me-1"></i>
-        An OTP has been sent to your registered email. Enter it below to confirm.
-      </div>
+    <!-- ─── Step: Confirm (OTP or PIN) ──────────────────── -->
+    <AppCard v-if="currentStep === 'otp'" :title="confirmMode === 'pin' ? 'Confirm with PIN' : 'OTP Verification'">
+      <!-- ── PIN confirmation ── -->
+      <template v-if="confirmMode === 'pin'">
+        <div class="alert alert-info small">
+          <i class="bi bi-shield-lock me-1"></i>
+          Enter your 4-digit sign-in PIN to submit this application.
+        </div>
 
-      <form @submit.prevent="handleVerifyOtp">
         <div class="row justify-content-center">
           <div class="col-md-6">
-            <div class="mb-3">
-              <label class="form-label fw-semibold">OTP Code</label>
-              <input v-model="otpCode" type="text" class="form-control form-control-lg text-center" maxlength="6" placeholder="000000" style="letter-spacing: 10px; font-size: 1.5rem; font-weight: 700;" autofocus required />
-            </div>
-            <AppButton type="submit" variant="primary" block :loading="otpProcessing">
-              <i class="bi bi-check-circle me-1"></i>Verify & Submit
-            </AppButton>
-            <div class="text-center mt-3">
-              <button type="button" class="btn btn-link btn-sm text-muted" :disabled="resendLoading" @click="handleResendOtp">
-                {{ resendLoading ? 'Sending...' : 'Resend OTP' }}
+            <PinInput
+              v-model="confirmPin"
+              :error="pinError"
+              :disabled="otpProcessing"
+              :hint="otpProcessing ? 'Submitting your application...' : ''"
+              @complete="handleVerifyPin"
+            />
+
+            <div class="text-center mt-4">
+              <button type="button" class="btn btn-link btn-sm text-muted" @click="useOtpInstead">
+                <i class="bi bi-envelope me-1"></i>Use email OTP instead
               </button>
               <span class="mx-2 text-muted">|</span>
               <button type="button" class="btn btn-link btn-sm text-muted" @click="currentStep = 'form'">
@@ -197,7 +230,47 @@
             </div>
           </div>
         </div>
-      </form>
+      </template>
+
+      <!-- ── OTP confirmation ── -->
+      <template v-else>
+        <div class="alert alert-info small">
+          <i class="bi bi-envelope me-1"></i>
+          An OTP has been sent to your registered email. Enter it below to confirm.
+        </div>
+
+        <form @submit.prevent="handleVerifyOtp">
+          <div class="row justify-content-center">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-semibold">OTP Code</label>
+                <input v-model="otpCode" type="text" inputmode="numeric" class="form-control form-control-lg text-center" maxlength="6" placeholder="000000" style="letter-spacing: 10px; font-size: 1.5rem; font-weight: 700;" autofocus required />
+              </div>
+              <AppButton type="submit" variant="primary" block :loading="otpProcessing">
+                <i class="bi bi-check-circle me-1"></i>Verify &amp; Submit
+              </AppButton>
+
+              <!-- Only offered when a PIN exists AND this device is trusted,
+                   so the option never appears where it would fail. -->
+              <div v-if="pinAvailable" class="text-center mt-3">
+                <button type="button" class="btn btn-outline-primary btn-sm" @click="usePinInstead">
+                  <i class="bi bi-shield-lock me-1"></i>Use PIN instead
+                </button>
+              </div>
+
+              <div class="text-center mt-3">
+                <button type="button" class="btn btn-link btn-sm text-muted" :disabled="resendLoading" @click="handleResendOtp">
+                  {{ resendLoading ? 'Sending...' : 'Resend OTP' }}
+                </button>
+                <span class="mx-2 text-muted">|</span>
+                <button type="button" class="btn btn-link btn-sm text-muted" @click="currentStep = 'form'">
+                  <i class="bi bi-arrow-left me-1"></i>Back to form
+                </button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </template>
     </AppCard>
 
     <!-- ─── Step 3: Ineligible — Request Exemption ──────── -->
@@ -303,13 +376,16 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import { useForm } from '@/composables/useForm'
 import { useLoading } from '@/composables/useLoading'
+import { useDeviceFingerprint } from '@/composables/useDeviceFingerprint'
 import loansService from '@/services/loans'
 import exemptionsService from '@/services/exemptions'
+import auth from '@/services/auth'
+import PinInput from '@/components/ui/PinInput.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -318,6 +394,7 @@ import AppLoading from '@/components/ui/AppLoading.vue'
 import AppSearchSelect from '@/components/ui/AppSearchSelect.vue'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const notify = useNotificationStore()
 
@@ -336,7 +413,17 @@ const { loading: typesLoading, withLoading: withTypesLoading } = useLoading()
 const otpCode = ref('')
 const otpProcessing = ref(false)
 const resendLoading = ref(false)
+
+// Confirmation step: 'otp' (default) or 'pin'
+const device = useDeviceFingerprint()
+const confirmMode = ref('otp')
+const confirmPin = ref('')
+const pinError = ref('')
+const pinAvailable = ref(false)
 const savedLoanData = ref({})
+
+// Early eligibility warning, shown as soon as a loan type is picked.
+const eligibilityWarning = ref(null)
 
 // Ineligible / Exemption
 const ineligibleMessage = ref('')
@@ -348,13 +435,32 @@ const exemptionOtpSent = ref(false)
 const exemptionOtp = ref('')
 const exemptionForm = ref({ reason: '', requested_value: '' })
 
-const defaultTerms = [3, 6, 12, 18, 24, 36, 48, 60]
-
-/** Term options change based on selected loan type (from config) */
+/**
+ * Term options come only from the admin config, via the API.
+ *
+ * There is deliberately no hardcoded fallback list: an empty result means the
+ * member genuinely has no eligible term, and substituting a default would
+ * offer terms the administrator never approved.
+ */
 const computedTermOptions = computed(() => {
-  const info = selectedTypeInfo.value
-  const terms = info?.available_terms?.length ? info.available_terms : defaultTerms
+  const terms = selectedTypeInfo.value?.available_terms ?? []
   return terms.map(m => ({ value: String(m), label: `${m} months` }))
+})
+
+/** Explains an empty term list in the member's own terms. */
+const noTermsReason = computed(() => {
+  const info = selectedTypeInfo.value
+  const remaining = info?.remaining_contract_months
+
+  if (remaining !== undefined && remaining !== null && remaining <= 0) {
+    return 'No loan terms are available because your contract has no remaining months. Contact the PMBF office if your contract has been renewed.'
+  }
+
+  if (remaining !== undefined && remaining !== null) {
+    return `No configured loan term fits within your remaining ${remaining} month(s) of contract.`
+  }
+
+  return 'No loan terms are configured for this loan type. Please contact the PMBF office.'
 })
 
 const { form, errors, processing, submit, setErrors } = useForm({
@@ -399,24 +505,83 @@ const reviewData = computed(() => {
   }
 })
 
-function onTypeChange() {
-  // Auto-set term to max when amount exceeds max loan
+/**
+ * Stretch to the longest available term when the amount exceeds the cap.
+ * Guards the empty case: Math.max() of an empty list is -Infinity, which
+ * would previously have been written into the form as a term.
+ */
+function autoSelectLongestTerm() {
   const info = selectedTypeInfo.value
   if (!info) return
+
+  const terms = info.available_terms ?? []
+  if (!terms.length) {
+    form.term_months = ''
+    return
+  }
+
   if (Number(form.amount) > (info.max_amount ?? Infinity)) {
-    const terms = info.available_terms ?? defaultTerms
     form.term_months = String(Math.max(...terms))
   }
 }
 
-// Also watch amount changes for auto-term
-function onAmountInput() {
-  const info = selectedTypeInfo.value
-  if (!info) return
-  if (Number(form.amount) > (info.max_amount ?? Infinity)) {
-    const terms = info.available_terms ?? defaultTerms
-    form.term_months = String(Math.max(...terms))
+function onTypeChange() {
+  // A term from a previously selected type may not be valid for this one.
+  const terms = selectedTypeInfo.value?.available_terms ?? []
+  if (form.term_months && !terms.includes(Number(form.term_months))) {
+    form.term_months = ''
   }
+
+  autoSelectLongestTerm()
+  preflightEligibility()
+}
+
+/**
+ * Ask the server whether this member is eligible as soon as a loan type is
+ * chosen, rather than after they have filled in amount, term and purpose.
+ *
+ * Uses the minimum loan amount purely as a placeholder — the checks this is
+ * meant to surface early (take-home pay, pending/duplicate loans) do not
+ * depend on the requested amount.
+ */
+async function preflightEligibility() {
+  eligibilityWarning.value = null
+  if (!form.loan_type) return
+
+  try {
+    const { data } = await loansService.checkEligibility({
+      loan_type: form.loan_type,
+      amount: minLoanAmount.value,
+    })
+    const result = data.data ?? data
+
+    if (!result.eligible) {
+      eligibilityWarning.value = {
+        message: result.message,
+        canRequestExemption: !!result.can_request_exemption,
+        exemptionType: result.exemption_type,
+        details: result.details || {},
+      }
+    }
+  } catch {
+    // Advisory only — submit still enforces eligibility server-side.
+  }
+}
+
+/** Jump to the exemption flow from the early warning. */
+function requestExemptionFromWarning() {
+  const w = eligibilityWarning.value
+  if (!w) return
+
+  ineligibleMessage.value = w.message
+  canRequestExemption.value = w.canRequestExemption
+  exemptionType.value = w.exemptionType
+  exemptionDetails.value = w.details
+  currentStep.value = 'ineligible'
+}
+
+function onAmountInput() {
+  autoSelectLongestTerm()
 }
 
 function validateForm() {
@@ -482,7 +647,41 @@ onMounted(async () => {
   currentStep.value = 'form'
   await loadLoanTypes()
   await searchCoMakers('')
+  applyPrefillFromQuery()
 })
+
+/**
+ * Prefill from query params (used by the chatbot's "Open pre-filled
+ * application" link). Values are still validated by the form and the server —
+ * this only saves typing, it never widens what the member may apply for.
+ */
+function applyPrefillFromQuery() {
+  const { loan_type: loanType, amount, term_months: term } = route.query
+  let prefilled = false
+
+  if (loanType && loanTypes.value[loanType]) {
+    form.loan_type = String(loanType)
+    prefilled = true
+  }
+
+  if (amount && Number(amount) > 0) {
+    form.amount = String(Number(amount))
+    prefilled = true
+  }
+
+  if (!prefilled) return
+
+  // Run the same type-change handling a manual selection would trigger,
+  // so terms and the eligibility pre-check stay consistent.
+  onTypeChange()
+
+  const terms = selectedTypeInfo.value?.available_terms ?? []
+  if (term && terms.includes(Number(term))) {
+    form.term_months = String(Number(term))
+  }
+
+  notify.info('I filled in what you told the assistant — review it before submitting.')
+}
 
 async function loadLoanTypes() {
   await withTypesLoading(async () => {
@@ -528,6 +727,11 @@ async function handleSubmit() {
       savedLoanData.value = { ...form }
       notify.info('OTP sent to your email for verification.')
       currentStep.value = 'otp'
+
+      // Offer the faster PIN path when this device supports it. The OTP has
+      // already been sent, so it stays a working fallback either way.
+      await checkPinAvailable()
+      if (pinAvailable.value) confirmMode.value = 'pin'
     }
   } catch (error) {
     const resp = error.response?.data
@@ -569,6 +773,76 @@ async function handleVerifyOtp() {
     router.push(`/loans/${id}`)
   } catch (error) {
     notify.error(error.response?.data?.message || 'OTP verification failed.')
+  } finally {
+    otpProcessing.value = false
+  }
+}
+
+// ─── PIN confirmation ─────────────────────────────────────
+
+/**
+ * Whether this device can confirm with a PIN. Checked against the server
+ * rather than assumed from has_pin, because a PIN only works on a trusted
+ * device — offering it otherwise would guarantee a 403.
+ */
+async function checkPinAvailable() {
+  if (!authStore.hasPin || !authStore.user?.employee_id) {
+    pinAvailable.value = false
+    return
+  }
+
+  try {
+    const { data } = await auth.pinStatus({
+      employee_id: authStore.user.employee_id,
+      device_fingerprint: device.get(),
+    })
+    const result = data.data ?? data
+    pinAvailable.value = !!result.pin_available && !result.locked
+  } catch {
+    pinAvailable.value = false
+  }
+}
+
+function usePinInstead() {
+  confirmPin.value = ''
+  pinError.value = ''
+  confirmMode.value = 'pin'
+}
+
+function useOtpInstead() {
+  confirmPin.value = ''
+  pinError.value = ''
+  confirmMode.value = 'otp'
+}
+
+async function handleVerifyPin(pin) {
+  if (otpProcessing.value) return
+  otpProcessing.value = true
+  pinError.value = ''
+
+  try {
+    const { data } = await loansService.verifyPin({
+      pin,
+      device_fingerprint: device.get(),
+      ...savedLoanData.value,
+    })
+    const result = data.data ?? data
+    const id = result.id ?? result.data?.id
+    notify.success('Loan application submitted!')
+    router.push(`/loans/${id}`)
+  } catch (error) {
+    const status = error.response?.status
+    const msg = error.response?.data?.message || 'PIN confirmation failed.'
+
+    // Locked out or PIN unusable here — fall back to the OTP already sent.
+    if (status === 423 || status === 403) {
+      notify.error(msg)
+      pinAvailable.value = false
+      confirmMode.value = 'otp'
+    } else {
+      // Setting the error makes PinInput shake and clear itself.
+      pinError.value = msg
+    }
   } finally {
     otpProcessing.value = false
   }

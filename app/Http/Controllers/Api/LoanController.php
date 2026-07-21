@@ -8,12 +8,14 @@ use App\Http\Resources\LoanResource;
 use App\Models\Configuration;
 use App\Models\Loan;
 use App\Models\User;
+use App\Services\AuthService;
 use App\Services\LoanNotificationService;
 use App\Services\LoanService;
 use App\Services\OtpService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class LoanController extends Controller
 {
@@ -23,6 +25,7 @@ class LoanController extends Controller
         private readonly LoanService $loanService,
         private readonly OtpService $otpService,
         private readonly LoanNotificationService $notificationService,
+        private readonly AuthService $authService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -83,7 +86,8 @@ class LoanController extends Controller
         // OTP enabled → send OTP, return preview
         $this->otpService->generate($user->email, 'loan_application');
 
-        $rate = $this->loanService->getInterestRate($user);
+        // Must match the rate create() will store once the OTP is verified.
+        $rate = $this->loanService->getInterestRate($user, $validated['loan_type'] ?? null);
 
         return $this->success([
             'otp_required' => true,
@@ -102,19 +106,97 @@ class LoanController extends Controller
      */
     public function verifyOtp(Request $request): JsonResponse
     {
-        $request->validate([
+        $user = $request->user();
+
+        $request->validate($this->confirmationRules($user, [
             'otp' => 'required|string|size:6',
-            'loan_type' => 'required|string',
+        ]));
+
+        if (!$this->otpService->verify($user->email, $request->input('otp'), 'loan_application')) {
+            return $this->error('Invalid or expired OTP.', 422);
+        }
+
+        return $this->createFromRequest($request, $user);
+    }
+
+    /**
+     * Confirm a loan application with the member's sign-in PIN instead of
+     * waiting for an emailed OTP.
+     *
+     * Same device-scoped rules and lockout as PIN login — the PIN only works
+     * on a device already proven by OTP, so this is not a weaker path.
+     */
+    public function verifyPin(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $request->validate($this->confirmationRules($user, [
+            'pin' => 'required|digits:4',
+            'device_fingerprint' => 'required|string|max:128',
+        ]));
+
+        $result = $this->authService->verifyPin(
+            $user->employee_id,
+            $request->input('pin'),
+            $request->input('device_fingerprint')
+        );
+
+        if (!$result['ok']) {
+            return match ($result['reason']) {
+                'locked' => $this->error(
+                    'Too many incorrect PINs. Use an email OTP to confirm this application.',
+                    423,
+                    ['locked_until' => $result['locked_until'] ?? null]
+                ),
+                'incorrect' => $this->error(
+                    'Incorrect PIN. ' . $result['attempts_left'] . ' attempt(s) remaining.',
+                    422,
+                    ['attempts_left' => $result['attempts_left']]
+                ),
+                default => $this->error('PIN confirmation is not available on this device.', 403),
+            };
+        }
+
+        return $this->createFromRequest($request, $user);
+    }
+
+    /**
+     * Validation shared by both confirmation paths.
+     *
+     * loan_type is checked against the types this member may actually apply
+     * for — without it, the confirmation step could create a loan of a type
+     * the application form would never have offered.
+     */
+    private function confirmationRules(User $user, array $extra): array
+    {
+        return $extra + [
+            'loan_type' => ['required', 'string', Rule::in(array_keys($this->loanService->getAvailableLoanTypes($user)))],
             'amount' => 'required|numeric|min:' . Configuration::getDecimal('min_loan_amount', 1000),
             'purpose' => 'required|string',
             'term_months' => 'required|integer|min:1|max:' . Configuration::getValue('max_loan_term_months', 60),
             'co_maker_id' => 'nullable|integer|exists:users,id',
-        ]);
+        ];
+    }
 
-        $user = $request->user();
+    private function createFromRequest(Request $request, User $user): JsonResponse
+    {
+        // Re-check eligibility at the moment of creation, not just when the
+        // application was started. store() checks too, but the confirmation
+        // endpoints are directly callable and eligibility can change in
+        // between (a loan gets approved, an exemption expires, pay changes).
+        $eligibility = $this->loanService->checkEligibility(
+            $user,
+            $request->input('loan_type'),
+            (float) $request->input('amount'),
+            $request->filled('term_months') ? (int) $request->input('term_months') : null
+        );
 
-        if (!$this->otpService->verify($user->email, $request->input('otp'), 'loan_application')) {
-            return $this->error('Invalid or expired OTP.', 422);
+        if (!$eligibility['eligible']) {
+            return $this->error($eligibility['message'], 422, [
+                'can_request_exemption' => $eligibility['can_request_exemption'],
+                'exemption_type' => $eligibility['exemption_type'],
+                'details' => $eligibility['details'],
+            ]);
         }
 
         $loan = $this->loanService->create($user, $request->only([
@@ -146,6 +228,22 @@ class LoanController extends Controller
         $loan->load(['user', 'coMaker', 'approvals.approver', 'payments']);
 
         return $this->success(new LoanResource($loan), 'Loan retrieved.');
+    }
+
+    /**
+     * Full amortization schedule + progress summary for a loan.
+     * GET /loans/{loan}/schedule
+     */
+    public function schedule(Request $request, Loan $loan): JsonResponse
+    {
+        if ($loan->user_id !== $request->user()->id && !$request->user()->isStaff()) {
+            return $this->error('Unauthorized.', 403);
+        }
+
+        return $this->success(
+            $this->loanService->amortizationSchedule($loan),
+            'Amortization schedule retrieved.'
+        );
     }
 
     /**

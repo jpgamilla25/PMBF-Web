@@ -72,7 +72,7 @@ class LoanService
                     'requires_co_maker' => Configuration::getBool('sc_requires_co_maker', true),
                     'can_request_extension' => Configuration::getBool('sc_can_extend_with_board_approval', true),
                     'available_terms' => $terms,
-                    'interest_rate' => $this->getInterestRate($user),
+                    'interest_rate' => $this->getInterestRate($user, 'Salary Loan'),
                 ],
             ];
         }
@@ -81,49 +81,46 @@ class LoanService
             $terms = $this->parseTerms(Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'));
             $salary = $this->fmisService->getSalary($user->employee_id);
             $takeHome = $salary ? (float) $salary->net_take_home : null;
-            $rate = $this->getInterestRate($user);
 
-            return [
-                'Consolidated' => [
-                    'name' => 'Consolidated',
-                    'max_amount' => Configuration::getDecimal('permanent_max_loan_consolidated', 200000),
-                    'take_home_pay' => $takeHome,
-                    'available_terms' => $terms,
-                    'interest_rate' => $rate,
-                ],
-                'Multi-Purpose' => [
-                    'name' => 'Multi-Purpose',
-                    'max_amount' => Configuration::getDecimal('permanent_max_loan_multipurpose', 100000),
-                    'take_home_pay' => $takeHome,
-                    'available_terms' => $terms,
-                    'interest_rate' => $rate,
-                ],
-                'Emergency' => [
-                    'name' => 'Emergency',
-                    'max_amount' => Configuration::getDecimal('permanent_max_loan_emergency', 30000),
-                    'take_home_pay' => $takeHome,
-                    'available_terms' => $terms,
-                    'interest_rate' => $rate,
-                ],
-                'Hospitalization' => [
-                    'name' => 'Hospitalization',
-                    'max_amount' => Configuration::getDecimal('permanent_max_loan_hospitalization', 50000),
-                    'take_home_pay' => $takeHome,
-                    'available_terms' => $terms,
-                    'interest_rate' => $rate,
-                ],
+            // Each type carries its own rate so the application screen and the
+            // stored loan agree with whatever the admin configured.
+            $permanentTypes = [
+                'Regular' => ['permanent_max_loan_regular', 100000],
+                'Consolidated' => ['permanent_max_loan_consolidated', 200000],
+                'Multi-Purpose' => ['permanent_max_loan_multipurpose', 100000],
+                'Emergency' => ['permanent_max_loan_emergency', 30000],
+                'Hospitalization' => ['permanent_max_loan_hospitalization', 50000],
             ];
+
+            $result = [];
+            foreach ($permanentTypes as $name => [$maxKey, $maxDefault]) {
+                $result[$name] = [
+                    'name' => $name,
+                    'max_amount' => Configuration::getDecimal($maxKey, $maxDefault),
+                    'take_home_pay' => $takeHome,
+                    'available_terms' => $terms,
+                    'interest_rate' => $this->getInterestRate($user, $name),
+                ];
+            }
+
+            return $result;
         }
 
         // Non-Member
         $nonMax = Configuration::getDecimal('non_member_max_loan_amount', 30000);
         $terms = $this->parseTerms(Configuration::getValue('non_member_available_terms', '3,6,12,18,24'));
-        $rate = $this->getInterestRate($user);
-        return [
-            'Salary Loan'   => ['name' => 'Salary Loan',   'max_amount' => $nonMax, 'available_terms' => $terms, 'interest_rate' => $rate],
-            'Multi-Purpose' => ['name' => 'Multi-Purpose', 'max_amount' => $nonMax, 'available_terms' => $terms, 'interest_rate' => $rate],
-            'Emergency'     => ['name' => 'Emergency',     'max_amount' => $nonMax, 'available_terms' => $terms, 'interest_rate' => $rate],
-        ];
+
+        $result = [];
+        foreach (['Salary Loan', 'Multi-Purpose', 'Emergency'] as $name) {
+            $result[$name] = [
+                'name' => $name,
+                'max_amount' => $nonMax,
+                'available_terms' => $terms,
+                'interest_rate' => $this->getInterestRate($user, $name),
+            ];
+        }
+
+        return $result;
     }
 
     /**
@@ -134,6 +131,9 @@ class LoanService
         return collect(explode(',', $terms))
             ->map(fn ($v) => (int) trim($v))
             ->filter(fn ($v) => $v > 0)
+            // A duplicated entry in the config would otherwise render the
+            // same option twice in the term dropdown.
+            ->unique()
             ->sort()
             ->values()
             ->toArray();
@@ -275,19 +275,50 @@ class LoanService
             'details' => [
                 'max_amount' => $typeConfig['max_amount'] ?? null,
                 'monthly_salary' => $salary?->monthly_salary,
-                'interest_rate' => $this->getInterestRate($user),
+                'interest_rate' => $this->getInterestRate($user, $loanType),
             ],
         ];
     }
 
     /**
-     * Get interest rate from config based on employment type.
+     * Monthly interest rate for a member, optionally for a specific loan type.
+     *
+     * Rates resolve most-specific-first:
+     *   1. interest_rate_{member_type}_{loan_type}  e.g. interest_rate_permanent_emergency
+     *   2. interest_rate_{member_type}              e.g. interest_rate_permanent
+     *
+     * A per-type key that is absent or left blank falls through to the
+     * member-type rate, so an admin can override selectively without having to
+     * fill in every loan type.
      */
-    public function getInterestRate(User $user): float
+    public function getInterestRate(User $user, ?string $loanType = null): float
     {
-        if ($this->isSC($user)) return Configuration::getDecimal('interest_rate_sc', 1.50);
-        if ($this->isPermanent($user)) return Configuration::getDecimal('interest_rate_permanent', 1.00);
-        return Configuration::getDecimal('interest_rate_non_member', 2.00);
+        [$scope, $default] = match (true) {
+            $this->isSC($user) => ['sc', 1.50],
+            $this->isPermanent($user) => ['permanent', 1.00],
+            default => ['non_member', 2.00],
+        };
+
+        if ($loanType !== null) {
+            $override = Configuration::getValue(self::interestRateKey($scope, $loanType));
+
+            if ($override !== null && trim((string) $override) !== '') {
+                return (float) $override;
+            }
+        }
+
+        return Configuration::getDecimal("interest_rate_{$scope}", $default);
+    }
+
+    /**
+     * Config key for a per-loan-type rate, e.g. ('permanent', 'Multi-Purpose')
+     * becomes interest_rate_permanent_multi_purpose.
+     */
+    public static function interestRateKey(string $scope, string $loanType): string
+    {
+        $slug = strtolower((string) preg_replace('/[^a-z0-9]+/i', '_', $loanType));
+
+        return "interest_rate_{$scope}_" . trim($slug, '_');
     }
 
     /**
@@ -312,7 +343,9 @@ class LoanService
      */
     public function create(User $user, array $data): Loan
     {
-        $rate = $this->getInterestRate($user);
+        // Rate is resolved for THIS loan type, so a per-type override in config
+        // is what actually gets stored on the loan.
+        $rate = $this->getInterestRate($user, $data['loan_type'] ?? null);
         $amount = (float) $data['amount'];
         $months = (int) $data['term_months'];
 
@@ -408,6 +441,128 @@ class LoanService
         }
 
         return $loan;
+    }
+
+    /**
+     * Build the flat-interest amortization schedule for a loan plus a progress
+     * summary ("payment 7 of 24"). Interest is fixed each month
+     * (principal × rate%); the final installment absorbs the per-month rounding
+     * so the schedule sums exactly to the total payable.
+     *
+     * Recorded payments are applied against installments in order, so a member
+     * sees which periods are settled, partially settled, or overdue.
+     *
+     * @return array{schedule: array<int, array<string, mixed>>, summary: array<string, mixed>}
+     */
+    public function amortizationSchedule(Loan $loan): array
+    {
+        $loan->loadMissing('payments');
+
+        $amount = (float) $loan->amount;
+        $rate = (float) $loan->interest_rate;
+        $term = max(1, (int) $loan->term_months);
+        $monthly = (float) $loan->monthly_amortization;
+        $totalPayable = $loan->total_payable;
+        $totalPaid = round((float) $loan->payments->sum('amount'), 2);
+
+        $interestPerMonth = round($amount * ($rate / 100), 2);
+        $base = $loan->released_at ?? $loan->applied_at ?? $loan->created_at;
+
+        $isReleased = (bool) $loan->released_at;
+        $today = now()->startOfDay();
+
+        $rows = [];
+        $cumulative = 0.0;
+        $periodsPaid = 0;
+        $overdueCount = 0;
+        $next = null;
+
+        for ($i = 1; $i <= $term; $i++) {
+            // Final installment absorbs the per-month rounding.
+            $installment = $i < $term
+                ? $monthly
+                : round($totalPayable - ($monthly * ($term - 1)), 2);
+
+            $cumulativeBefore = $cumulative;
+            $cumulative = round($cumulative + $installment, 2);
+            $balance = max(0, round($totalPayable - $cumulative, 2));
+            $dueDate = $base ? $base->copy()->addMonths($i) : null;
+
+            // How much of this installment the recorded payments cover.
+            $appliedToPeriod = max(0.0, min($installment, round($totalPaid - $cumulativeBefore, 2)));
+
+            if ($totalPaid + 0.01 >= $cumulative) {
+                $status = 'paid';
+                $periodsPaid++;
+            } elseif ($totalPaid > $cumulativeBefore + 0.01) {
+                $status = 'partial';
+            } elseif (!$isReleased) {
+                $status = 'scheduled';
+            } elseif ($dueDate && $dueDate->lt($today)) {
+                $status = 'overdue';
+            } else {
+                $status = 'upcoming';
+            }
+
+            if ($status === 'overdue') {
+                $overdueCount++;
+            }
+
+            if ($next === null && $status !== 'paid') {
+                $next = [
+                    'period' => $i,
+                    'due_date' => $dueDate?->toDateString(),
+                    'due_date_label' => $dueDate?->format('M d, Y'),
+                    'amount' => round($installment - $appliedToPeriod, 2),
+                    'full_amount' => $installment,
+                    'is_overdue' => $status === 'overdue',
+                    'days_until' => $dueDate ? (int) $today->diffInDays($dueDate, false) : null,
+                ];
+            }
+
+            $rows[] = [
+                'period' => $i,
+                // Carbon so the PDF view can format it; JSON-encodes to ISO-8601.
+                'due_date' => $dueDate,
+                'due_date_label' => $dueDate?->format('M d, Y'),
+                'principal' => round($installment - $interestPerMonth, 2),
+                'interest' => $interestPerMonth,
+                'total_due' => $installment,
+                'paid_amount' => $appliedToPeriod,
+                'balance' => $balance,
+                'status' => $status,
+            ];
+        }
+
+        $totalRemaining = max(0, round($totalPayable - $totalPaid, 2));
+
+        return [
+            'schedule' => $rows,
+            'summary' => [
+                'loan_id' => $loan->id,
+                'loan_type' => $loan->loan_type,
+                'principal' => round($amount, 2),
+                'interest_rate' => $rate,
+                'term_months' => $term,
+                'monthly_amortization' => $monthly,
+                'total_payable' => $totalPayable,
+                'total_interest' => round($totalPayable - $amount, 2),
+                'periods_total' => $term,
+                'periods_paid' => $periodsPaid,
+                'periods_remaining' => $term - $periodsPaid,
+                'periods_overdue' => $overdueCount,
+                'next_due' => $next,
+                'total_paid' => $totalPaid,
+                'total_remaining' => $totalRemaining,
+                'percent_complete' => $totalPayable > 0
+                    ? min(100, round(($totalPaid / $totalPayable) * 100, 1))
+                    : 0.0,
+                'is_released' => $isReleased,
+                'released_at' => $loan->released_at?->toDateString(),
+                'first_due_date' => $rows[0]['due_date']?->toDateString(),
+                'final_due_date' => $rows[$term - 1]['due_date']?->toDateString(),
+            ],
+        ];
     }
 
     /**

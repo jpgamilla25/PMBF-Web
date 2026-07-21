@@ -15,10 +15,41 @@
       </div>
     </div>
 
+    <!-- Settings filter -->
+    <div v-if="!loading" class="cfg-search-wrap mb-4">
+      <div class="input-group">
+        <span class="input-group-text bg-body"><i class="bi bi-search"></i></span>
+        <input
+          ref="searchInput"
+          v-model="search"
+          type="text"
+          class="form-control"
+          placeholder="Filter settings — name, key, or value (e.g. terms, sc_available_terms, interest)"
+        />
+        <button v-if="search" class="btn btn-outline-secondary" type="button" @click="clearSearch">
+          <i class="bi bi-x-lg"></i>
+        </button>
+        <span class="input-group-text bg-body text-muted small d-none d-md-inline">
+          <kbd class="cfg-kbd">/</kbd>
+        </span>
+      </div>
+      <div v-if="search" class="small text-muted mt-1">
+        {{ matchCount }} setting{{ matchCount === 1 ? '' : 's' }} matched
+      </div>
+    </div>
+
     <AppLoading :loading="loading" text="Loading configurations..." />
 
-    <template v-if="!loading && Object.keys(filteredGroups).length">
-      <div v-for="(configs, group) in filteredGroups" :key="group" class="card mb-4">
+    <div v-if="!loading && search && !matchCount" class="text-center text-muted py-5">
+      <i class="bi bi-search fs-1 d-block mb-2 opacity-50"></i>
+      No setting matches "<strong>{{ search }}</strong>" for {{ adminContext.label }}.
+      <div class="mt-2">
+        <button class="btn btn-sm btn-outline-secondary" @click="clearSearch">Clear filter</button>
+      </div>
+    </div>
+
+    <template v-if="!loading && Object.keys(searchedGroups).length">
+      <div v-for="(configs, group) in searchedGroups" :key="group" class="card mb-4">
         <div class="card-header d-flex align-items-center">
           <i :class="groupIcon(group)" class="me-2 text-primary"></i>
           <h6 class="mb-0 fw-bold">{{ formatGroupName(group) }}</h6>
@@ -78,7 +109,7 @@
     </template>
 
     <!-- Sticky save bar -->
-    <div v-if="hasChanges && !loading" class="position-fixed bottom-0 start-0 end-0 bg-white border-top p-3 shadow-lg" style="z-index: 100;">
+    <div v-if="hasChanges && !loading" class="position-fixed bottom-0 start-0 end-0 bg-body border-top p-3 shadow-lg" style="z-index: 100;">
       <div class="container-fluid">
         <div class="d-flex align-items-center justify-content-between">
           <span class="text-warning fw-medium"><i class="bi bi-exclamation-circle me-1"></i>You have unsaved changes</span>
@@ -95,7 +126,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useLoading } from '@/composables/useLoading'
 import { useNotificationStore } from '@/stores/notification'
 import { useAdminContextStore } from '@/stores/adminContext'
@@ -138,11 +169,29 @@ const groupVisibility = {
 /**
  * Filter individual config keys within interest_rates group by type.
  */
-const interestRateKeys = {
+/**
+ * Which interest-rate scope each member-type context may edit.
+ *
+ * Matched by prefix so the per-loan-type override keys
+ * (interest_rate_permanent_emergency, ...) show up alongside the base rate
+ * without having to be listed individually here.
+ *
+ * Note the context value is 'Contract of Service', not 'SC' — keying this on
+ * 'SC' previously meant the SC context fell through to showing every rate.
+ */
+const interestRateScopes = {
   Permanent: ['interest_rate_permanent'],
-  SC: ['interest_rate_sc'],
+  'Contract of Service': ['interest_rate_sc'],
   'Non-Member': ['interest_rate_non_member'],
   all: ['interest_rate_sc', 'interest_rate_permanent', 'interest_rate_non_member'],
+}
+
+function isRateKeyVisible(key, type) {
+  const scopes = interestRateScopes[type] || interestRateScopes.all
+
+  // Exact base key, or a per-loan-type override beneath it. The three scopes
+  // are mutually exclusive prefixes, so no cross-scope leak is possible.
+  return scopes.some((scope) => key === scope || key.startsWith(`${scope}_`))
 }
 
 const filteredGroups = computed(() => {
@@ -160,8 +209,7 @@ const filteredGroups = computed(() => {
 
     // For interest_rates, filter individual keys
     if (group === 'interest_rates') {
-      const allowedKeys = interestRateKeys[type] || interestRateKeys.all
-      const filtered = configs.filter(c => allowedKeys.includes(c.key))
+      const filtered = configs.filter(c => isRateKeyVisible(c.key, type))
       if (filtered.length) result[group] = filtered
     } else {
       result[group] = configs
@@ -170,6 +218,81 @@ const filteredGroups = computed(() => {
 
   return result
 })
+
+// ── Search ─────────────────────────────────────────────────
+// Narrows the visible settings by key, description, group name or current
+// value, so an admin can jump to one setting without scrolling every card.
+
+const search = ref('')
+const searchInput = ref(null)
+
+/** Subsequence match, so "sctrm" finds "sc_available_terms". */
+function fuzzyMatch(text, q) {
+  const haystack = (text ?? '').toLowerCase()
+  if (haystack.includes(q)) return true
+
+  let i = 0
+  for (const ch of haystack) {
+    if (ch === q[i]) i++
+    if (i === q.length) return true
+  }
+  return false
+}
+
+const searchedGroups = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return filteredGroups.value
+
+  const result = {}
+  for (const [group, configs] of Object.entries(filteredGroups.value)) {
+    // A group-name hit keeps the whole group, so "security" shows its section.
+    const groupHit = fuzzyMatch(formatGroupName(group), q) || fuzzyMatch(group, q)
+
+    const hits = groupHit
+      ? configs
+      : configs.filter((c) =>
+        fuzzyMatch(c.key, q) ||
+        fuzzyMatch(c.description, q) ||
+        fuzzyMatch(String(values[c.key] ?? ''), q)
+      )
+
+    if (hits.length) result[group] = hits
+  }
+  return result
+})
+
+const matchCount = computed(() =>
+  Object.values(searchedGroups.value).reduce((n, c) => n + c.length, 0)
+)
+
+function clearSearch() {
+  search.value = ''
+  searchInput.value?.focus()
+}
+
+/** Ctrl+F / "/" focuses the settings filter while on this page. */
+function onKeydown(e) {
+  const typingElsewhere = ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    searchInput.value?.focus()
+    return
+  }
+
+  if (e.key === '/' && !typingElsewhere) {
+    e.preventDefault()
+    searchInput.value?.focus()
+    return
+  }
+
+  if (e.key === 'Escape' && e.target === searchInput.value && search.value) {
+    clearSearch()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const groupIcons = {
   interest_rates: 'bi bi-percent',
@@ -254,3 +377,23 @@ async function handleSave() {
 
 onMounted(fetchConfigs)
 </script>
+
+<style scoped>
+/* Keeps the filter reachable while scrolling a long settings page. */
+.cfg-search-wrap {
+  position: sticky;
+  top: calc(var(--pmbf-navbar-height, 60px) + 8px);
+  z-index: 20;
+  background: var(--bs-body-bg);
+  padding: 8px 0;
+}
+
+.cfg-kbd {
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: .7rem;
+  color: inherit;
+}
+</style>

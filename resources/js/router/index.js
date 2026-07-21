@@ -306,4 +306,38 @@ router.beforeEach(async (to, from, next) => {
   next()
 })
 
+/**
+ * Recover from a stale build.
+ *
+ * Route components are lazy-loaded from content-hashed files. After a deploy
+ * the old chunk names no longer exist, so a tab that was already open fails
+ * with "Failed to fetch dynamically imported module" the moment the user
+ * navigates — which reads as the page being broken.
+ *
+ * Reloading pulls the new index and its new chunk names. The sessionStorage
+ * flag means a genuinely missing chunk reloads once instead of looping.
+ */
+const RELOAD_FLAG = 'pmbf_chunk_reload'
+
+const isStaleChunkError = (error) =>
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
+    .test(error?.message ?? '')
+
+router.onError((error, to) => {
+  if (!isStaleChunkError(error)) return
+
+  if (sessionStorage.getItem(RELOAD_FLAG)) {
+    // Already retried — reloading again would spin.
+    console.error('Chunk still unavailable after reload:', error)
+    return
+  }
+
+  sessionStorage.setItem(RELOAD_FLAG, '1')
+  window.location.assign(to?.fullPath ?? window.location.pathname)
+})
+
+// A completed navigation means the current build is intact; clear the guard
+// so a future deploy can recover the same way.
+router.afterEach(() => sessionStorage.removeItem(RELOAD_FLAG))
+
 export default router

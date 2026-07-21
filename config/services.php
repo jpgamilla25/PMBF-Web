@@ -44,12 +44,17 @@ return [
         'url' => env('HRIS_API_URL', 'https://api-center.philrice.gov.ph/api/v2/hris'),
         'token' => env('HRIS_API_TOKEN'),
         'key' => env('HRIS_API_KEY'),
+        // TLS peer verification. The PhilRice api-center presents a self-signed
+        // certificate chain that the default CA bundle does not trust, so set
+        // HRIS_API_VERIFY_SSL=false where that is the case (e.g. local dev).
+        'verify' => env('HRIS_API_VERIFY_SSL', true),
     ],
 
     'fmis' => [
         'url' => env('FMIS_API_URL', 'https://api-center.philrice.gov.ph/api/v2/fmis'),
         'token' => env('FMIS_API_TOKEN', env('HRIS_API_TOKEN')),
         'key' => env('FMIS_API_KEY', env('HRIS_API_KEY')),
+        'verify' => env('FMIS_API_VERIFY_SSL', env('HRIS_API_VERIFY_SSL', true)),
     ],
 
 ];

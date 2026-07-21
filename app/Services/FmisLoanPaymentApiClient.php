@@ -72,9 +72,12 @@ class FmisLoanPaymentApiClient
 
         try {
             $responses = Http::pool(function (Pool $pool) use ($pageNumbers, $headers, $url, $baseQuery) {
+                $verify = config('services.fmis.verify');
+
                 return collect($pageNumbers)
                     ->map(fn ($page) => $pool
                         ->withHeaders($headers)
+                        ->withOptions(['verify' => $verify])
                         ->timeout(60)
                         ->get($url, array_merge($baseQuery, ['page' => $page]))
                     )
@@ -101,6 +104,7 @@ class FmisLoanPaymentApiClient
     {
         try {
             return Http::withHeaders($this->headers())
+                ->withOptions(['verify' => config('services.fmis.verify')])
                 ->timeout(60)
                 ->retry(2, 500, throw: false)
                 ->get($this->endpoint(), $query);

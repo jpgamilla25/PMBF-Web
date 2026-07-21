@@ -73,6 +73,7 @@ class HrisService
                 'Authorization' => 'Bearer ' . config('services.hris.token'),
                 'x-api-key' => config('services.hris.key'),
             ])
+                ->withOptions(['verify' => config('services.hris.verify')])
                 ->timeout(15)
                 ->retry(2, 200, throw: false)
                 ->get($url);

@@ -134,10 +134,10 @@ class SyncLoanPaymentsFromFmis extends Command
                 'month' => $month,
                 'amount' => $amount,
                 'dv_number' => $row['dv_number'] ?? null,
-                'dv_date' => $row['dv_date'] ?? null,
+                'dv_date' => $this->toDate($row['dv_date'] ?? null),
                 'fund' => $row['fund'] ?? null,
                 'voided' => $voided,
-                'fmis_updated_at' => $row['updated_at'] ?? null,
+                'fmis_updated_at' => $this->toDateTime($row['updated_at'] ?? null),
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -160,5 +160,32 @@ class SyncLoanPaymentsFromFmis extends Command
             ['employee_id', 'dv_number'],
             ['amount', 'year', 'month', 'dv_date', 'fund', 'voided', 'fmis_updated_at', 'updated_at']
         );
+    }
+
+    /**
+     * Normalize an FMIS API datetime (ISO-8601, e.g. "2026-01-06T00:00:00+00:00")
+     * into a MySQL-storable "Y-m-d H:i:s" string. Null/invalid values become null.
+     */
+    private function toDateTime(mixed $value): ?string
+    {
+        return $this->parseOrNull($value)?->toDateTimeString();
+    }
+
+    private function toDate(mixed $value): ?string
+    {
+        return $this->parseOrNull($value)?->toDateString();
+    }
+
+    private function parseOrNull(mixed $value): ?Carbon
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

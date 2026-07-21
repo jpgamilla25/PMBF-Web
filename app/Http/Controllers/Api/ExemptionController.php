@@ -91,16 +91,50 @@ class ExemptionController extends Controller
     }
 
     /**
-     * List all pending exemption requests (admin endpoint).
+     * List exemption requests for review (admin endpoint).
+     *
+     * Defaults to pending — that's the queue an admin acts on — but supports
+     * approved/rejected/all so past decisions can be looked up.
      */
     public function index(Request $request): JsonResponse
     {
-        $exemptions = LoanExemptionRequest::pending()
-            ->with('user:id,employee_id,first_name,last_name,employment_type,department')
-            ->orderByDesc('created_at')
-            ->get();
+        $request->validate([
+            'status' => 'nullable|in:pending,approved,rejected,all',
+            'type' => 'nullable|in:below_minimum_pay,exceed_max_amount,extend_term',
+            'search' => 'nullable|string|max:100',
+        ]);
 
-        return $this->success($exemptions);
+        $status = $request->input('status', 'pending');
+
+        $query = LoanExemptionRequest::with([
+            'user:id,employee_id,first_name,last_name,employment_type,department,email',
+            'reviewer:id,first_name,last_name',
+        ]);
+
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->whereHas('user', fn ($u) => $u
+                ->where('employee_id', 'LIKE', "%{$search}%")
+                ->orWhere('first_name', 'LIKE', "%{$search}%")
+                ->orWhere('last_name', 'LIKE', "%{$search}%"));
+        }
+
+        return $this->success([
+            'requests' => $query->orderByDesc('created_at')->get(),
+            'counts' => [
+                'pending' => LoanExemptionRequest::where('status', 'pending')->count(),
+                'approved' => LoanExemptionRequest::where('status', 'approved')->count(),
+                'rejected' => LoanExemptionRequest::where('status', 'rejected')->count(),
+            ],
+        ]);
     }
 
     /**

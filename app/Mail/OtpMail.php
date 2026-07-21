@@ -23,6 +23,7 @@ class OtpMail extends Mailable
             'registration' => 'PMBF - Registration OTP Verification',
             'login' => 'PMBF - Login OTP Verification',
             'loan_application' => 'PMBF - Loan Application OTP Verification',
+            'pin_reset' => 'PMBF - Reset Your PIN',
         ];
 
         return new Envelope(

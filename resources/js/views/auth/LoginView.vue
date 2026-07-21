@@ -178,9 +178,16 @@ const { form, errors, processing, submit, setErrors, clearErrors } = useForm({
   otp: '',
 })
 
-/** Redirect admin → select-type, others → dashboard */
+/**
+ * Send users without a PIN to set one up first; otherwise admin →
+ * select-type, everyone else → dashboard.
+ */
 function goAfterLogin() {
-  if (authStore.isAdmin) {
+  authStore.rememberPinHint(authStore.user)
+
+  if (!authStore.hasPin) {
+    router.push('/pin-setup')
+  } else if (authStore.isAdmin) {
     router.push('/admin/select-type')
   } else {
     router.push('/dashboard')
@@ -204,7 +211,15 @@ async function requestOtp() {
       })
       const result = data.data ?? data
 
-      // ── Trusted device → auto-login, no OTP needed ──
+      // ── Trusted device, PIN set → challenge for the PIN ──
+      if (result.requires_pin) {
+        authStore.setPinHint({ employee_id: result.employee_id, first_name: result.first_name })
+        loginDone.value = true
+        router.push({ name: 'pin-login' })
+        return
+      }
+
+      // ── Trusted device, no PIN yet → auto-login ──
       if (result.trusted && result.token) {
         loginDone.value = true
         autoLogging.value = true

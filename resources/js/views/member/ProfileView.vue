@@ -124,6 +124,75 @@
             </div>
           </AppCard>
         </div>
+
+        <!-- Security -->
+        <div id="security" class="col-12">
+          <AppCard title="Security">
+            <!-- PIN -->
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3">
+              <div>
+                <div class="fw-semibold">
+                  <i class="bi bi-shield-lock me-1 text-primary"></i>Sign-in PIN
+                </div>
+                <div class="text-muted small">
+                  <template v-if="authStore.hasPin">
+                    A 4-digit PIN signs you in on trusted devices instead of an email OTP.
+                  </template>
+                  <template v-else>
+                    Not set. Add a PIN to skip the email OTP on this device.
+                  </template>
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                <router-link to="/pin-setup" class="btn btn-sm btn-primary">
+                  {{ authStore.hasPin ? 'Change PIN' : 'Create PIN' }}
+                </router-link>
+                <button
+                  v-if="authStore.hasPin"
+                  class="btn btn-sm btn-outline-danger"
+                  :disabled="removingPin"
+                  @click="removePin"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+
+            <!-- Trusted devices -->
+            <div class="border-top pt-3">
+              <div class="fw-semibold mb-2">
+                <i class="bi bi-laptop me-1 text-primary"></i>Trusted devices
+              </div>
+
+              <p v-if="!devices.length" class="text-muted small mb-0">
+                No trusted devices. You'll be asked for an email OTP each time you sign in.
+              </p>
+
+              <ul v-else class="list-group list-group-flush">
+                <li
+                  v-for="d in devices"
+                  :key="d.id"
+                  class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2 px-0"
+                >
+                  <div>
+                    <div class="fw-medium small">
+                      {{ d.device_name || 'Unknown device' }}
+                      <span v-if="d.device_fingerprint === currentFingerprint" class="badge bg-success ms-1">
+                        This device
+                      </span>
+                    </div>
+                    <div class="text-muted" style="font-size: .75rem;">
+                      {{ d.ip_address || 'unknown IP' }} · trusted until {{ formatDate(d.trusted_until) }}
+                    </div>
+                  </div>
+                  <button class="btn btn-sm btn-outline-secondary" @click="revoke(d)">
+                    Revoke
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </AppCard>
+        </div>
       </div>
     </template>
   </AppLayout>
@@ -132,7 +201,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useLoading } from '@/composables/useLoading'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
+import { useDeviceFingerprint } from '@/composables/useDeviceFingerprint'
 import members from '@/services/members'
+import auth from '@/services/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
@@ -140,7 +213,52 @@ import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 
 const { loading, withLoading } = useLoading()
+const authStore = useAuthStore()
+const notify = useNotificationStore()
+const device = useDeviceFingerprint()
+
 const profile = ref(null)
+const devices = ref([])
+const removingPin = ref(false)
+const currentFingerprint = device.get()
+
+async function loadDevices() {
+  try {
+    const { data } = await auth.getTrustedDevices()
+    devices.value = data.data ?? data
+  } catch {
+    devices.value = []
+  }
+}
+
+async function removePin() {
+  removingPin.value = true
+  try {
+    await auth.removePin()
+    await authStore.fetchUser()
+    authStore.clearPinHint()
+    notify.success('PIN removed. You will sign in with an email OTP.')
+  } catch {
+    notify.error('Could not remove your PIN.')
+  } finally {
+    removingPin.value = false
+  }
+}
+
+async function revoke(deviceRow) {
+  try {
+    await auth.revokeTrust({ device_fingerprint: deviceRow.device_fingerprint })
+    // A PIN only works on a trusted device, so revoking the current one also
+    // retires the local PIN shortcut.
+    if (deviceRow.device_fingerprint === currentFingerprint) {
+      authStore.clearPinHint()
+    }
+    await loadDevices()
+    notify.success('Device trust revoked.')
+  } catch {
+    notify.error('Could not revoke this device.')
+  }
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '-'
@@ -156,5 +274,6 @@ onMounted(() => {
     const response = await members.getProfile()
     profile.value = response.data.data ?? response.data
   })
+  loadDevices()
 })
 </script>

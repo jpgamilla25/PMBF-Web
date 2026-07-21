@@ -9,7 +9,24 @@ use Illuminate\Support\Facades\Log;
 
 class HrisService
 {
-    private const CACHE_TTL_SECONDS = 60;
+    private const CACHE_TTL_SECONDS = 300;
+
+    /**
+     * Marker stored in the cache for "this employee is not in HRIS".
+     *
+     * Cache::remember cannot cache a null return — get() returns null, which
+     * reads as a miss, so every lookup of a missing employee re-ran the API
+     * call and paid the full timeout again.
+     */
+    private const MISS = '__hris_miss__';
+
+    /**
+     * Per-request memo. A single response can serialize the same employee
+     * many times, and the cache driver is a database round trip.
+     *
+     * @var array<string, ?array>
+     */
+    private array $memo = [];
 
     /**
      * Find an HRIS employee by their employee ID via the PhilRice api-center.
@@ -55,11 +72,19 @@ class HrisService
 
     private function fetchEmployeeData(string $id): ?array
     {
-        return Cache::remember(
+        if (array_key_exists($id, $this->memo)) {
+            return $this->memo[$id];
+        }
+
+        $cached = Cache::remember(
             "hris:employee:{$id}",
             self::CACHE_TTL_SECONDS,
-            fn () => $this->callApi($id)
+            fn () => $this->callApi($id) ?? self::MISS
         );
+
+        $data = $cached === self::MISS ? null : $cached;
+
+        return $this->memo[$id] = $data;
     }
 
     private function callApi(string $id): ?array
@@ -74,8 +99,12 @@ class HrisService
                 'x-api-key' => config('services.hris.key'),
             ])
                 ->withOptions(['verify' => config('services.hris.verify')])
-                ->timeout(15)
-                ->retry(2, 200, throw: false)
+                // Was 15s with 2 retries — a slow HRIS could stall a single
+                // request for 45 seconds. Every caller has a local fallback,
+                // so failing fast is better than blocking the page.
+                ->timeout(5)
+                ->connectTimeout(3)
+                ->retry(1, 200, throw: false)
                 ->get($url);
         } catch (\Throwable $e) {
             Log::error('HRIS API request threw exception', [

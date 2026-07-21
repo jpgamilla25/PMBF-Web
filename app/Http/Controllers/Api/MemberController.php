@@ -39,7 +39,7 @@ class MemberController extends Controller
         $user = $request->user();
         $user->loadCount(['loans', 'dependents']);
 
-        $data = (new UserResource($user))->toArray($request);
+        $data = (new UserResource($user))->withHris()->toArray($request);
         $data['total_loans'] = $user->loans()->count();
         $data['active_loans'] = $user->loans()->whereIn('status', ['approved', 'released'])->count();
         $data['dependents_count'] = $user->dependents()->count();

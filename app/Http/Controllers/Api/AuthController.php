@@ -473,7 +473,9 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return $this->success(
-            new UserResource($request->user()),
+            // Single record, so a live HRIS lookup is affordable here — this
+            // is what keeps the signed-in user's pay figures current.
+            (new UserResource($request->user()))->withHris(),
             'User retrieved.'
         );
     }

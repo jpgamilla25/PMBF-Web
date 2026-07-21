@@ -2,20 +2,38 @@
 
 namespace App\Http\Resources;
 
+use App\Services\HrisService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {
     /**
+     * Whether to overlay live HRIS values on top of the local snapshot.
+     *
+     * Off by default. This used to be unconditional, which meant one HTTP
+     * call to the HRIS API per serialized user — a 20-row members table cost
+     * 20 sequential API calls and took tens of seconds. The users table
+     * already carries a snapshot of these fields, so lists read from that and
+     * only single-record endpoints ask HRIS for live values.
+     */
+    private bool $withHris = false;
+
+    /** Opt this resource in to a live HRIS lookup. */
+    public function withHris(bool $enabled = true): static
+    {
+        $this->withHris = $enabled;
+
+        return $this;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        // Always show the live HRIS pay values; fall back to the registration
-        // snapshot in the users table if HRIS is unreachable.
-        $hris = $this->employee_id
-            ? app(\App\Services\HrisService::class)->findByEmployeeId($this->employee_id)
+        $hris = $this->withHris && $this->employee_id
+            ? app(HrisService::class)->findByEmployeeId($this->employee_id)
             : null;
 
         return [

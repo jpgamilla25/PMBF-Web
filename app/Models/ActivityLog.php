@@ -15,12 +15,25 @@ class ActivityLog extends Model
         'old_value',
         'new_value',
         'employment_type',
+        'ip_address',
         'meta',
     ];
 
     protected $casts = [
         'meta' => 'array',
     ];
+
+    /**
+     * Capture the requesting IP automatically unless one was supplied.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $log) {
+            if (blank($log->ip_address) && app()->bound('request')) {
+                $log->ip_address = request()->ip();
+            }
+        });
+    }
 
     public function admin(): BelongsTo
     {

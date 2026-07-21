@@ -15,7 +15,24 @@
           <span class="navbar-toggler-icon"></span>
         </button>
 
+        <!-- Command palette trigger (Ctrl+K) -->
+        <button type="button" class="cp-trigger d-none d-md-flex align-items-center gap-2 ms-3" @click="palette?.show()">
+          <i class="bi bi-search"></i>
+          <span class="flex-grow-1 text-start">Search...</span>
+          <kbd class="cp-trigger-kbd">Ctrl K</kbd>
+        </button>
+
         <div class="d-flex align-items-center ms-auto">
+          <!-- Compact search on small screens -->
+          <button
+            type="button"
+            class="btn btn-link text-white d-md-none p-1 me-2 border-0 shadow-none"
+            aria-label="Search"
+            @click="palette?.show()"
+          >
+            <i class="bi bi-search fs-5"></i>
+          </button>
+
           <!-- Cost Breakdown link -->
           <a
             v-if="false"
@@ -29,62 +46,9 @@
             <span class="d-none d-lg-inline" style="font-size:0.8rem;opacity:.85;">Budget</span>
           </a>
 
-          <!-- Notification bell -->
-          <div class="dropdown me-3">
-            <a
-              href="#"
-              class="text-white position-relative"
-              role="button"
-              data-bs-toggle="dropdown"
-              data-bs-auto-close="outside"
-              aria-expanded="false"
-              @click="fetchNotifications"
-            >
-              <i class="bi bi-bell fs-5"></i>
-              <span
-                v-if="unreadCount > 0"
-                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                style="font-size: 0.6rem;"
-              >
-                {{ unreadCount > 99 ? '99+' : unreadCount }}
-              </span>
-            </a>
-            <div class="dropdown-menu dropdown-menu-end shadow notification-dropdown p-0" style="width: 360px; max-height: 440px;">
-              <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
-                <span class="fw-semibold small">Notifications</span>
-                <a
-                  v-if="unreadCount > 0"
-                  href="#"
-                  class="text-primary small text-decoration-none"
-                  @click.prevent="markAllRead"
-                >
-                  Mark all read
-                </a>
-              </div>
-              <div class="overflow-auto" style="max-height: 370px;">
-                <div v-if="notificationsLoading" class="text-center py-4">
-                  <div class="spinner-border spinner-border-sm text-muted"></div>
-                </div>
-                <div v-else-if="notifications.length === 0" class="text-center py-4 text-muted small">
-                  No notifications
-                </div>
-                <a
-                  v-for="n in notifications"
-                  :key="n.id"
-                  href="#"
-                  class="d-flex align-items-start px-3 py-2 text-decoration-none border-bottom notification-item"
-                  :class="{ 'bg-primary bg-opacity-10': !n.read_at }"
-                  @click.prevent="handleNotificationClick(n)"
-                >
-                  <i :class="n.icon || 'bi-bell'" class="bi me-2 mt-1" :style="{ color: n.read_at ? '#9ca3af' : '#1e40af' }"></i>
-                  <div class="flex-grow-1 small">
-                    <div class="fw-semibold" :class="{ 'text-dark': !n.read_at, 'text-muted': n.read_at }">{{ n.title }}</div>
-                    <div class="text-muted" style="font-size: 0.78rem;">{{ n.message }}</div>
-                    <div class="text-muted" style="font-size: 0.7rem;">{{ timeAgo(n.created_at) }}</div>
-                  </div>
-                </a>
-              </div>
-            </div>
+          <!-- Notification bell (polls; see stores/inbox.js) -->
+          <div class="me-3">
+            <NotificationBell />
           </div>
 
           <!-- User dropdown -->
@@ -115,6 +79,27 @@
                   <i class="bi bi-person me-2"></i>My Profile
                 </router-link>
               </li>
+              <li>
+                <router-link class="dropdown-item" to="/profile#security">
+                  <i class="bi bi-shield-lock me-2"></i>Security &amp; PIN
+                  <span v-if="!authStore.hasPin" class="badge bg-warning text-dark ms-1">Set up</span>
+                </router-link>
+              </li>
+
+              <li><hr class="dropdown-divider" /></li>
+              <li><h6 class="dropdown-header py-1">Appearance</h6></li>
+              <li v-for="m in themeModes" :key="m">
+                <button
+                  class="dropdown-item d-flex align-items-center"
+                  type="button"
+                  @click="setThemeMode(m)"
+                >
+                  <i class="me-2" :class="themeIcons[m]"></i>
+                  <span class="flex-grow-1 text-capitalize">{{ m === 'auto' ? 'System' : m }}</span>
+                  <i v-if="themeMode === m" class="bi bi-check2 text-primary"></i>
+                </button>
+              </li>
+
               <li><hr class="dropdown-divider" /></li>
               <li>
                 <a class="dropdown-item text-danger" href="#" @click.prevent="handleLogout">
@@ -234,79 +219,35 @@
         </div>
       </main>
     </div>
+
+    <CommandPalette ref="palette" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useAdminContextStore } from '../../stores/adminContext'
-import notificationsService from '../../services/notifications'
+import { useTheme } from '../../composables/useTheme'
+import NotificationBell from '../ui/NotificationBell.vue'
+import CommandPalette from '../ui/CommandPalette.vue'
 
 const authStore = useAuthStore()
 const adminContext = useAdminContextStore()
 const router = useRouter()
 const sidebarOpen = ref(false)
+const palette = ref(null)
 
-// ── Notifications ──
-const notifications = ref([])
-const unreadCount = ref(0)
-const notificationsLoading = ref(false)
-
-async function fetchUnreadCount() {
-  try {
-    const { data } = await notificationsService.getUnreadCount()
-    unreadCount.value = (data.data ?? data).count ?? 0
-  } catch { /* ignore */ }
+// ── Appearance ──
+// Destructured so `themeMode` is a top-level ref the template auto-unwraps;
+// `theme.mode` would stay a Ref object and never match a mode string.
+const { mode: themeMode, setMode: setThemeMode, MODES: themeModes } = useTheme()
+const themeIcons = {
+  light: 'bi bi-sun-fill',
+  dark: 'bi bi-moon-stars-fill',
+  auto: 'bi bi-circle-half',
 }
-
-async function fetchNotifications() {
-  notificationsLoading.value = true
-  try {
-    const { data } = await notificationsService.getAll({ per_page: 15 })
-    notifications.value = data.data ?? []
-    unreadCount.value = data.meta?.unread_count ?? unreadCount.value
-  } catch { /* ignore */ }
-  finally { notificationsLoading.value = false }
-}
-
-async function handleNotificationClick(n) {
-  if (!n.read_at) {
-    await notificationsService.markAsRead(n.id)
-    n.read_at = new Date().toISOString()
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
-  }
-  if (n.url) router.push(n.url)
-}
-
-async function markAllRead() {
-  await notificationsService.markAllAsRead()
-  notifications.value.forEach(n => n.read_at = n.read_at || new Date().toISOString())
-  unreadCount.value = 0
-}
-
-function timeAgo(dateStr) {
-  if (!dateStr) return ''
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-}
-
-onMounted(() => {
-  if (authStore.isAuthenticated && authStore.token) {
-    fetchUnreadCount()
-    setInterval(() => {
-      if (authStore.isAuthenticated) fetchUnreadCount()
-    }, 60000)
-  }
-})
 
 const memberTypeOptions = [
   { value: 'all', label: 'All Members', short: 'All', icon: 'bi bi-grid-3x3-gap', color: 'ctx-all' },
@@ -340,6 +281,8 @@ const adminMenuItems = [
   { to: '/admin/reports', label: 'Reports', icon: 'bi bi-file-earmark-bar-graph' },
   { to: '/admin/shares', label: 'Share Capital', icon: 'bi bi-pie-chart' },
   { to: '/admin/schedule', label: 'Schedule Monitor', icon: 'bi bi-clock-history' },
+  { to: '/admin/exemptions', label: 'Special Approvals', icon: 'bi bi-envelope-paper' },
+  { to: '/admin/activity-logs', label: 'Audit Trail', icon: 'bi bi-journal-text' },
   { to: '/admin/import', label: 'Import Data', icon: 'bi bi-upload' },
   { to: '/admin/mobile-settings', label: 'Mobile App', icon: 'bi bi-phone' },
 ]
@@ -547,8 +490,33 @@ async function handleLogout() {
   color: #fff;
 }
 
-.notification-dropdown { border-radius: 10px; overflow: hidden; }
-.notification-item:hover { background: #f3f4f6 !important; }
 .cost-link { opacity: .85; transition: opacity .15s; }
 .cost-link:hover { opacity: 1; }
+
+/* Command palette trigger — a fake search field in the navbar. */
+.cp-trigger {
+  width: 260px;
+  height: 34px;
+  padding: 0 8px 0 12px;
+  border: 1px solid rgba(255, 255, 255, .25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .12);
+  color: rgba(255, 255, 255, .8);
+  font-size: .82rem;
+  transition: background .15s, border-color .15s;
+}
+
+.cp-trigger:hover {
+  background: rgba(255, 255, 255, .2);
+  border-color: rgba(255, 255, 255, .45);
+  color: #fff;
+}
+
+.cp-trigger-kbd {
+  background: rgba(255, 255, 255, .18);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: .68rem;
+  color: rgba(255, 255, 255, .9);
+}
 </style>

@@ -126,6 +126,9 @@
             </div>
           </div>
 
+          <!-- Amortization Schedule (approved / released / active loans) -->
+          <AmortizationSchedule v-if="showSchedule" :loan-id="loan.id" class="mb-4" />
+
           <!-- Approval Timeline -->
           <AppCard title="Approval Timeline">
             <div v-if="!approvalSteps.length" class="text-muted small py-2">
@@ -243,6 +246,7 @@ import AppTable from '@/components/ui/AppTable.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
+import AmortizationSchedule from '@/components/ui/AmortizationSchedule.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -276,6 +280,13 @@ const breakdownUrl = computed(() => {
 const canCancel = computed(() => {
   if (!loan.value) return false
   return ['co_maker_pending', 'admin_pending', 'pending', 'receiver_approved', 'committee_approved'].includes(loan.value.status)
+})
+
+// The schedule only means something once the loan is committed — i.e. approved
+// by the chairperson, released, or already being paid off.
+const showSchedule = computed(() => {
+  if (!loan.value) return false
+  return ['chairperson_approved', 'approved', 'released', 'completed', 'defaulted'].includes(loan.value.status)
 })
 
 const totalDue = computed(() => {

@@ -118,6 +118,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import { useForm } from '@/composables/useForm'
+import { useDeviceFingerprint } from '@/composables/useDeviceFingerprint'
 import auth from '@/services/auth'
 import GuestLayout from '@/components/layout/GuestLayout.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -126,6 +127,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 const router = useRouter()
 const authStore = useAuthStore()
 const notify = useNotificationStore()
+const device = useDeviceFingerprint()
 
 const currentStep = ref(1)
 const employee = reactive({ first_name: '', last_name: '', email: '', employment_type: '', department: '', position: '' })
@@ -166,11 +168,17 @@ async function handleComplete() {
       const { data } = await auth.registerComplete({
         employee_id: form.employee_id,
         otp: form.otp,
+        // Registering proves ownership of the account's email, so the backend
+        // trusts this device — which is what makes a PIN usable right away.
+        device_fingerprint: device.get(),
       })
       const result = data.data ?? data
       authStore.setAuth(result.user, result.token)
       notify.success('Registration complete! Welcome to PMBF.')
-      router.push('/dashboard')
+
+      // A brand-new account never has a PIN — this is the first login, so
+      // send them straight to PIN setup rather than the dashboard.
+      router.push('/pin-setup')
     })
   } catch (error) {
     const msg = error.response?.data?.message || 'Invalid OTP or registration failed.'

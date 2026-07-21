@@ -389,10 +389,16 @@ class AdminController extends Controller
 
             $oldValue = $config->value;
 
+            // A blank numeric field means "not set" and must stay blank.
+            // Coercing it through (float) would write 0.00, which is a real
+            // value — that silently turned unset per-loan-type interest rate
+            // overrides into genuine 0% rates.
+            $isBlank = $value === null || trim((string) $value) === '';
+
             // Clean and format based on type
             $value = match ($config->type) {
-                'decimal' => number_format((float) $value, 2, '.', ''),
-                'number'  => (string) (int) $value,
+                'decimal' => $isBlank ? '' : number_format((float) $value, 2, '.', ''),
+                'number'  => $isBlank ? '' : (string) (int) $value,
                 'boolean' => in_array($value, ['1', 'true', true, 1], true) ? '1' : '0',
                 'text'    => self::cleanCommaSeparated((string) $value),
                 default   => (string) $value,
@@ -465,8 +471,33 @@ class AdminController extends Controller
      */
     public function activityLogs(Request $request): JsonResponse
     {
+        // Filter options for the Audit Trail UI (users / actions / subjects present in the log)
+        if ($request->boolean('filters_only')) {
+            return $this->success([
+                'actions' => ActivityLog::distinct()->orderBy('action')->pluck('action'),
+                'subjects' => ActivityLog::whereNotNull('subject')
+                    ->distinct()->orderBy('subject')->pluck('subject')->take(200)->values(),
+                'admins' => User::whereIn('id', ActivityLog::whereNotNull('admin_id')->distinct()->pluck('admin_id'))
+                    ->orderBy('last_name')
+                    ->get(['id', 'first_name', 'last_name', 'employee_id'])
+                    ->map(fn ($u) => [
+                        'id' => $u->id,
+                        'name' => trim($u->first_name . ' ' . $u->last_name),
+                        'employee_id' => $u->employee_id,
+                    ]),
+            ], 'Activity log filter options retrieved.');
+        }
+
         $query = ActivityLog::with('admin:id,first_name,last_name,employee_id')
             ->latest();
+
+        if ($request->filled('admin_id')) {
+            $query->where('admin_id', $request->input('admin_id'));
+        }
+
+        if ($request->filled('subject')) {
+            $query->where('subject', 'like', $request->input('subject') . '%');
+        }
 
         if ($request->filled('action')) {
             $query->where('action', $request->input('action'));
@@ -492,7 +523,8 @@ class AdminController extends Controller
             });
         }
 
-        $logs = $query->paginate($request->input('per_page', 20));
+        $perPage = min(max((int) $request->input('per_page', 20), 5), 100);
+        $logs = $query->paginate($perPage)->withQueryString();
 
         return $this->success($logs, 'Activity logs retrieved.');
     }

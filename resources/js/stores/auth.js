@@ -1,9 +1,20 @@
 import { defineStore } from 'pinia'
 import { useAdminContextStore } from './adminContext'
+import { useInboxStore } from './inbox'
 import { watch } from 'vue'
 import authService from '../services/auth'
 import approvalsService from '../services/approvals'
 import loansService from '../services/loans'
+
+const PIN_HINT_KEY = 'pmbf_pin_hint'
+
+function readPinHint() {
+  try {
+    return JSON.parse(localStorage.getItem(PIN_HINT_KEY)) || null
+  } catch {
+    return null
+  }
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -13,6 +24,9 @@ export const useAuthStore = defineStore('auth', {
     pendingApprovalCount: 0,
     releaseCount: 0,
     coMakerPendingCount: 0,
+    // Who last signed in on this browser, so the PIN screen can greet them
+    // before any network call. Contains no secret — ID and first name only.
+    pinHint: readPinHint(),
   }),
 
   getters: {
@@ -30,6 +44,7 @@ export const useAuthStore = defineStore('auth', {
     },
     canApprove: (state) =>
       ['receiver', 'loan_committee', 'chairperson', 'admin'].includes(state.user?.role),
+    hasPin: (state) => !!state.user?.has_pin,
   },
 
   actions: {
@@ -38,6 +53,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { data } = await authService.getMe()
         this.user = data.data ?? data
+        this.rememberPinHint(this.user)
         this.fetchPendingApprovalCount()
       } catch {
         this.clearAuth()
@@ -116,6 +132,26 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    /**
+     * Remember who signed in so the PIN screen can greet them next visit.
+     * Only stored when the user actually has a PIN.
+     */
+    rememberPinHint(user) {
+      if (!user?.has_pin) return this.clearPinHint()
+
+      this.setPinHint({ employee_id: user.employee_id, first_name: user.first_name })
+    },
+
+    setPinHint(hint) {
+      this.pinHint = hint
+      localStorage.setItem(PIN_HINT_KEY, JSON.stringify(hint))
+    },
+
+    clearPinHint() {
+      this.pinHint = null
+      localStorage.removeItem(PIN_HINT_KEY)
+    },
+
     clearAuth() {
       this.user = null
       this.token = null
@@ -123,6 +159,8 @@ export const useAuthStore = defineStore('auth', {
       // Clear admin context on logout
       const adminContext = useAdminContextStore()
       adminContext.clear()
+      // Stop the notification poll and drop another user's items.
+      useInboxStore().reset()
     },
 
     async initAuth() {

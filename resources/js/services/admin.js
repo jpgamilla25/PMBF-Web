@@ -102,8 +102,12 @@ export default {
     return api.post('/admin/user-types/assign', data)
   },
 
-  // Activity Logs
+  // Activity Logs / Audit Trail
   getActivityLogs(params = {}) {
     return api.get('/admin/activity-logs', { params })
+  },
+
+  getActivityLogFilters() {
+    return api.get('/admin/activity-logs', { params: { filters_only: true } })
   },
 }

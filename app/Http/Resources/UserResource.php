@@ -35,6 +35,7 @@ class UserResource extends JsonResource
             'take_home_pay' => $hris?->take_home_pay ?? $this->take_home_pay,
             'role' => $this->role,
             'status' => $this->status,
+            'has_pin' => (bool) $this->pin,
             'contract_start' => $hris?->contract_start?->toDateString() ?? $this->contract_start?->toDateString(),
             'contract_end' => $hris?->contract_end?->toDateString() ?? $this->contract_end?->toDateString(),
         ];

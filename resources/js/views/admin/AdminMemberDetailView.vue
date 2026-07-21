@@ -81,6 +81,9 @@
             </AppTable>
           </AppCard>
 
+          <!-- Payment statement for this member -->
+          <PaymentStatementCard v-if="member.id" :user-id="member.id" class="mb-4" />
+
           <!-- Dependents -->
           <AppCard title="Dependents" :padding="false">
             <AppTable :columns="dependentColumns" :items="member.dependents ?? []" empty-text="No dependents listed.">
@@ -112,6 +115,7 @@ import AppTable from '@/components/ui/AppTable.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
+import PaymentStatementCard from '@/components/member/PaymentStatementCard.vue'
 
 const route = useRoute()
 const { loading, withLoading } = useLoading()

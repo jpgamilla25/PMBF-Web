@@ -39,6 +39,64 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 3,
             ],
 
+            // Per-loan-type overrides. Seeded blank on purpose: an empty value
+            // falls back to the member-type rate above, so an admin only fills
+            // in the types that genuinely differ.
+            [
+                'key' => 'interest_rate_permanent_regular',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Regular Loan Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 10,
+            ],
+            [
+                'key' => 'interest_rate_permanent_consolidated',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Consolidated Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 11,
+            ],
+            [
+                'key' => 'interest_rate_permanent_multi_purpose',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Multi-Purpose Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 12,
+            ],
+            [
+                'key' => 'interest_rate_permanent_emergency',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Emergency Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 13,
+            ],
+            [
+                'key' => 'interest_rate_permanent_hospitalization',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Hospitalization Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 14,
+            ],
+            [
+                'key' => 'interest_rate_sc_salary_loan',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Contract of Service — Salary Loan Rate (blank = use SC rate)',
+                'suffix' => '%',
+                'sort_order' => 20,
+            ],
+
             // ── SC Loan Rules ─────────────────────────────────
             [
                 'key' => 'sc_min_take_home_pay',
@@ -119,6 +177,15 @@ class ConfigurationSeeder extends Seeder
                 'description' => 'Maximum Amount — Consolidated Loan',
                 'suffix' => 'PHP',
                 'sort_order' => 2,
+            ],
+            [
+                'key' => 'permanent_max_loan_regular',
+                'value' => '100000.00',
+                'type' => 'decimal',
+                'group' => 'permanent_loan_rules',
+                'description' => 'Maximum Amount — Regular Loan',
+                'suffix' => 'PHP',
+                'sort_order' => 3,
             ],
             [
                 'key' => 'permanent_max_loan_multipurpose',

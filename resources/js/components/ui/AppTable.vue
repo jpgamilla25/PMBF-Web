@@ -20,7 +20,7 @@
               :key="col.key"
               :class="col.class"
             >
-              {{ col.label }}
+              <slot :name="`header(${col.key})`" :column="col">{{ col.label }}</slot>
             </th>
           </tr>
         </thead>

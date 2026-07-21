@@ -19,6 +19,8 @@
             <p>Use the OTP code below to verify your login:</p>
         @elseif($type === 'loan_application')
             <p>You are submitting a loan application. Please use the OTP code below to confirm:</p>
+        @elseif($type === 'pin_reset')
+            <p>You asked to reset your PMBF sign-in PIN. Use the code below to set a new one:</p>
         @endif
 
         <div class="code">{{ $code }}</div>

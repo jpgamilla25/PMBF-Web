@@ -20,4 +20,16 @@ export default {
   release(id) {
     return api.post(`/approvals/${id}/release`)
   },
+
+  bulkApprove(loanIds, remarks = null) {
+    return api.post('/approvals/bulk-approve', { loan_ids: loanIds, remarks })
+  },
+
+  bulkDisapprove(loanIds, remarks) {
+    return api.post('/approvals/bulk-disapprove', { loan_ids: loanIds, remarks })
+  },
+
+  bulkRelease(loanIds, remarks = null) {
+    return api.post('/approvals/bulk-release', { loan_ids: loanIds, remarks })
+  },
 }

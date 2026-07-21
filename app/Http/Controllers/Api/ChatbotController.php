@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\ChatbotService;
 use App\Services\GeminiService;
+use App\Services\LoanChatService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ class ChatbotController extends Controller
     public function __construct(
         private ChatbotService $chatbotService,
         private GeminiService $geminiService,
+        private LoanChatService $loanChatService,
     ) {}
 
     /**
@@ -36,6 +38,20 @@ class ChatbotController extends Controller
         $userMessage = $request->input('message');
         $history = $request->input('history', []);
         $user = $request->user(); // nullable — works for both auth and guest
+
+        // 0. Loan application intent — handled by rules, never the AI, so the
+        //    figures always come from LoanService and the flow works with no
+        //    Gemini token configured.
+        $loanChat = $this->loanChatService->handle($userMessage, $user, $history);
+
+        if ($loanChat !== null) {
+            return $this->success([
+                'reply' => $loanChat['reply'],
+                'action' => $loanChat['action'],
+                'smart_data' => $loanChat['slots'],
+                'intent' => 'loan_application',
+            ]);
+        }
 
         // 1. Check for smart query (DB-backed answer)
         $smartQuery = $this->chatbotService->resolveSmartQuery($userMessage, $user);

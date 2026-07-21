@@ -29,6 +29,9 @@ class User extends Authenticatable
         'role',
         'password',
         'pin',
+        'pin_set_at',
+        'pin_attempts',
+        'pin_locked_until',
         'device_id',
         'status',
     ];
@@ -44,6 +47,9 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'pin_set_at' => 'datetime',
+            'pin_locked_until' => 'datetime',
+            'pin_attempts' => 'integer',
             'base_pay' => 'decimal:2',
             'take_home_pay' => 'decimal:2',
             'contract_start' => 'date',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Configuration;
 use App\Models\Loan;
+use App\Services\LoanService;
 use App\Traits\ApiResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -13,6 +14,10 @@ use Laravel\Sanctum\PersonalAccessToken;
 class LoanPdfController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(
+        private readonly LoanService $loanService,
+    ) {}
 
     /**
      * Generate PDF summary for a loan.
@@ -91,7 +96,7 @@ class LoanPdfController extends Controller
 
         $pdf = Pdf::loadView('pdf.loan-payment-breakdown', [
             'loan' => $loan,
-            'schedule' => $this->buildSchedule($loan, (float) $totalPaid),
+            'schedule' => $this->loanService->amortizationSchedule($loan)['schedule'],
             'totalPayable' => $totalPayable,
             'totalPaid' => $totalPaid,
             'remaining' => $remaining,
@@ -100,70 +105,5 @@ class LoanPdfController extends Controller
         $pdf->setPaper('A4', 'portrait');
 
         return $pdf->stream("Loan-{$loan->reference_no}-Payment-Breakdown.pdf");
-    }
-
-    /**
-     * Build the flat-interest amortization schedule. Interest is fixed each month
-     * (principal × rate%); the final installment absorbs the rounding so the schedule
-     * sums exactly to the total payable.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function buildSchedule(Loan $loan, float $totalPaid): array
-    {
-        $amount = (float) $loan->amount;
-        $rate = (float) $loan->interest_rate;
-        $term = max(1, (int) $loan->term_months);
-        $monthly = (float) $loan->monthly_amortization;
-        $totalPayable = $loan->total_payable;
-
-        $interestPerMonth = round($amount * ($rate / 100), 2);
-        $base = $loan->released_at ?? $loan->applied_at ?? $loan->created_at;
-
-        $isReleased = (bool) $loan->released_at;
-        $today = now()->startOfDay();
-
-        $rows = [];
-        $cumulative = 0.0;
-
-        for ($i = 1; $i <= $term; $i++) {
-            // Final installment absorbs the per-month rounding.
-            $installment = $i < $term
-                ? $monthly
-                : round($totalPayable - ($monthly * ($term - 1)), 2);
-
-            $cumulativeBefore = $cumulative;
-            $cumulative += $installment;
-            $balance = max(0, round($totalPayable - $cumulative, 2));
-            $dueDate = $base ? $base->copy()->addMonths($i) : null;
-
-            // Apply total paid against installments in order: fully covered → paid,
-            // partially covered → partial. This reflects payments even before the
-            // loan is released. Otherwise it's a projection (scheduled), or
-            // upcoming/overdue once released.
-            if ($totalPaid + 0.01 >= $cumulative) {
-                $status = 'paid';
-            } elseif ($totalPaid > $cumulativeBefore + 0.01) {
-                $status = 'partial';
-            } elseif (!$isReleased) {
-                $status = 'scheduled';
-            } elseif ($dueDate && $dueDate->lt($today)) {
-                $status = 'overdue';
-            } else {
-                $status = 'upcoming';
-            }
-
-            $rows[] = [
-                'no' => $i,
-                'due_date' => $dueDate,
-                'amortization' => $installment,
-                'principal' => round($installment - $interestPerMonth, 2),
-                'interest' => $interestPerMonth,
-                'balance' => $balance,
-                'status' => $status,
-            ];
-        }
-
-        return $rows;
     }
 }

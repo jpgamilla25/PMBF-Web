@@ -8,6 +8,25 @@ use Illuminate\Database\Eloquent\Model;
 class Loan extends Model
 {
     use HasApprovalWorkflow;
+
+    /**
+     * Every value the loan_type column accepts.
+     *
+     * Single source of truth — keep in step with the enum in
+     * database/migrations/2026_07_21_000002_add_regular_loan_type.php.
+     * Which of these a given member may actually apply for is decided by
+     * LoanService::getAvailableLoanTypes(), not by this list.
+     */
+    public const TYPES = [
+        'Salary Loan',
+        'Regular',
+        'Consolidated',
+        'Multi-Purpose',
+        'Emergency',
+        'Hospitalization',
+        'Temporary',
+    ];
+
     protected $fillable = [
         'user_id',
         'loan_type',

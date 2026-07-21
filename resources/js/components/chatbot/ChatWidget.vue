@@ -60,6 +60,16 @@
           <div :class="['chat-bubble', msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-bot']">
             <div v-if="msg.role === 'model'" v-html="renderMarkdown(msg.content)"></div>
             <span v-else>{{ msg.content }}</span>
+
+            <!-- Call-to-action returned by the loan assistant -->
+            <button
+              v-if="msg.action"
+              type="button"
+              class="chat-action-btn"
+              @click="runAction(msg.action)"
+            >
+              <i class="bi bi-box-arrow-in-right me-1"></i>{{ msg.action.label }}
+            </button>
           </div>
         </div>
 
@@ -121,9 +131,19 @@
 
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import chatbotService from '../../services/chatbot'
 
+const router = useRouter()
 const isOpen = ref(false)
+
+/** Follow a call-to-action the assistant offered, then get out of the way. */
+function runAction(action) {
+  if (!action?.url) return
+
+  isOpen.value = false
+  router.push(action.url)
+}
 const isLoading = ref(false)
 const hasInteracted = ref(false)
 const inputText = ref('')
@@ -163,7 +183,11 @@ async function sendMessage() {
     const { data } = await chatbotService.sendMessage(text, history)
 
     if (data.success && data.data?.reply) {
-      messages.value.push({ role: 'model', content: data.data.reply })
+      messages.value.push({
+        role: 'model',
+        content: data.data.reply,
+        action: data.data.action ?? null,
+      })
     } else {
       messages.value.push({
         role: 'model',
@@ -467,6 +491,24 @@ function renderMarkdown(text) {
   flex-wrap: wrap;
   gap: 6px;
 }
+/* Call-to-action inside a bot bubble (e.g. "Open pre-filled application"). */
+.chat-action-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chat-action-btn:hover { background: #1d4ed8; }
+
 .chat-suggestion-btn {
   font-size: 11px;
   padding: 5px 12px;

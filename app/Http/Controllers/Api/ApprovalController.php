@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ApprovalActionRequest;
+use App\Http\Requests\BulkApprovalActionRequest;
 use App\Http\Resources\LoanResource;
+use App\Models\Configuration;
 use App\Models\Loan;
+use App\Models\User;
 use App\Services\LoanNotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class ApprovalController extends Controller
 {
@@ -112,12 +117,7 @@ class ApprovalController extends Controller
             return $this->error('You are not authorized to approve this loan at the current stage.', 403);
         }
 
-        $level = $this->getUserLevel($user);
-        $loan->advanceApproval($user, 'approved', $request->validated('remarks'));
-        $loan->refresh()->load(['user', 'coMaker', 'approvals.approver']);
-
-        // Email: notify applicant + next level approvers
-        $this->notificationService->onApproved($loan, $level, $request->validated('remarks'));
+        $this->performAction($loan, $user, 'approved', $request->validated('remarks'));
 
         return $this->success(new LoanResource($loan), 'Loan approved successfully.');
     }
@@ -130,14 +130,35 @@ class ApprovalController extends Controller
             return $this->error('You are not authorized to act on this loan at the current stage.', 403);
         }
 
-        $level = $this->getUserLevel($user);
-        $loan->advanceApproval($user, 'disapproved', $request->validated('remarks'));
-        $loan->refresh()->load(['user', 'coMaker', 'approvals.approver']);
-
-        // Email: notify applicant
-        $this->notificationService->onDisapproved($loan, $level, $request->validated('remarks'));
+        $this->performAction($loan, $user, 'disapproved', $request->validated('remarks'));
 
         return $this->success(new LoanResource($loan), 'Loan has been disapproved.');
+    }
+
+    /**
+     * Approve many loans in one request.
+     *
+     * Each loan is processed independently so a single failure does not abort
+     * the rest of the batch.
+     */
+    public function bulkApprove(BulkApprovalActionRequest $request): JsonResponse
+    {
+        return $this->processBulk($request, 'approved');
+    }
+
+    /**
+     * Disapprove many loans in one request. Remarks are required, matching the
+     * single-loan disapproval flow.
+     */
+    public function bulkDisapprove(BulkApprovalActionRequest $request): JsonResponse
+    {
+        if (blank($request->validated('remarks'))) {
+            return $this->error('Remarks are required when disapproving.', 422, [
+                'remarks' => ['Remarks are required when disapproving.'],
+            ]);
+        }
+
+        return $this->processBulk($request, 'disapproved');
     }
 
     public function release(ApprovalActionRequest $request, Loan $loan): JsonResponse
@@ -152,13 +173,148 @@ class ApprovalController extends Controller
             return $this->error('Only receivers or admins can release loans.', 403);
         }
 
-        $loan->advanceApproval($user, 'released', $request->validated('remarks'));
-        $loan->refresh()->load(['user', 'coMaker', 'approvals.approver']);
-
-        // Email: notify applicant that loan is released
-        $this->notificationService->onReleased($loan);
+        $this->performAction($loan, $user, 'released', $request->validated('remarks'));
 
         return $this->success(new LoanResource($loan), 'Loan has been released.');
+    }
+
+    /**
+     * Release many fully-approved loans at once.
+     */
+    public function bulkRelease(BulkApprovalActionRequest $request): JsonResponse
+    {
+        return $this->processBulk($request, 'released');
+    }
+
+    /**
+     * Run a single approve/disapprove/release action. This is the ONE place the
+     * state transition + notification happens — the single and bulk endpoints
+     * both funnel through it so business rules never diverge.
+     */
+    private function performAction(Loan $loan, User $user, string $action, ?string $remarks): void
+    {
+        $level = $this->getUserLevel($user);
+
+        $loan->advanceApproval($user, $action, $remarks);
+        $loan->refresh()->load(['user', 'coMaker', 'approvals.approver']);
+
+        match ($action) {
+            // Notify applicant + next level approvers
+            'approved' => $this->notificationService->onApproved($loan, $level, $remarks),
+            // Notify applicant only
+            'released' => $this->notificationService->onReleased($loan),
+            default => $this->notificationService->onDisapproved($loan, $level, $remarks),
+        };
+
+        $this->autoReleaseIfConfigured($loan, $user, $action);
+    }
+
+    /**
+     * Release straight after the final approval when the administrator has
+     * enabled auto_release_after_approval, instead of parking the loan in
+     * "Chairperson Approved" waiting for a manual release.
+     *
+     * Recursion is bounded: this only fires for an 'approved' action, and the
+     * nested call passes 'released'.
+     */
+    private function autoReleaseIfConfigured(Loan $loan, User $user, string $action): void
+    {
+        if ($action !== 'approved' || $loan->status !== 'chairperson_approved') {
+            return;
+        }
+
+        if (!Configuration::getBool('auto_release_after_approval', false)) {
+            return;
+        }
+
+        $this->performAction($loan, $user, 'released', 'Released automatically after final approval.');
+    }
+
+    /**
+     * Whether this user may take this action on this loan right now.
+     *
+     * Releasing is not part of the approval chain: it needs a fully-approved
+     * loan and a receiver or admin, which is why it can't reuse
+     * canBeApprovedBy().
+     *
+     * @return string|null Null when allowed, otherwise the reason it was skipped.
+     */
+    private function ineligibleReason(Loan $loan, User $user, string $action): ?string
+    {
+        if ($action === 'released') {
+            if ($loan->status !== 'chairperson_approved') {
+                return 'Not fully approved yet, so it cannot be released.';
+            }
+
+            if (!$user->isAdmin() && !$user->isReceiver()) {
+                return 'Only receivers or admins can release loans.';
+            }
+
+            return null;
+        }
+
+        return $loan->canBeApprovedBy($user)
+            ? null
+            : 'Not awaiting your approval at the current stage.';
+    }
+
+    /**
+     * Shared driver for the bulk endpoints.
+     */
+    private function processBulk(BulkApprovalActionRequest $request, string $action): JsonResponse
+    {
+        $user = $request->user();
+        $remarks = $request->validated('remarks');
+        $loanIds = array_values(array_unique($request->validated('loan_ids')));
+
+        $loans = Loan::whereIn('id', $loanIds)->get()->keyBy('id');
+
+        $processed = [];
+        $failed = [];
+
+        foreach ($loanIds as $loanId) {
+            $loan = $loans->get($loanId);
+
+            if (!$loan) {
+                $failed[] = ['loan_id' => $loanId, 'reason' => 'Loan not found.'];
+                continue;
+            }
+
+            if ($reason = $this->ineligibleReason($loan, $user, $action)) {
+                $failed[] = ['loan_id' => $loanId, 'reason' => $reason];
+                continue;
+            }
+
+            try {
+                $this->performAction($loan, $user, $action, $remarks);
+                $processed[] = $loanId;
+            } catch (Throwable $e) {
+                Log::error('Bulk approval action failed.', [
+                    'loan_id' => $loanId,
+                    'action' => $action,
+                    'user_id' => $user->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                $failed[] = ['loan_id' => $loanId, 'reason' => 'Unexpected error while processing.'];
+            }
+        }
+
+        $verb = match ($action) {
+            'approved' => 'approved',
+            'released' => 'released',
+            default => 'disapproved',
+        };
+
+        $message = count($failed) > 0
+            ? sprintf('%d %s, %d skipped.', count($processed), $verb, count($failed))
+            : sprintf('%d %s.', count($processed), $verb);
+
+        return $this->success([
+            'approved' => $processed,
+            'failed' => $failed,
+            'total' => count($loanIds),
+        ], $message);
     }
 
     private function getUserLevel($user): string

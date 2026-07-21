@@ -132,6 +132,17 @@ class AuthController extends Controller
         if ($request->device_fingerprint &&
             $this->authService->isDeviceTrusted($request->employee_id, $request->device_fingerprint)
         ) {
+            // A PIN holder is challenged for it instead of being let straight
+            // in — a trusted browser alone no longer grants access.
+            if ($user->pin && !$this->authService->isPinLocked($user)) {
+                return $this->success([
+                    'trusted' => true,
+                    'requires_pin' => true,
+                    'employee_id' => $user->employee_id,
+                    'first_name' => $user->first_name,
+                ], 'Enter your PIN to continue.');
+            }
+
             $loginResult = $this->authService->loginByEmployeeId(
                 $request->employee_id,
                 $request->device_fingerprint
@@ -141,6 +152,7 @@ class AuthController extends Controller
 
             return $this->success([
                 'trusted' => true,
+                'requires_pin' => false,
                 'user' => new UserResource($loginResult['user']),
                 'token' => $loginResult['token'],
             ], 'Trusted device — logged in automatically.');
@@ -202,6 +214,203 @@ class AuthController extends Controller
             'token' => $loginResult['token'],
             'trusted_until' => $trustedUntil,
         ], 'Login successful.');
+    }
+
+    // ─── PIN Login ────────────────────────────────────────────
+
+    /**
+     * Tell the client which login screen to show for this ID + device,
+     * without revealing whether the account exists.
+     */
+    public function pinStatus(Request $request): JsonResponse
+    {
+        $request->validate([
+            'employee_id' => 'required|string',
+            'device_fingerprint' => 'required|string|max:128',
+        ]);
+
+        $user = User::where('employee_id', $request->employee_id)
+            ->where('status', 'active')
+            ->first();
+
+        $available = $user
+            && $user->pin
+            && $this->authService->isDeviceTrusted($request->employee_id, $request->device_fingerprint);
+
+        if (!$available) {
+            return $this->success(['pin_available' => false]);
+        }
+
+        return $this->success([
+            'pin_available' => true,
+            'first_name' => $user->first_name,
+            'email' => $this->maskEmail($user->email),
+            'locked' => $this->authService->isPinLocked($user),
+            'locked_until' => $user->pin_locked_until?->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Log in with a 4-digit PIN on an already-trusted device.
+     */
+    public function loginWithPin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'employee_id' => 'required|string',
+            'pin' => 'required|digits:4',
+            'device_fingerprint' => 'required|string|max:128',
+        ]);
+
+        $result = $this->authService->verifyPin(
+            $request->employee_id,
+            $request->pin,
+            $request->device_fingerprint
+        );
+
+        if (!$result['ok']) {
+            return match ($result['reason']) {
+                'locked' => $this->error(
+                    'Too many incorrect PINs. PIN login is locked — sign in with an OTP instead.',
+                    423,
+                    ['locked_until' => $result['locked_until'] ?? null]
+                ),
+                'incorrect' => $this->error(
+                    'Incorrect PIN. ' . $result['attempts_left'] . ' attempt(s) remaining.',
+                    422,
+                    ['attempts_left' => $result['attempts_left']]
+                ),
+                default => $this->error('PIN login is not available on this device.', 403),
+            };
+        }
+
+        $loginResult = $this->authService->loginByEmployeeId(
+            $result['user']->employee_id,
+            $request->device_fingerprint
+        );
+
+        return $this->success([
+            'user' => new UserResource($loginResult['user']),
+            'token' => $loginResult['token'],
+        ], 'Login successful.');
+    }
+
+    /**
+     * Create or change the PIN for the signed-in user.
+     * Changing an existing PIN requires the current one.
+     */
+    public function setPin(Request $request): JsonResponse
+    {
+        $request->validate([
+            'pin' => 'required|digits:4|confirmed',
+            'current_pin' => 'nullable|digits:4',
+            'device_fingerprint' => 'required|string|max:128',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->pin) {
+            if (!$request->filled('current_pin')) {
+                return $this->error('Enter your current PIN to change it.', 422);
+            }
+
+            if (!$this->authService->checkPin($user, $request->current_pin)) {
+                return $this->error('Your current PIN is incorrect.', 422);
+            }
+        }
+
+        if ($this->authService->isWeakPin($request->pin)) {
+            return $this->error('That PIN is too easy to guess. Avoid repeated or sequential digits.', 422);
+        }
+
+        $this->authService->setPin(
+            $user,
+            $request->pin,
+            $request->device_fingerprint,
+            $request->header('User-Agent'),
+            $request->ip()
+        );
+
+        return $this->success(['has_pin' => true], 'PIN saved. Use it to sign in on this device.');
+    }
+
+    /**
+     * Remove the PIN — the user falls back to Employee ID → OTP.
+     */
+    public function removePin(Request $request): JsonResponse
+    {
+        $this->authService->clearPin($request->user());
+
+        return $this->success(['has_pin' => false], 'PIN removed.');
+    }
+
+    /**
+     * Forgot PIN, step 1: email an OTP.
+     */
+    public function pinResetRequest(Request $request): JsonResponse
+    {
+        $request->validate(['employee_id' => 'required|string']);
+
+        $user = User::where('employee_id', $request->employee_id)
+            ->where('status', 'active')
+            ->first();
+
+        // Always answer the same way so this can't confirm an account exists.
+        if ($user) {
+            $this->otpService->generate($user->email, 'pin_reset');
+        }
+
+        return $this->success([
+            'email' => $user ? $this->maskEmail($user->email) : null,
+        ], 'If the account exists, a reset code has been sent to its registered email.');
+    }
+
+    /**
+     * Forgot PIN, step 2: verify the OTP and set a new PIN.
+     * Succeeding here also signs the user in and trusts the device,
+     * so a locked-out user can recover in one pass.
+     */
+    public function pinResetConfirm(Request $request): JsonResponse
+    {
+        $request->validate([
+            'employee_id' => 'required|string',
+            'otp' => 'required|string|size:6',
+            'pin' => 'required|digits:4|confirmed',
+            'device_fingerprint' => 'required|string|max:128',
+        ]);
+
+        $user = User::where('employee_id', $request->employee_id)
+            ->where('status', 'active')
+            ->first();
+
+        if (!$user) {
+            return $this->error('Employee ID not found.', 404);
+        }
+
+        if (!$this->otpService->verify($user->email, $request->otp, 'pin_reset')) {
+            return $this->error('Invalid or expired reset code.', 422);
+        }
+
+        if ($this->authService->isWeakPin($request->pin)) {
+            return $this->error('That PIN is too easy to guess. Avoid repeated or sequential digits.', 422);
+        }
+
+        $this->authService->setPin(
+            $user,
+            $request->pin,
+            $request->device_fingerprint,
+            $request->header('User-Agent'),
+            $request->ip()
+        );
+
+        $loginResult = $this->authService->loginByEmployeeId(
+            $user->employee_id,
+            $request->device_fingerprint
+        );
+
+        return $this->success([
+            'user' => new UserResource($loginResult['user']),
+            'token' => $loginResult['token'],
+        ], 'New PIN set. You are signed in.');
     }
 
     // ─── QR Login ─────────────────────────────────────────────
@@ -296,10 +505,10 @@ class AuthController extends Controller
         return $this->success($devices->map(fn ($d) => [
             'id' => $d->id,
             'device_name' => $d->device_name,
+            'device_fingerprint' => $d->device_fingerprint,
             'ip_address' => $d->ip_address,
             'trusted_until' => $d->trusted_until->toIso8601String(),
             'last_used_at' => $d->last_used_at?->toIso8601String(),
-            'is_current' => false, // frontend can compare fingerprints
         ]));
     }
 

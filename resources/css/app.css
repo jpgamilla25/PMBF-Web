@@ -1,11 +1,203 @@
-@import 'tailwindcss';
+/*
+ | PMBF theme layer
+ |
+ | The app is built on Bootstrap 5.3 (loaded from CDN in app.blade.php).
+ | Bootstrap 5.3 ships native dark mode driven by the `data-bs-theme`
+ | attribute on <html>, so cards, tables, forms, dropdowns and modals
+ | recolour themselves for free.
+ |
+ | What this file adds is the parts Bootstrap can't know about: the PMBF
+ | shell (navbar / sidebar / main surface) and the handful of components
+ | that hardcode light-mode hex values in their own <style> blocks.
+ |
+ | Scoped component styles compile to `.class[data-v-hash]`, which outranks
+ | a plain `.class` rule here. The dark overrides below therefore use
+ | !important — this file is a deliberate theme layer applied last, not
+ | ordinary component styling.
+ */
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
-@source '../**/*.blade.php';
-@source '../**/*.js';
+:root {
+  --pmbf-primary: #1e40af;
+  --pmbf-secondary: #3b82f6;
+  --pmbf-accent: #dbeafe;
 
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+  /* Semantic surfaces the shell paints with. */
+  --pmbf-surface: #ffffff;
+  --pmbf-surface-alt: #f9fafb;
+  --pmbf-canvas: #f3f4f6;
+  --pmbf-border: #e5e7eb;
+  --pmbf-text: #1f2937;
+  --pmbf-text-muted: #6b7280;
+}
+
+[data-bs-theme='dark'] {
+  --pmbf-primary: #3b82f6;
+  --pmbf-secondary: #60a5fa;
+  --pmbf-accent: #1e3a5f;
+
+  --pmbf-surface: #1a1d23;
+  --pmbf-surface-alt: #21252d;
+  --pmbf-canvas: #14161a;
+  --pmbf-border: #2f3540;
+  --pmbf-text: #e5e7eb;
+  --pmbf-text-muted: #9ca3af;
+
+  /* Bootstrap's own body colours, so anything unstyled follows along. */
+  --bs-body-bg: var(--pmbf-canvas);
+  --bs-body-color: var(--pmbf-text);
+  --bs-border-color: var(--pmbf-border);
+  --bs-secondary-bg: var(--pmbf-surface-alt);
+  --bs-tertiary-bg: var(--pmbf-surface-alt);
+}
+
+html,
+body {
+  background: var(--pmbf-canvas);
+}
+
+/* Colour transitions make the toggle feel deliberate rather than jarring. */
+body,
+.card,
+.pmbf-sidebar,
+.pmbf-main,
+.list-group-item {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* ── App shell ─────────────────────────────────────────────── */
+
+[data-bs-theme='dark'] .pmbf-sidebar {
+  background: var(--pmbf-surface) !important;
+  border-right-color: var(--pmbf-border) !important;
+}
+
+[data-bs-theme='dark'] .pmbf-main {
+  background: var(--pmbf-canvas) !important;
+}
+
+[data-bs-theme='dark'] .sidebar-link {
+  color: #cbd5e1 !important;
+}
+
+[data-bs-theme='dark'] .sidebar-link:hover,
+[data-bs-theme='dark'] .sidebar-link.active {
+  background: var(--pmbf-accent) !important;
+  color: #93c5fd !important;
+}
+
+[data-bs-theme='dark'] .sidebar-link.active {
+  border-left-color: #60a5fa !important;
+}
+
+[data-bs-theme='dark'] .sidebar-section-label {
+  color: #6b7280 !important;
+}
+
+[data-bs-theme='dark'] .admin-context-bar,
+[data-bs-theme='dark'] .admin-type-selector {
+  background: var(--pmbf-surface-alt) !important;
+  border-color: var(--pmbf-border) !important;
+}
+
+[data-bs-theme='dark'] .type-btn {
+  color: #9ca3af !important;
+}
+
+[data-bs-theme='dark'] .type-btn:hover {
+  background: #2f3540 !important;
+}
+
+/* ── Auth / PIN ────────────────────────────────────────────── */
+
+[data-bs-theme='dark'] .pin-box {
+  background: var(--pmbf-surface-alt) !important;
+  border-color: var(--pmbf-border) !important;
+}
+
+[data-bs-theme='dark'] .pin-box.filled,
+[data-bs-theme='dark'] .pin-box.active {
+  background: var(--pmbf-accent) !important;
+  border-color: #60a5fa !important;
+}
+
+[data-bs-theme='dark'] .pin-box .pin-dot {
+  background: #93c5fd !important;
+}
+
+[data-bs-theme='dark'] .pin-badge {
+  background: var(--pmbf-accent) !important;
+  color: #93c5fd !important;
+}
+
+[data-bs-theme='dark'] .pin-note,
+[data-bs-theme='dark'] .trust-device-card {
+  background: #16281d !important;
+  border-color: #1f4a33 !important;
+  color: #86efac !important;
+}
+
+[data-bs-theme='dark'] .nav-pills .nav-link {
+  color: #9ca3af !important;
+}
+
+/* ── Chat widget ───────────────────────────────────────────── */
+
+[data-bs-theme='dark'] .chat-panel,
+[data-bs-theme='dark'] .chat-input-area,
+[data-bs-theme='dark'] .chat-bubble-bot {
+  background: var(--pmbf-surface) !important;
+  color: var(--pmbf-text) !important;
+}
+
+[data-bs-theme='dark'] .chat-messages,
+[data-bs-theme='dark'] .chat-powered-by {
+  background: var(--pmbf-canvas) !important;
+}
+
+[data-bs-theme='dark'] .chat-input {
+  background: var(--pmbf-surface-alt) !important;
+  border-color: var(--pmbf-border) !important;
+  color: var(--pmbf-text) !important;
+}
+
+[data-bs-theme='dark'] .chat-suggestion-btn {
+  background: var(--pmbf-accent) !important;
+  border-color: #2f4d78 !important;
+  color: #93c5fd !important;
+}
+
+[data-bs-theme='dark'] .chat-welcome-title {
+  color: var(--pmbf-text) !important;
+}
+
+/* ── Misc surfaces ─────────────────────────────────────────── */
+
+[data-bs-theme='dark'] .modal-box {
+  background: var(--pmbf-surface) !important;
+  color: var(--pmbf-text) !important;
+}
+
+[data-bs-theme='dark'] .avatar-circle {
+  background: var(--pmbf-accent) !important;
+  color: #93c5fd !important;
+}
+
+[data-bs-theme='dark'] .bg-white {
+  background-color: var(--pmbf-surface) !important;
+}
+
+[data-bs-theme='dark'] .bg-light {
+  background-color: var(--pmbf-surface-alt) !important;
+}
+
+[data-bs-theme='dark'] .text-dark {
+  color: var(--pmbf-text) !important;
+}
+
+/* Print: always render light so PDFs and paper output stay legible. */
+@media print {
+  [data-bs-theme='dark'] {
+    --bs-body-bg: #fff;
+    --bs-body-color: #000;
+  }
 }

@@ -8,7 +8,10 @@ use App\Mail\LoanApplicationMail;
 use App\Mail\LoanStatusMail;
 use App\Models\Loan;
 use App\Models\User;
+use App\Notifications\ActionRequiredNotification;
+use App\Notifications\LoanStatusNotification;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 
 class LoanNotificationService
 {
@@ -25,6 +28,7 @@ class LoanNotificationService
         }
 
         Mail::to($loan->coMaker->email)->send(new CoMakerApprovalRequestMail($loan));
+        $loan->coMaker->notify(new ActionRequiredNotification($loan, 'co_maker'));
     }
 
     /**
@@ -39,6 +43,7 @@ class LoanNotificationService
         }
 
         Mail::to($loan->coMaker->email)->send(new CoMakerNotificationMail($loan));
+        $loan->coMaker->notify(new ActionRequiredNotification($loan, 'co_maker'));
     }
 
     /**
@@ -50,12 +55,13 @@ class LoanNotificationService
 
         $admins = User::where('role', 'admin')
             ->where('status', 'active')
-            ->pluck('email')
-            ->toArray();
+            ->get();
 
-        foreach ($admins as $email) {
-            Mail::to($email)->send(new LoanApplicationMail($loan, 'admin'));
+        foreach ($admins as $admin) {
+            Mail::to($admin->email)->send(new LoanApplicationMail($loan, 'admin'));
         }
+
+        NotificationFacade::send($admins, new ActionRequiredNotification($loan, 'admin_approval'));
     }
 
     /**
@@ -76,22 +82,17 @@ class LoanNotificationService
             return;
         }
 
-        $approvers = User::where('role', $targetRole)
+        // Approvers for this stage, plus admins who oversee every stage.
+        $recipients = User::whereIn('role', [$targetRole, 'admin'])
             ->where('status', 'active')
-            ->pluck('email')
-            ->toArray();
+            ->get()
+            ->unique('id');
 
-        // Also notify admins
-        $admins = User::where('role', 'admin')
-            ->where('status', 'active')
-            ->pluck('email')
-            ->toArray();
-
-        $recipients = array_unique(array_merge($approvers, $admins));
-
-        foreach ($recipients as $email) {
-            Mail::to($email)->send(new LoanApplicationMail($loan, $targetRole));
+        foreach ($recipients as $recipient) {
+            Mail::to($recipient->email)->send(new LoanApplicationMail($loan, $targetRole));
         }
+
+        NotificationFacade::send($recipients, new ActionRequiredNotification($loan, 'approval'));
     }
 
     /**
@@ -104,6 +105,8 @@ class LoanNotificationService
         Mail::to($loan->user->email)->send(
             new LoanStatusMail($loan, $action, $level, $remarks)
         );
+
+        $loan->user->notify(new LoanStatusNotification($loan, $action, $level, $remarks));
     }
 
     /**

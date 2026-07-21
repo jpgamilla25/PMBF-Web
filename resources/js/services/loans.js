@@ -3,8 +3,10 @@ import api from './api'
 export default {
   getLoans: (params = {}) => api.get('/loans', { params }),
   getLoan: (id) => api.get(`/loans/${id}`),
+  getSchedule: (id) => api.get(`/loans/${id}/schedule`),
   createLoan: (data) => api.post('/loans', data),
   verifyOtp: (data) => api.post('/loans/verify-otp', data),
+  verifyPin: (data) => api.post('/loans/verify-pin', data),
   resendOtp: () => api.post('/loans/resend-otp'),
   getTypes: () => api.get('/loans/types'),
   getStats: () => api.get('/loans/stats'),

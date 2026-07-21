@@ -8,8 +8,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Note: employee & salary data now comes from the HRIS/FMIS APIs, not
-        // seeded DB tables. Only the app's own tables are seeded here.
+        // HRIS and FMIS data now comes from the api-center APIs, so the
+        // seeders that populated the local hris/fmis databases are gone.
         $this->call([
             ConfigurationSeeder::class,
             DefaultUsersSeeder::class,

@@ -16,6 +16,18 @@ const routes = [
     component: () => import('../views/auth/RegisterView.vue'),
     meta: { guest: true },
   },
+  {
+    path: '/pin-login',
+    name: 'pin-login',
+    component: () => import('../views/auth/PinLoginView.vue'),
+    meta: { guest: true },
+  },
+  {
+    path: '/pin-setup',
+    name: 'pin-setup',
+    component: () => import('../views/auth/PinSetupView.vue'),
+    meta: { requiresAuth: true },
+  },
 
   // Admin: select member type (shown after login)
   {
@@ -108,6 +120,18 @@ const routes = [
     path: '/admin/config-history',
     name: 'admin-config-history',
     component: () => import('../views/admin/AdminConfigHistoryView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/admin/exemptions',
+    name: 'admin-exemptions',
+    component: () => import('../views/admin/AdminExemptionsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
+    path: '/admin/activity-logs',
+    name: 'admin-activity-logs',
+    component: () => import('../views/admin/AdminActivityLogsView.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
@@ -254,10 +278,16 @@ router.beforeEach(async (to, from, next) => {
     return next({ name: 'login', query: { redirect: to.fullPath } })
   }
 
+  // A returning user who set a PIN on this browser goes straight to the PIN
+  // screen. `?otp=1` is the escape hatch used by "sign in with Employee ID".
+  if (to.name === 'login' && !isAuthenticated && auth.pinHint && !to.query.otp) {
+    return next({ name: 'pin-login', query: to.query })
+  }
+
   // Admin must select type before accessing any admin or dashboard page
   if (isAuthenticated && auth.isAdmin && !adminContext.hasSelected) {
     // Allow access to select-type page and non-admin personal pages
-    const allowedWithoutType = ['admin-select-type', 'profile', 'login', 'register', 'cost-breakdown']
+    const allowedWithoutType = ['admin-select-type', 'profile', 'login', 'register', 'pin-setup', 'cost-breakdown']
     if (!allowedWithoutType.includes(to.name)) {
       return next({ name: 'admin-select-type' })
     }

@@ -24,6 +24,7 @@ class User extends Authenticatable
         'department',
         'base_pay',
         'take_home_pay',
+        'hris_synced_at',
         'contract_start',
         'contract_end',
         'role',
@@ -47,6 +48,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'hris_synced_at' => 'datetime',
             'pin_set_at' => 'datetime',
             'pin_locked_until' => 'datetime',
             'pin_attempts' => 'integer',

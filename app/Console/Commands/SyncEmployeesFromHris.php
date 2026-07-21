@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\HrisEmployee;
 use App\Models\User;
-use App\Services\HrisService;
+use App\Services\EmployeeSnapshotService;
 use Illuminate\Console\Command;
 
 /**
@@ -23,13 +22,7 @@ class SyncEmployeesFromHris extends Command
 
     protected $description = 'Refresh employment type, pay and contract dates on the users table from the HRIS api-center.';
 
-    /** Fields mirrored from HRIS onto the users table. */
-    private const SYNCED = [
-        'employment_type', 'position', 'department',
-        'base_pay', 'take_home_pay', 'contract_start', 'contract_end',
-    ];
-
-    public function handle(HrisService $hris): int
+    public function handle(EmployeeSnapshotService $snapshots): int
     {
         $dryRun = (bool) $this->option('dry-run');
 
@@ -47,93 +40,64 @@ class SyncEmployeesFromHris extends Command
             return self::SUCCESS;
         }
 
-        $updated = $missing = $unchanged = 0;
+        $updated = $unavailable = $unchanged = 0;
 
         foreach ($users as $user) {
-            $employee = $hris->findByEmployeeId($user->employee_id);
+            // A dry run must not write, so diff directly instead of refreshing.
+            if ($dryRun) {
+                $employee = $snapshots->refreshPreview($user);
 
-            if (!$employee) {
-                $missing++;
-                $this->line("  <fg=yellow>miss</> {$user->employee_id} — not found in HRIS, snapshot left as-is");
+                if (!$employee['available']) {
+                    $unavailable++;
+                    $this->line("  <fg=yellow>skip</> {$user->employee_id} — no answer from HRIS, snapshot left as-is");
+                    continue;
+                }
+
+                if (empty($employee['changes'])) {
+                    $unchanged++;
+                    continue;
+                }
+
+                $updated++;
+                $this->line("  <fg=green>diff</> {$user->employee_id} — " . $this->describe($employee['changes']));
                 continue;
             }
 
-            $changes = $this->diff($user, $employee);
+            $result = $snapshots->refresh($user);
 
-            if (empty($changes)) {
+            if (!$result['available']) {
+                $unavailable++;
+                $this->line("  <fg=yellow>skip</> {$user->employee_id} — no answer from HRIS, snapshot left as-is");
+                continue;
+            }
+
+            if (!$result['changed']) {
                 $unchanged++;
                 continue;
             }
 
-            $this->line("  <fg=green>sync</> {$user->employee_id} — " . $this->describe($changes));
-
-            if (!$dryRun) {
-                $user->forceFill($changes)->save();
-            }
-
             $updated++;
+            $this->line("  <fg=green>sync</> {$user->employee_id} — " . $this->describe($result['changes']));
         }
 
         $this->newLine();
         $this->info(sprintf(
-            '%s %d updated, %d unchanged, %d not in HRIS (of %d).',
+            '%s %d updated, %d unchanged, %d unavailable (of %d).',
             $dryRun ? 'Would have applied:' : 'Done:',
             $updated,
             $unchanged,
-            $missing,
+            $unavailable,
             $users->count()
         ));
 
         return self::SUCCESS;
     }
 
-    /**
-     * Only fields that actually differ, so an unchanged employee is not
-     * rewritten (and updated_at stays meaningful).
-     *
-     * @return array<string, mixed>
-     */
-    private function diff(User $user, HrisEmployee $employee): array
-    {
-        $changes = [];
-
-        foreach (self::SYNCED as $field) {
-            $incoming = $employee->{$field} ?? null;
-
-            if ($incoming === null || $incoming === '') {
-                continue; // HRIS did not supply it — keep what we have.
-            }
-
-            if ($this->normalise($user->{$field}) !== $this->normalise($incoming)) {
-                $changes[$field] = $incoming instanceof \Carbon\Carbon
-                    ? $incoming->toDateString()
-                    : $incoming;
-            }
-        }
-
-        return $changes;
-    }
-
-    private function normalise(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ($value instanceof \Carbon\CarbonInterface) {
-            return $value->toDateString();
-        }
-
-        return is_numeric($value)
-            ? number_format((float) $value, 2, '.', '')
-            : trim((string) $value);
-    }
-
     /** @param array<string, mixed> $changes */
     private function describe(array $changes): string
     {
         return implode(', ', array_map(
-            fn ($field, $value) => "{$field}=" . ($value instanceof \Carbon\Carbon ? $value->toDateString() : $value),
+            fn ($field, $value) => "{$field}={$value}",
             array_keys($changes),
             $changes
         ));

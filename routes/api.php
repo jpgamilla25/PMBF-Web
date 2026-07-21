@@ -116,6 +116,8 @@ Route::prefix('v1')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
         Route::post('logout-all', [AuthController::class, 'logoutAll']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::post('me/sync-hris', [AuthController::class, 'syncFromHris'])
+            ->middleware('throttle:6,1');
         Route::get('trusted-devices', [AuthController::class, 'trustedDevices']);
         Route::post('revoke-trust', [AuthController::class, 'revokeTrust']);
 

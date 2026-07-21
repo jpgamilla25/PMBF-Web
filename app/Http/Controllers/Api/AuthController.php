@@ -7,6 +7,7 @@ use App\Http\Requests\RegisterLookupRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\AuthService;
+use App\Services\EmployeeSnapshotService;
 use App\Services\HrisService;
 use App\Services\OtpService;
 use App\Services\QrLoginService;
@@ -37,7 +38,9 @@ class AuthController extends Controller
 
         $result = $this->hrisService->validateEmployee($employeeId);
         if (!$result['valid']) {
-            return $this->error($result['message'], 404);
+            // An HRIS outage is a 503 the client can retry, not a 404 that
+            // tells the user their employee ID doesn't exist.
+            return $this->error($result['message'], $result['available'] ? 404 : 503);
         }
 
         $employee = $result['employee'];
@@ -65,7 +68,7 @@ class AuthController extends Controller
 
         $result = $this->hrisService->validateEmployee($request->employee_id);
         if (!$result['valid']) {
-            return $this->error($result['message'], 404);
+            return $this->error($result['message'], $result['available'] ? 404 : 503);
         }
 
         if (User::where('employee_id', $request->employee_id)->exists()) {
@@ -478,6 +481,38 @@ class AuthController extends Controller
             (new UserResource($request->user()))->withHris(),
             'User retrieved.'
         );
+    }
+
+    /**
+     * Pull this member's employment details from HRIS on demand and write them
+     * back to their local record.
+     *
+     * Loan decisions already read HRIS live, so this is not what makes an
+     * application correct — it refreshes the copy that list views and reports
+     * read, which otherwise only updates on the nightly sync.
+     */
+    public function syncFromHris(Request $request, EmployeeSnapshotService $snapshots): JsonResponse
+    {
+        $user = $request->user();
+        $result = $snapshots->refresh($user);
+
+        if (!$result['available']) {
+            return $this->error(
+                'HRIS is not reachable right now. Your details are unchanged — please try again shortly.',
+                503
+            );
+        }
+
+        $user->refresh();
+
+        return $this->success([
+            'user' => (new UserResource($user))->withHris(),
+            'changed' => $result['changed'],
+            'changed_fields' => array_keys($result['changes']),
+            'synced_at' => $user->hris_synced_at?->toIso8601String(),
+        ], $result['changed']
+            ? 'Your details have been updated from HRIS.'
+            : 'Your details are already up to date.');
     }
 
     public function logout(Request $request): JsonResponse

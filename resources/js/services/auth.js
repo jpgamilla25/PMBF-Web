@@ -27,6 +27,7 @@ export default {
   logout: () => api.post('logout'),
   logoutAll: () => api.post('logout-all'),
   getMe: () => api.get('me'),
+  syncHris: () => api.post('me/sync-hris'),
   getTrustedDevices: () => api.get('trusted-devices'),
   revokeTrust: (data) => api.post('revoke-trust', data),
 }

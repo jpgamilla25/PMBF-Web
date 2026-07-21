@@ -46,6 +46,11 @@
             <span class="d-none d-lg-inline" style="font-size:0.8rem;opacity:.85;">Budget</span>
           </a>
 
+          <!-- Refresh my HRIS details (pay, position, contract dates) -->
+          <div class="me-2">
+            <HrisSyncButton />
+          </div>
+
           <!-- Notification bell (polls; see stores/inbox.js) -->
           <div class="me-3">
             <NotificationBell />
@@ -231,6 +236,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useAdminContextStore } from '../../stores/adminContext'
 import { useTheme } from '../../composables/useTheme'
 import NotificationBell from '../ui/NotificationBell.vue'
+import HrisSyncButton from '../ui/HrisSyncButton.vue'
 import CommandPalette from '../ui/CommandPalette.vue'
 
 const authStore = useAuthStore()

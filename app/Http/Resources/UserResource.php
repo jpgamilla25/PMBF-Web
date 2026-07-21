@@ -54,6 +54,7 @@ class UserResource extends JsonResource
             'role' => $this->role,
             'status' => $this->status,
             'has_pin' => (bool) $this->pin,
+            'hris_synced_at' => $this->hris_synced_at?->toIso8601String(),
             'contract_start' => $hris?->contract_start?->toDateString() ?? $this->contract_start?->toDateString(),
             'contract_end' => $hris?->contract_end?->toDateString() ?? $this->contract_end?->toDateString(),
         ];

@@ -86,9 +86,9 @@
             <tbody>
                 @foreach($schedule as $row)
                 <tr>
-                    <td>{{ $row['no'] }}</td>
+                    <td>{{ $row['period'] }}</td>
                     <td>{{ $row['due_date']?->format('M d, Y') ?? '-' }}</td>
-                    <td>&#x20B1;{{ number_format($row['amortization'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['total_due'], 2) }}</td>
                     <td>&#x20B1;{{ number_format($row['principal'], 2) }}</td>
                     <td>&#x20B1;{{ number_format($row['interest'], 2) }}</td>
                     <td>&#x20B1;{{ number_format($row['balance'], 2) }}</td>

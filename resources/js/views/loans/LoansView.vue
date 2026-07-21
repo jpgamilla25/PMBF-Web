@@ -111,6 +111,9 @@
         <AppPagination :meta="paginationMeta" @page-change="fetch" />
       </div>
     </AppCard>
+
+    <!-- Payment history / downloadable statement -->
+    <PaymentStatementCard class="mt-4" />
   </AppLayout>
 </template>
 
@@ -126,6 +129,7 @@ import AppCard from '@/components/ui/AppCard.vue'
 import AppTable from '@/components/ui/AppTable.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
+import PaymentStatementCard from '@/components/member/PaymentStatementCard.vue'
 
 const notify = useNotificationStore()
 const authStore = useAuthStore()

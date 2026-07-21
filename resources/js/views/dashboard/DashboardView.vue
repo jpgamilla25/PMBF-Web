@@ -8,6 +8,37 @@
     <AppLoading :loading="loading" text="Loading dashboard..." />
 
     <template v-if="!loading">
+      <!-- ═══ ACTION REQUIRED ═══ (renders nothing when there is nothing to do) -->
+      <div v-if="actionItems.length" class="card border-0 shadow-sm mb-4 action-required">
+        <div class="card-header bg-warning bg-opacity-25 border-0 d-flex align-items-center">
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+          <span class="fw-bold">Action Required</span>
+          <span class="badge rounded-pill bg-warning text-dark ms-2">{{ actionItems.length }}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          <router-link
+            v-for="item in actionItems"
+            :key="item.key"
+            :to="item.to"
+            class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3"
+          >
+            <div
+              class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              :class="`bg-${item.variant} bg-opacity-10`"
+              style="width:44px;height:44px;"
+            >
+              <i :class="[item.icon, `text-${item.variant}`]" class="fs-5"></i>
+            </div>
+            <div class="flex-grow-1">
+              <div class="fw-semibold">{{ item.title }}</div>
+              <div class="small text-muted">{{ item.description }}</div>
+            </div>
+            <span v-if="item.count" class="badge rounded-pill" :class="`bg-${item.variant}`">{{ item.count }}</span>
+            <i class="bi bi-chevron-right text-muted"></i>
+          </router-link>
+        </div>
+      </div>
+
       <!-- ═══ ADMIN DASHBOARD ═══ -->
       <template v-if="authStore.isAdmin">
         <!-- Financial Cards -->
@@ -397,6 +428,91 @@ const paymentPercent = computed(() => {
   return Math.min(100, Math.round((paid / total) * 100))
 })
 
+// ── Action Required strip ──
+// Only surfaces items that need THIS user to do something. Counts come from the
+// auth store (already fetched on login/init) and from the loan stats payload —
+// no extra endpoints.
+
+/** Own loans whose status is stuck until the member does something. */
+const MEMBER_ACTION_STATUSES = {
+  co_maker_declined: {
+    variant: 'danger',
+    icon: 'bi bi-person-x',
+    title: 'Co-maker declined your application',
+    description: 'Cancel this application and reapply with a different co-maker.',
+  },
+  disapproved: {
+    variant: 'danger',
+    icon: 'bi bi-x-octagon',
+    title: 'Loan application disapproved',
+    description: 'Review the remarks, then submit a new application if you still need the loan.',
+  },
+}
+
+const actionItems = computed(() => {
+  const items = []
+
+  // 1. Loans waiting for this user's co-maker consent.
+  const coMaker = authStore.coMakerPendingCount
+  if (coMaker > 0) {
+    items.push({
+      key: 'co-maker',
+      to: '/loans',
+      variant: 'danger',
+      icon: 'bi bi-people-fill',
+      count: coMaker,
+      title: `Co-maker consent needed on ${coMaker} loan${coMaker === 1 ? '' : 's'}`,
+      description: 'A colleague listed you as co-maker. Agree or decline so their application can move on.',
+    })
+  }
+
+  // 2. Loans waiting for this user's approval / release (staff only).
+  if (authStore.canApprove) {
+    const pending = authStore.pendingApprovalCount
+    if (pending > 0) {
+      items.push({
+        key: 'approvals',
+        to: '/approvals',
+        variant: 'warning',
+        icon: 'bi bi-clipboard-check',
+        count: pending,
+        title: `${pending} loan${pending === 1 ? '' : 's'} awaiting your approval`,
+        description: 'Review the applications queued at your approval level.',
+      })
+    }
+
+    const release = authStore.releaseCount
+    if (release > 0) {
+      items.push({
+        key: 'release',
+        to: '/approvals',
+        variant: 'primary',
+        icon: 'bi bi-cash-stack',
+        count: release,
+        title: `${release} approved loan${release === 1 ? '' : 's'} ready for release`,
+        description: 'Fully approved — mark them released once the proceeds are disbursed.',
+      })
+    }
+  }
+
+  // 3. This user's own loans that are stuck pending their action.
+  for (const loan of stats.value.recent_loans ?? []) {
+    const meta = MEMBER_ACTION_STATUSES[loan.status]
+    if (!meta) continue
+    items.push({
+      key: `loan-${loan.id}`,
+      to: `/loans/${loan.id}`,
+      variant: meta.variant,
+      icon: meta.icon,
+      count: 0,
+      title: `${meta.title} — ${loan.loan_type} (₱${Number(loan.amount ?? 0).toLocaleString()})`,
+      description: meta.description,
+    })
+  }
+
+  return items
+})
+
 // ── Admin data ──
 const adminData = ref({})
 const beginningBalanceInput = ref('')
@@ -502,5 +618,13 @@ onMounted(() => {
       stats.value = response.data.data ?? response.data
     }
   })
+
+  // Keep the Action Required counts fresh without adding endpoints.
+  authStore.fetchCoMakerPendingCount()
+  authStore.fetchPendingApprovalCount()
 })
 </script>
+
+<style scoped>
+.action-required { border-left: 4px solid var(--bs-warning) !important; }
+</style>

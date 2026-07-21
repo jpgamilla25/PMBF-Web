@@ -51,6 +51,16 @@
         <template #cell(monthly_amortization)="{ value }">
           &#8369;{{ Number(value ?? 0).toLocaleString() }}
         </template>
+        <template #cell(total_paid)="{ item }">
+          <span class="text-success fw-medium">&#8369;{{ peso(item.total_paid) }}</span>
+        </template>
+        <template #cell(remaining_balance)="{ item }">
+          <!-- Fully settled reads better as a tick than as a zero. -->
+          <span v-if="isSettled(item)" class="text-success">
+            <i class="bi bi-check-circle-fill me-1"></i>Settled
+          </span>
+          <span v-else class="fw-medium">&#8369;{{ peso(item.remaining_balance) }}</span>
+        </template>
         <template #cell(status)="{ value }">
           <AppStatusBadge :status="value" />
         </template>
@@ -59,15 +69,38 @@
         </template>
         <template #cell(actions)="{ item }">
           <div class="d-flex gap-1 justify-content-end">
-            <router-link :to="`/approvals/${item.id}`" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-eye me-1"></i>View
+            <router-link :to="`/approvals/${item.id}`" class="btn btn-sm btn-outline-primary" title="View loan">
+              <i class="bi bi-eye"></i>
             </router-link>
+
+            <!-- Open in a new tab: these stream a PDF, so routing to them
+                 would replace the list the admin is working through. -->
+            <a
+              :href="pdfUrl(item.id)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-sm btn-outline-danger"
+              title="Loan document (PDF)"
+            >
+              <i class="bi bi-file-earmark-pdf"></i>
+            </a>
+            <a
+              :href="breakdownUrl(item.id)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-sm btn-outline-secondary"
+              title="Payment breakdown (PDF)"
+            >
+              <i class="bi bi-list-columns-reverse"></i>
+            </a>
+
             <router-link
               v-if="item.status === 'released'"
               to="/admin/payments"
               class="btn btn-sm btn-outline-success"
+              title="Record payment"
             >
-              <i class="bi bi-cash me-1"></i>Record Payment
+              <i class="bi bi-cash"></i>
             </router-link>
           </div>
         </template>
@@ -128,10 +161,33 @@ const columns = [
   { key: 'loan_type', label: 'Type' },
   { key: 'amount', label: 'Amount' },
   { key: 'monthly_amortization', label: 'Monthly' },
+  { key: 'total_paid', label: 'Paid', class: 'text-end' },
+  { key: 'remaining_balance', label: 'Remaining', class: 'text-end' },
   { key: 'status', label: 'Status' },
   { key: 'created_at', label: 'Date' },
   { key: 'actions', label: '', class: 'text-end' },
 ]
+
+function peso(value) {
+  return Number(value ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** Tolerates the odd centavo of rounding drift in historical payments. */
+function isSettled(loan) {
+  return Number(loan.remaining_balance ?? 0) <= 0.01
+}
+
+/**
+ * PDF routes are public so they can be opened in a new tab, and take the
+ * token on the query string because a new tab carries no Authorization header.
+ */
+function pdfUrl(id) {
+  return `/api/v1/loans/${id}/pdf?token=${localStorage.getItem('pmbf_token') ?? ''}`
+}
+
+function breakdownUrl(id) {
+  return `/api/v1/loans/${id}/breakdown/pdf?token=${localStorage.getItem('pmbf_token') ?? ''}`
+}
 
 function formatLoanType(type) {
   if (!type) return '-'

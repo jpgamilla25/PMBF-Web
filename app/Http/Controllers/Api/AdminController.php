@@ -79,7 +79,10 @@ class AdminController extends Controller
     public function loans(Request $request): JsonResponse
     {
         $query = Loan::with(['user', 'coMaker', 'approvals.approver'])
-            ->withCount('payments');
+            ->withCount('payments')
+            // Aggregate in one query so the list can show paid/remaining
+            // without loading every payment row per loan.
+            ->withSum('payments', 'amount');
 
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));

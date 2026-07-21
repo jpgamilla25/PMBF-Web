@@ -93,9 +93,22 @@ class Loan extends Model
         return sprintf('TXN-%s-%06d', $year, $this->id);
     }
 
+    /**
+     * Prefers an eager-loaded sum (withSum('payments', 'amount')) so a list
+     * doesn't run one aggregate query per row, and falls back to querying for
+     * a single loan that wasn't loaded that way.
+     */
     public function getTotalPaidAttribute(): float
     {
-        return $this->payments()->sum('amount');
+        if (array_key_exists('payments_sum_amount', $this->attributes)) {
+            return (float) ($this->attributes['payments_sum_amount'] ?? 0);
+        }
+
+        if ($this->relationLoaded('payments')) {
+            return (float) $this->payments->sum('amount');
+        }
+
+        return (float) $this->payments()->sum('amount');
     }
 
     /**

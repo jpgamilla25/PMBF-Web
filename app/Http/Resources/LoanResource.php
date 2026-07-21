@@ -23,6 +23,13 @@ class LoanResource extends JsonResource
         return $this;
     }
 
+    /** Whether paid/remaining can be answered without extra queries. */
+    private function hasPaymentTotals(): bool
+    {
+        return $this->resource->relationLoaded('payments')
+            || array_key_exists('payments_sum_amount', $this->resource->getAttributes());
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -52,14 +59,10 @@ class LoanResource extends JsonResource
             'approvals' => LoanApprovalResource::collection($this->whenLoaded('approvals')),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'payments_count' => $this->whenCounted('payments'),
-            'total_paid' => $this->when(
-                $this->relationLoaded('payments'),
-                fn() => $this->total_paid
-            ),
-            'remaining_balance' => $this->when(
-                $this->relationLoaded('payments'),
-                fn() => $this->remaining_balance
-            ),
+            // Available when payments are loaded OR summed via withSum, so
+            // list views get these without paying for every payment row.
+            'total_paid' => $this->when($this->hasPaymentTotals(), fn () => $this->total_paid),
+            'remaining_balance' => $this->when($this->hasPaymentTotals(), fn () => $this->remaining_balance),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             // Approval helpers for frontend

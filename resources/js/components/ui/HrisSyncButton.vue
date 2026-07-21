@@ -1,19 +1,23 @@
 <template>
   <div class="dropdown">
     <button
-      class="btn btn-link text-white position-relative p-1 border-0 shadow-none"
+      :class="inline
+        ? 'btn btn-sm btn-outline-primary position-relative'
+        : 'btn btn-link text-white position-relative p-1 border-0 shadow-none'"
       type="button"
       data-bs-toggle="dropdown"
       data-bs-auto-close="outside"
       :title="stale ? 'Your details may be out of date — sync now' : 'Sync my details from HRIS'"
       aria-label="Sync my details from HRIS"
     >
-      <i class="bi bi-arrow-repeat fs-5" :class="{ 'spin': syncing }"></i>
+      <i class="bi bi-arrow-repeat" :class="[{ spin: syncing }, inline ? 'me-1' : 'fs-5']"></i>
+      <span v-if="inline">{{ syncing ? 'Syncing...' : 'Sync my details' }}</span>
+
       <!-- Nudge only when the snapshot is old enough to plausibly be wrong. -->
       <span
         v-if="stale && !syncing"
         class="position-absolute translate-middle p-1 bg-warning rounded-circle"
-        style="top: 6px; left: 92%;"
+        :style="inline ? 'top: 2px; left: 100%;' : 'top: 6px; left: 92%;'"
       ><span class="visually-hidden">Details may be out of date</span></span>
     </button>
 
@@ -58,6 +62,20 @@ import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import auth from '@/services/auth'
+
+const props = defineProps({
+  /**
+   * 'navbar' — white icon for the dark header (default).
+   * 'inline' — labelled outline button for light page content.
+   */
+  variant: { type: String, default: 'navbar' },
+})
+
+// Lets a host page react — e.g. the apply form re-checks eligibility and
+// loan limits, which are derived from the pay figures that just changed.
+const emit = defineEmits(['synced'])
+
+const inline = computed(() => props.variant === 'inline')
 
 const authStore = useAuthStore()
 const notify = useNotificationStore()
@@ -122,6 +140,7 @@ async function sync() {
       : { variant: 'alert-secondary', message: 'Already up to date — nothing changed.' }
 
     notify.success(data.message ?? 'Sync complete.')
+    emit('synced', { changed: payload.changed, fields: payload.changed_fields ?? [] })
   } catch (error) {
     const msg = error.response?.data?.message
       ?? 'Could not reach HRIS right now. Your details are unchanged.'

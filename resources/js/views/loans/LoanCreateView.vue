@@ -8,9 +8,9 @@
     </div>
 
     <!-- User Info Bar -->
-    <div v-if="authStore.user" class="alert alert-primary d-flex align-items-center mb-4">
-      <i class="bi bi-person-badge fs-5 me-3"></i>
-      <div class="small">
+    <div v-if="authStore.user" class="alert alert-primary d-flex flex-wrap align-items-center gap-2 mb-4">
+      <i class="bi bi-person-badge fs-5 me-1"></i>
+      <div class="small flex-grow-1">
         <strong>{{ authStore.fullName }}</strong>
         <span class="mx-1">&mdash;</span>
         <span>{{ authStore.user.employment_type }}</span>
@@ -21,6 +21,10 @@
           Take-Home: <strong>&#8369;{{ Number(authStore.user.take_home_pay).toLocaleString() }}</strong>
         </span>
       </div>
+
+      <!-- These are the figures the loan is sized against, so offer the
+           refresh right where they are shown. -->
+      <HrisSyncButton variant="inline" @synced="onDetailsSynced" />
     </div>
 
     <!-- Loading -->
@@ -386,6 +390,7 @@ import loansService from '@/services/loans'
 import exemptionsService from '@/services/exemptions'
 import auth from '@/services/auth'
 import PinInput from '@/components/ui/PinInput.vue'
+import HrisSyncButton from '@/components/ui/HrisSyncButton.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -566,6 +571,26 @@ async function preflightEligibility() {
   } catch {
     // Advisory only — submit still enforces eligibility server-side.
   }
+}
+
+/**
+ * Pay and employment type drive the maximum loan, the available terms and
+ * the eligibility check, so a sync has to invalidate what's on screen.
+ */
+async function onDetailsSynced({ changed }) {
+  if (!changed) return
+
+  await loadLoanTypes()
+
+  // The previously selected type may no longer be offered.
+  if (form.loan_type && !loanTypes.value[form.loan_type]) {
+    form.loan_type = ''
+    form.term_months = ''
+    eligibilityWarning.value = null
+    return
+  }
+
+  onTypeChange()
 }
 
 /** Jump to the exemption flow from the early warning. */

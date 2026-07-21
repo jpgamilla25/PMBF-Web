@@ -58,6 +58,9 @@ Route::prefix('v1')->group(function () {
     Route::get('loans/{loan}/pdf', [\App\Http\Controllers\Api\LoanPdfController::class, 'generate']);
     Route::get('loans/{loan}/breakdown/pdf', [\App\Http\Controllers\Api\LoanPdfController::class, 'breakdown']);
 
+    // Member payment statement PDF (token via query param for new-tab access)
+    Route::get('member/statement/pdf', [\App\Http\Controllers\Api\MemberStatementController::class, 'pdf']);
+
     // Report PDFs (token via query param for new-tab access)
     Route::get('reports/loans/pdf',    [\App\Http\Controllers\Api\ReportController::class, 'loansPdf']);
     Route::get('reports/payments/pdf', [\App\Http\Controllers\Api\ReportController::class, 'paymentsPdf']);
@@ -65,13 +68,31 @@ Route::prefix('v1')->group(function () {
     Route::get('reports/shares/pdf',   [\App\Http\Controllers\Api\ReportController::class, 'sharesPdf']);
 
     // Registration: ID → OTP → Done
-    Route::post('register/lookup', [AuthController::class, 'lookup']);
-    Route::post('register/complete', [AuthController::class, 'completeRegistration']);
-    Route::post('register/resend-otp', [AuthController::class, 'resendOtp']);
+    // Throttled: employee IDs are guessable, so OTP sends and code guesses
+    // are rate limited per IP.
+    Route::middleware('throttle:otp-send')->group(function () {
+        Route::post('register/lookup', [AuthController::class, 'lookup']);
+        Route::post('register/resend-otp', [AuthController::class, 'resendOtp']);
+    });
+    Route::middleware('throttle:otp-verify')->group(function () {
+        Route::post('register/complete', [AuthController::class, 'completeRegistration']);
+    });
 
     // Login via Email OTP: ID → OTP → Token
-    Route::post('login/request-otp', [AuthController::class, 'loginRequestOtp']);
-    Route::post('login/verify-otp', [AuthController::class, 'loginVerifyOtp']);
+    Route::post('login/request-otp', [AuthController::class, 'loginRequestOtp'])
+        ->middleware('throttle:otp-send');
+    Route::post('login/verify-otp', [AuthController::class, 'loginVerifyOtp'])
+        ->middleware('throttle:otp-verify');
+
+    // Login via PIN (device-scoped, requires a trusted device)
+    Route::post('login/pin-status', [AuthController::class, 'pinStatus'])
+        ->middleware('throttle:pin-status');
+    Route::post('login/pin', [AuthController::class, 'loginWithPin'])
+        ->middleware('throttle:pin-attempt');
+    Route::post('pin/reset/request', [AuthController::class, 'pinResetRequest'])
+        ->middleware('throttle:otp-send');
+    Route::post('pin/reset/confirm', [AuthController::class, 'pinResetConfirm'])
+        ->middleware('throttle:otp-verify');
 
     // Login via QR Code (web generates, web polls)
     Route::post('login/qr-generate', [AuthController::class, 'qrGenerate']);
@@ -98,8 +119,16 @@ Route::prefix('v1')->group(function () {
         Route::get('trusted-devices', [AuthController::class, 'trustedDevices']);
         Route::post('revoke-trust', [AuthController::class, 'revokeTrust']);
 
+        // PIN management
+        Route::post('pin', [AuthController::class, 'setPin']);
+        Route::delete('pin', [AuthController::class, 'removePin']);
+
         // QR approve (mobile app calls this while authenticated)
         Route::post('login/qr-approve', [AuthController::class, 'qrApprove']);
+
+        // Command palette search (Ctrl+K)
+        Route::get('search', \App\Http\Controllers\Api\SearchController::class)
+            ->middleware('throttle:60,1');
 
         // Notifications
         Route::get('notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
@@ -124,8 +153,11 @@ Route::prefix('v1')->group(function () {
             Route::get('co-makers', [LoanController::class, 'coMakers']);
             Route::get('stats', [LoanController::class, 'stats']);
             Route::post('verify-otp', [LoanController::class, 'verifyOtp']);
+            Route::post('verify-pin', [LoanController::class, 'verifyPin'])
+                ->middleware('throttle:pin-attempt');
             Route::post('resend-otp', [LoanController::class, 'resendOtp']);
             Route::get('{loan}', [LoanController::class, 'show']);
+            Route::get('{loan}/schedule', [LoanController::class, 'schedule']);
             Route::post('{loan}/cancel', [LoanController::class, 'cancel']);
         });
 
@@ -138,6 +170,8 @@ Route::prefix('v1')->group(function () {
             Route::get('claims', [MemberController::class, 'claims']);
             Route::post('claims', [MemberController::class, 'storeClaim']);
             Route::get('benefits', [MemberController::class, 'benefits']);
+            // Payment statement (JSON preview; PDF lives in the public group above)
+            Route::get('statement', [\App\Http\Controllers\Api\MemberStatementController::class, 'data']);
         });
 
         // Exemption requests (all authenticated users)
@@ -151,6 +185,9 @@ Route::prefix('v1')->group(function () {
             ->prefix('approvals')
             ->group(function () {
                 Route::get('/', [ApprovalController::class, 'index']);
+                Route::post('bulk-approve', [ApprovalController::class, 'bulkApprove']);
+                Route::post('bulk-disapprove', [ApprovalController::class, 'bulkDisapprove']);
+                Route::post('bulk-release', [ApprovalController::class, 'bulkRelease']);
                 Route::get('{loan}', [ApprovalController::class, 'show']);
                 Route::post('{loan}/approve', [ApprovalController::class, 'approve']);
                 Route::post('{loan}/disapprove', [ApprovalController::class, 'disapprove']);

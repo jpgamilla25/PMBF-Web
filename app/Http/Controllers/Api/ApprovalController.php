@@ -106,7 +106,9 @@ class ApprovalController extends Controller
     {
         $loan->load(['user', 'coMaker', 'approvals.approver', 'payments']);
 
-        return $this->success(new LoanResource($loan), 'Loan details retrieved.');
+        // Detail view: approvers decide against take-home pay, which changes
+        // every payroll, so this one reads live rather than the snapshot.
+        return $this->success((new LoanResource($loan))->withHris(), 'Loan details retrieved.');
     }
 
     public function approve(ApprovalActionRequest $request, Loan $loan): JsonResponse

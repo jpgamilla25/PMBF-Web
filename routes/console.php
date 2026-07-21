@@ -16,3 +16,8 @@ Schedule::command('shares:sync-from-fmis')->dailyAt('02:30')->withoutOverlapping
 
 // Sync payroll-deduction loan payments from the FMIS api-center nightly.
 Schedule::command('loan-payments:sync-from-fmis')->dailyAt('03:00')->withoutOverlapping();
+
+// Refresh employment type, pay and contract dates on the users table. List
+// views read that snapshot instead of calling HRIS per row, so this is what
+// keeps a pay adjustment visible to admins.
+Schedule::command('hris:sync-employees')->dailyAt('02:00')->withoutOverlapping();

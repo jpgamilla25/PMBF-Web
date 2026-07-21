@@ -227,7 +227,7 @@ class LoanController extends Controller
 
         $loan->load(['user', 'coMaker', 'approvals.approver', 'payments']);
 
-        return $this->success(new LoanResource($loan), 'Loan retrieved.');
+        return $this->success((new LoanResource($loan))->withHris(), 'Loan retrieved.');
     }
 
     /**

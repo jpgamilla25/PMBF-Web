@@ -25,12 +25,21 @@
         </a>
         <!-- Print Payment Breakdown Button -->
         <a
-          v-if="loan"
+          v-if="loan && loan.status !== 'cancelled'"
           :href="breakdownUrl"
           target="_blank"
           class="btn btn-outline-primary btn-sm"
         >
           <i class="bi bi-table me-1"></i>Print Breakdown
+        </a>
+        <!-- Loan Agreement (Contract of Service only) -->
+        <a
+          v-if="loan && loan.status !== 'cancelled' && loan.user?.employment_type === 'Contract of Service'"
+          :href="agreementUrl"
+          target="_blank"
+          class="btn btn-outline-primary btn-sm"
+        >
+          <i class="bi bi-file-earmark-text me-1"></i>Loan Agreement
         </a>
         <!-- Cancel Button (only for pending loans) -->
         <button
@@ -275,6 +284,12 @@ const breakdownUrl = computed(() => {
   if (!loan.value) return '#'
   const token = localStorage.getItem('pmbf_token')
   return `/api/v1/loans/${loan.value.id}/breakdown/pdf?token=${token}`
+})
+
+const agreementUrl = computed(() => {
+  if (!loan.value) return '#'
+  const token = localStorage.getItem('pmbf_token')
+  return `/api/v1/loans/${loan.value.id}/agreement/pdf?token=${token}`
 })
 
 const canCancel = computed(() => {

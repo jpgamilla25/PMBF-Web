@@ -85,6 +85,7 @@
               <i class="bi bi-file-earmark-pdf"></i>
             </a>
             <a
+              v-if="item.status !== 'cancelled'"
               :href="breakdownUrl(item.id)"
               target="_blank"
               rel="noopener"
@@ -92,6 +93,16 @@
               title="Payment breakdown (PDF)"
             >
               <i class="bi bi-list-columns-reverse"></i>
+            </a>
+            <a
+              v-if="item.status !== 'cancelled' && item.user?.employment_type === 'Contract of Service'"
+              :href="agreementUrl(item.id)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-sm btn-outline-primary"
+              title="Loan agreement (PDF)"
+            >
+              <i class="bi bi-file-earmark-text"></i>
             </a>
 
             <router-link
@@ -187,6 +198,10 @@ function pdfUrl(id) {
 
 function breakdownUrl(id) {
   return `/api/v1/loans/${id}/breakdown/pdf?token=${localStorage.getItem('pmbf_token') ?? ''}`
+}
+
+function agreementUrl(id) {
+  return `/api/v1/loans/${id}/agreement/pdf?token=${localStorage.getItem('pmbf_token') ?? ''}`
 }
 
 function formatLoanType(type) {

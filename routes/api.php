@@ -57,6 +57,7 @@ Route::prefix('v1')->group(function () {
     // Loan PDF (token via query param for new-tab access)
     Route::get('loans/{loan}/pdf', [\App\Http\Controllers\Api\LoanPdfController::class, 'generate']);
     Route::get('loans/{loan}/breakdown/pdf', [\App\Http\Controllers\Api\LoanPdfController::class, 'breakdown']);
+    Route::get('loans/{loan}/agreement/pdf', [\App\Http\Controllers\Api\LoanPdfController::class, 'agreement']);
 
     // Member payment statement PDF (token via query param for new-tab access)
     Route::get('member/statement/pdf', [\App\Http\Controllers\Api\MemberStatementController::class, 'pdf']);

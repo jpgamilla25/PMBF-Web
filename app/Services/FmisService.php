@@ -13,6 +13,15 @@ class FmisService
     public function __construct(private readonly HrisService $hrisService) {}
 
     /**
+     * Round a month count to the nearest half, e.g. 5.28 → 5.5, 5.8 → 6.0.
+     * Loan terms and contract lengths are granular to the half-month.
+     */
+    public static function roundToHalf(float $months): float
+    {
+        return round($months * 2) / 2;
+    }
+
+    /**
      * Resolve an employee's profile (employment type, salary, contract dates)
      * from the HRIS API. Falls back to the member's local registration snapshot
      * when the API is unavailable, so loan eligibility doesn't break to zero
@@ -75,7 +84,7 @@ class FmisService
     /**
      * Calculate max loan amount for SC based on base pay × contract months.
      *
-     * @return array{monthly_salary: float, contract_months: int, remaining_contract_months: int, max_loan_amount: float, contract_start: string|null, contract_end: string|null, extended_max: float}
+     * @return array{monthly_salary: float, contract_months: float, remaining_contract_months: float, max_loan_amount: float, contract_start: string|null, contract_end: string|null, extended_max: float}
      */
     public function calculateScMaxLoan(string $employeeId): array
     {
@@ -85,16 +94,19 @@ class FmisService
         $contractStart = $emp?->contract_start;
         $contractEnd = $emp?->contract_end;
 
+        // Rounded to the nearest half-month, not whole: a Contract-of-Service
+        // contract can legitimately run 5.5 months, and flooring it to 5 would
+        // both understate the max loan and hide a valid 5.5-month term.
         $contractMonths = 0;
         if ($contractStart && $contractEnd) {
-            $contractMonths = max(1, (int) round($contractStart->floatDiffInMonths($contractEnd)));
+            $contractMonths = max(0.5, self::roundToHalf($contractStart->floatDiffInMonths($contractEnd)));
         }
 
         // Remaining contract months from today — what's left to deduct against.
         // Floor at zero (an expired contract should yield no eligible term).
         $remainingContractMonths = 0;
         if ($contractEnd) {
-            $remainingContractMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingContractMonths = max(0, self::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
         }
 
         // SC max loan = a percentage of the value of the REMAINING contract.

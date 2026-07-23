@@ -53,6 +53,8 @@ class Loan extends Model
             'amount' => 'decimal:2',
             'interest_rate' => 'decimal:2',
             'monthly_amortization' => 'decimal:2',
+            // Fractional to allow half-month terms (e.g. 5.5).
+            'term_months' => 'decimal:2',
             'applied_at' => 'datetime',
             'approved_at' => 'datetime',
             'released_at' => 'datetime',
@@ -119,7 +121,7 @@ class Loan extends Model
      */
     public function getTotalPayableAttribute(): float
     {
-        $interest = (float) $this->amount * ((float) $this->interest_rate / 100) * (int) $this->term_months;
+        $interest = (float) $this->amount * ((float) $this->interest_rate / 100) * (float) $this->term_months;
 
         return round((float) $this->amount + $interest, 2);
     }

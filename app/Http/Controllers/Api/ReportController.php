@@ -481,7 +481,7 @@ class ReportController extends Controller
     private function formatLedgerLoan($loan): array
     {
         $principal = (float) $loan->amount;
-        $interest  = round($principal * ((float) $loan->interest_rate / 100) * (int) $loan->term_months, 2);
+        $interest  = round($principal * ((float) $loan->interest_rate / 100) * (float) $loan->term_months, 2);
         $total     = $loan->total_payable; // principal + interest (exact)
 
         $running = $total;

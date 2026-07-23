@@ -61,7 +61,7 @@ class LoanController extends Controller
             $user,
             $validated['loan_type'],
             (float) $validated['amount'],
-            isset($validated['term_months']) ? (int) $validated['term_months'] : null
+            isset($validated['term_months']) ? (float) $validated['term_months'] : null
         );
 
         if (!$eligibility['eligible']) {
@@ -96,7 +96,7 @@ class LoanController extends Controller
             'monthly_amortization' => $this->loanService->calculateAmortization(
                 (float) $validated['amount'],
                 $rate,
-                (int) $validated['term_months']
+                (float) $validated['term_months']
             ),
         ], 'OTP sent. Please verify to complete your loan application.');
     }
@@ -173,7 +173,7 @@ class LoanController extends Controller
             'loan_type' => ['required', 'string', Rule::in(array_keys($this->loanService->getAvailableLoanTypes($user)))],
             'amount' => 'required|numeric|min:' . Configuration::getDecimal('min_loan_amount', 1000),
             'purpose' => 'required|string',
-            'term_months' => 'required|integer|min:1|max:' . Configuration::getValue('max_loan_term_months', 60),
+            'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
             'co_maker_id' => 'nullable|integer|exists:users,id',
         ];
     }
@@ -188,7 +188,7 @@ class LoanController extends Controller
             $user,
             $request->input('loan_type'),
             (float) $request->input('amount'),
-            $request->filled('term_months') ? (int) $request->input('term_months') : null
+            $request->filled('term_months') ? (float) $request->input('term_months') : null
         );
 
         if (!$eligibility['eligible']) {
@@ -306,14 +306,14 @@ class LoanController extends Controller
         $request->validate([
             'loan_type' => 'required|string',
             'amount' => 'required|numeric|min:1000',
-            'term_months' => 'nullable|integer|min:1|max:120',
+            'term_months' => 'nullable|numeric|min:0.5|max:120',
         ]);
 
         $result = $this->loanService->checkEligibility(
             $request->user(),
             $request->loan_type,
             (float) $request->amount,
-            $request->filled('term_months') ? (int) $request->term_months : null
+            $request->filled('term_months') ? (float) $request->term_months : null
         );
 
         return $this->success($result, $result['message']);

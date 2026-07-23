@@ -144,7 +144,8 @@ class LoanChatService
         }
 
         // ── Validate the values against the real rules ────────
-        if (!in_array($slots['term_months'], $terms, true)) {
+        // Loose compare: config terms may be int (6) or float (5.5).
+        if (!in_array((float) $slots['term_months'], array_map('floatval', $terms), true)) {
             return $this->reply(
                 "A **{$slots['term_months']}-month** term isn't available for a {$slots['loan_type']}. "
                 . 'You can choose: **' . implode(', ', $terms) . '** months.',
@@ -284,13 +285,17 @@ class LoanChatService
         return $matches ? (float) end($matches) : null;
     }
 
-    /** Pull a term in months: "3 months", "3mo", "3-month", "for 3 months". */
-    private function extractTerm(string $text): ?int
+    /** Pull a term in months, incl. halves: "3 months", "5.5mo", "3-month". */
+    private function extractTerm(string $text): float|int|null
     {
-        if (preg_match_all('/(\d{1,3})\s*(?:-|\s)?\s*(?:months?|mos?\b|buwan)/iu', $text, $m)) {
-            $last = (int) end($m[1]);
+        if (preg_match_all('/(\d{1,3}(?:\.\d+)?)\s*(?:-|\s)?\s*(?:months?|mos?\b|buwan)/iu', $text, $m)) {
+            $last = (float) end($m[1]);
+            if ($last <= 0) {
+                return null;
+            }
 
-            return $last > 0 ? $last : null;
+            // Whole number stays an int so "3 months" reads cleanly.
+            return $last == (int) $last ? (int) $last : $last;
         }
 
         return null;

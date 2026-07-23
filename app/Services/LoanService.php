@@ -129,13 +129,18 @@ class LoanService
     private function parseTerms(string $terms): array
     {
         return collect(explode(',', $terms))
-            ->map(fn ($v) => (int) trim($v))
+            // Terms are granular to the half-month (e.g. 5.5), so parse as
+            // float rather than int — casting to int would turn 5.5 into 5,
+            // then the dedupe would drop it as a duplicate of an existing 5.
+            ->map(fn ($v) => FmisService::roundToHalf((float) trim($v)))
             ->filter(fn ($v) => $v > 0)
             // A duplicated entry in the config would otherwise render the
             // same option twice in the term dropdown.
             ->unique()
             ->sort()
             ->values()
+            // 5.0 → 5 for a clean "5 months" label; 5.5 stays 5.5.
+            ->map(fn ($v) => $v == (int) $v ? (int) $v : $v)
             ->toArray();
     }
 
@@ -171,7 +176,7 @@ class LoanService
 
         // ── Check 0: Contract of Service term must fit remaining contract ──
         if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && $contractEnd) {
-            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingMonths = max(0, FmisService::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($remainingMonths === 0) {
                 return [
@@ -324,8 +329,12 @@ class LoanService
     /**
      * Calculate monthly amortization (flat interest).
      */
-    public function calculateAmortization(float $amount, float $monthlyRate, int $months): float
+    public function calculateAmortization(float $amount, float $monthlyRate, float $months): float
     {
+        if ($months <= 0) {
+            return 0.0;
+        }
+
         $totalInterest = $amount * ($monthlyRate / 100) * $months;
         return round(($amount + $totalInterest) / $months, 2);
     }
@@ -347,7 +356,8 @@ class LoanService
         // is what actually gets stored on the loan.
         $rate = $this->getInterestRate($user, $data['loan_type'] ?? null);
         $amount = (float) $data['amount'];
-        $months = (int) $data['term_months'];
+        // Float, not int — a 5.5-month term must survive to the stored loan.
+        $months = (float) $data['term_months'];
 
         // Determine max amount and whether admin approval is needed
         $types = $this->getAvailableLoanTypes($user);
@@ -370,7 +380,7 @@ class LoanService
         // Contract of Service: hard-reject when term exceeds remaining contract
         // months unless an extend_term exemption is active for this loan type.
         if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && ($contractEnd = $this->contractEnd($user))) {
-            $remainingMonths = max(0, (int) round(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingMonths = max(0, FmisService::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($months > $remainingMonths) {
                 $exemption = $this->exemptionService->getActiveExemption($user, 'extend_term', $data['loan_type']);
@@ -460,7 +470,10 @@ class LoanService
 
         $amount = (float) $loan->amount;
         $rate = (float) $loan->interest_rate;
-        $term = max(1, (int) $loan->term_months);
+        // Exact term for the maths; a fractional term (5.5) becomes ceil()
+        // payment periods where the last one is partial.
+        $termExact = max(0.5, (float) $loan->term_months);
+        $term = (int) ceil($termExact);
         $monthly = (float) $loan->monthly_amortization;
         $totalPayable = $loan->total_payable;
         $totalPaid = round((float) $loan->payments->sum('amount'), 2);

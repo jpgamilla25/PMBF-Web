@@ -25,7 +25,7 @@ class StoreLoanRequest extends FormRequest
             'loan_type' => ['required', 'string', Rule::in($this->allowedLoanTypes())],
             'amount' => ['required', 'numeric', 'min:' . Configuration::getDecimal('min_loan_amount', 1000)],
             'purpose' => ['required', 'string', 'max:500'],
-            'term_months' => ['required', 'integer', 'min:1', 'max:' . Configuration::getValue('max_loan_term_months', 60)],
+            'term_months' => ['required', 'numeric', 'min:0.5', 'max:' . Configuration::getValue('max_loan_term_months', 60)],
             'co_maker_id' => ['nullable', 'integer', 'exists:users,id'],
         ];
 

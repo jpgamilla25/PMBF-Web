@@ -588,4 +588,125 @@ class ReportController extends Controller
         }
         return $result;
     }
+
+    // ── Notice of Deduction Report ────────────────────────────────
+    //
+    // Per-division, per-cutoff payroll deduction notice. One row per active
+    // salary loan whose term overlaps the selected cutoff — a member with two
+    // active loans shows twice.
+
+    public function divisions(): JsonResponse
+    {
+        $rows = User::query()
+            ->whereNotNull('department')
+            ->where('department', '<>', '')
+            ->distinct()
+            ->orderBy('department')
+            ->pluck('department')
+            ->map(fn ($d) => ['value' => $d, 'label' => $d])
+            ->values();
+
+        return $this->success($rows);
+    }
+
+    public function noticeOfDeduction(Request $request): JsonResponse
+    {
+        return $this->success($this->buildNoticeOfDeduction($request));
+    }
+
+    public function noticeOfDeductionPdf(Request $request)
+    {
+        // Public route (no auth:sanctum) — resolve user from ?token= like the
+        // other new-tab PDF endpoints. Prepared-by would be blank otherwise.
+        $this->resolveTokenUser($request);
+
+        $data = $this->buildNoticeOfDeduction($request);
+
+        $pdf = Pdf::loadView('pdf.report-notice-of-deduction', $data);
+        $pdf->setPaper('a4', 'portrait');
+
+        $slug = strtolower(preg_replace('/[^A-Za-z0-9]+/', '-', $data['division'] ?: 'division'));
+        return $pdf->stream("notice-of-deduction-{$slug}-{$data['cutoff']['year']}-{$data['cutoff']['month']}-{$data['cutoff']['half']}.pdf");
+    }
+
+    /**
+     * Attach a user to $request based on the ?token= query param (used by the
+     * new-tab PDF endpoints that live outside auth:sanctum). Silently no-ops
+     * if no token, no matching PAT, or auth already resolved via header.
+     */
+    private function resolveTokenUser(Request $request): void
+    {
+        if ($request->user()) return;
+        $token = $request->query('token');
+        if (!$token) return;
+
+        $pat = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+        $user = $pat?->tokenable;
+        if ($user) {
+            $request->setUserResolver(fn () => $user);
+        }
+    }
+
+    /**
+     * Gathers the rows + header fields the JSON preview and the PDF share.
+     */
+    private function buildNoticeOfDeduction(Request $request): array
+    {
+        $division = trim((string) $request->input('division', ''));
+        $year     = (int) $request->input('year', now()->year);
+        $month    = max(1, min(12, (int) $request->input('month', now()->month)));
+        $half     = (int) $request->input('half', now()->day <= 15 ? 1 : 2) === 2 ? 2 : 1;
+
+        $cutoffStart = \Illuminate\Support\Carbon::create($year, $month, $half === 1 ? 1 : 16)->startOfDay();
+        $cutoffEnd   = $half === 1
+            ? \Illuminate\Support\Carbon::create($year, $month, 15)->endOfDay()
+            : $cutoffStart->copy()->endOfMonth();
+
+        $rows = collect();
+
+        if ($division !== '') {
+            $loans = Loan::query()
+                ->whereIn('status', ['released', 'completed'])
+                ->whereNotNull('released_at')
+                ->whereHas('user', fn ($q) => $q->where('department', $division))
+                ->with('user')
+                ->get();
+
+            $rows = $loans
+                ->filter(function (Loan $loan) use ($cutoffStart, $cutoffEnd) {
+                    $start = $loan->released_at->copy()->startOfDay();
+                    $end   = $start->copy()->addMonths((int) $loan->term_months);
+                    return $start->lte($cutoffEnd) && $end->gt($cutoffStart);
+                })
+                ->sortBy(fn (Loan $l) => strtolower($l->user->last_name . ' ' . $l->user->first_name))
+                ->values()
+                ->map(function (Loan $loan, int $i) {
+                    $mi = $loan->user->middle_name ? ' ' . strtoupper(substr($loan->user->middle_name, 0, 1)) . '.' : '';
+                    $start = $loan->released_at->copy();
+                    $end   = $start->copy()->addMonths((int) $loan->term_months);
+                    return [
+                        'row_no'       => $i + 1,
+                        'loan_id'      => $loan->id,
+                        'name'         => $loan->user->last_name . ', ' . $loan->user->first_name . $mi,
+                        'semi_monthly' => round((float) $loan->monthly_amortization / 2, 2),
+                        'remarks'      => $start->format('M') . ' to ' . $end->format('F j, Y'),
+                    ];
+                });
+        }
+
+        return [
+            'division'    => $division,
+            'cutoff'      => [
+                'year'  => $year,
+                'month' => $month,
+                'half'  => $half,
+                'start' => $cutoffStart->format('Y-m-d'),
+                'end'   => $cutoffEnd->format('Y-m-d'),
+                'label' => $cutoffStart->format('F') . ' ' . $cutoffStart->day . '-' . $cutoffEnd->day . ', ' . $year,
+            ],
+            'rows'        => $rows,
+            'prepared_by' => $request->user()?->full_name ?? '',
+            'generated_at'=> now()->format('m/d/Y'),
+        ];
+    }
 }

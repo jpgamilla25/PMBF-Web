@@ -60,6 +60,12 @@ export default {
   getReportLedger(params = {}) {
     return api.get('/admin/reports/ledger', { params })
   },
+  getReportNoticeOfDeduction(params = {}) {
+    return api.get('/admin/reports/notice-of-deduction', { params })
+  },
+  getDivisions() {
+    return api.get('/admin/reports/divisions')
+  },
   downloadReportCsv(type, params = {}) {
     return api.get(`/admin/reports/${type}/csv`, { params, responseType: 'blob' })
   },

@@ -21,6 +21,11 @@
                   <i class="bi bi-printer me-1"></i>Print
                 </span>
               </template>
+              <template v-else-if="r.key === 'notice-of-deduction'">
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </span>
+              </template>
               <template v-else>
                 <span class="badge" :style="{ background: r.bg, color: r.color }">
                   <i class="bi bi-filetype-pdf me-1"></i>PDF
@@ -88,6 +93,15 @@ const reportTypes = [
     route: '/admin/reports/ledger',
     color: '#0e7490',
     bg: '#cffafe',
+  },
+  {
+    key: 'notice-of-deduction',
+    title: 'Notice of Deduction',
+    desc: 'Per-division, per-cutoff payroll deduction notice — one row per active salary loan. Printable form ready to send to payroll.',
+    icon: 'bi bi-file-earmark-ruled fs-4',
+    route: '/admin/reports/notice-of-deduction',
+    color: '#7c2d12',
+    bg: '#fed7aa',
   },
 ]
 </script>

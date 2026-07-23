@@ -177,6 +177,12 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true },
   },
   {
+    path: '/admin/reports/notice-of-deduction',
+    name: 'admin-report-notice-of-deduction',
+    component: () => import('../views/admin/AdminReportNoticeOfDeductionView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true },
+  },
+  {
     path: '/admin/shares',
     name: 'admin-shares',
     component: () => import('../views/admin/AdminSharesView.vue'),

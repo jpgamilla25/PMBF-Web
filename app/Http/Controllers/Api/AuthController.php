@@ -14,6 +14,7 @@ use App\Services\QrLoginService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 
 class AuthController extends Controller
 {
@@ -54,7 +55,73 @@ class AuthController extends Controller
             'department' => $employee->department,
             'position' => $employee->position,
             'email' => $this->maskEmail($employee->email),
+            // Some HRIS emails are wrong, so a member who can't receive the
+            // OTP can prove who they are against other HRIS fields instead.
+            // That needs a mobile number on file to check against.
+            'can_verify_identity' => !empty($employee->mobile),
+            'mobile_hint' => $this->maskMobile($employee->mobile),
         ], 'OTP sent to your registered email address.');
+    }
+
+    /**
+     * Alternative to the emailed OTP for members whose HRIS email is wrong.
+     *
+     * They prove identity against HRIS fields only they would know, then
+     * nominate an email they can actually reach. The OTP still goes to that
+     * address, so the account is never created against an unproven mailbox.
+     */
+    public function verifyIdentity(Request $request): JsonResponse
+    {
+        $request->validate([
+            'employee_id' => 'required|string',
+            'middle_name' => 'required|string|max:100',
+            'mobile_last4' => 'required|digits:4',
+            'email' => 'required|email|max:255',
+        ]);
+
+        if (User::where('employee_id', $request->employee_id)->exists()) {
+            return $this->error('This employee ID is already registered.', 409);
+        }
+
+        if (User::where('email', $request->email)->exists()) {
+            return $this->error('That email address is already in use.', 409);
+        }
+
+        $result = $this->hrisService->validateEmployee($request->employee_id);
+        if (!$result['valid']) {
+            return $this->error($result['message'], $result['available'] ? 404 : 503);
+        }
+
+        $employee = $result['employee'];
+
+        if (empty($employee->mobile)) {
+            return $this->error(
+                'We cannot verify your identity automatically because no mobile number is on file '
+                . 'in HRIS. Please contact the HR / Human Resources Division to have your email or '
+                . 'mobile number corrected, then try registering again.',
+                422,
+                ['reason' => 'no_mobile_on_file']
+            );
+        }
+
+        if (!$this->identityMatches($employee, $request->middle_name, $request->mobile_last4)) {
+            // Deliberately vague — naming the wrong field would let someone
+            // brute-force one answer at a time.
+            return $this->error(
+                'Those details do not match our records. Please check your middle name and mobile '
+                . 'number, or contact the HR / Human Resources Division for assistance.',
+                422
+            );
+        }
+
+        $this->otpService->generate($request->email, 'registration');
+
+        return $this->success([
+            'email' => $this->maskEmail($request->email),
+            // Proves the identity check passed, so completeRegistration can
+            // trust the nominated email. Encrypted and short-lived.
+            'identity_token' => $this->issueIdentityToken($request->employee_id, $request->email),
+        ], 'Identity verified. We sent a verification code to the email you provided.');
     }
 
     public function completeRegistration(Request $request): JsonResponse
@@ -62,6 +129,7 @@ class AuthController extends Controller
         $request->validate([
             'employee_id' => 'required|string',
             'otp' => 'required|string|size:6',
+            'identity_token' => 'nullable|string',
             'device_fingerprint' => 'nullable|string|max:128',
             'trust_device' => 'nullable|boolean',
         ]);
@@ -76,7 +144,23 @@ class AuthController extends Controller
         }
 
         $employee = $result['employee'];
-        if (!$this->otpService->verify($employee->email, $request->otp, 'registration')) {
+
+        // A member who went through the identity check registers against the
+        // email they nominated, not the wrong one HRIS holds.
+        $otpEmail = $employee->email;
+
+        if ($request->filled('identity_token')) {
+            $verified = $this->readIdentityToken($request->input('identity_token'));
+
+            if (!$verified || $verified['employee_id'] !== $request->employee_id) {
+                return $this->error('Your verification session expired. Please start again.', 422);
+            }
+
+            $otpEmail = $verified['email'];
+            $employee->email = $otpEmail;
+        }
+
+        if (!$this->otpService->verify($otpEmail, $request->otp, 'registration')) {
             return $this->error('Invalid or expired OTP.', 422);
         }
 
@@ -570,5 +654,62 @@ class AuthController extends Controller
     {
         [$name, $domain] = explode('@', $email);
         return substr($name, 0, 2) . str_repeat('*', max(strlen($name) - 2, 0)) . '@' . $domain;
+    }
+
+    /** e.g. 09213928403 → 0921****8403, so the member knows which number to read from. */
+    private function maskMobile(?string $mobile): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $mobile);
+
+        if (strlen($digits) < 8) {
+            return null;
+        }
+
+        return substr($digits, 0, 4) . str_repeat('*', strlen($digits) - 8) . substr($digits, -4);
+    }
+
+    /**
+     * Compare the answers to HRIS, ignoring case, spacing and punctuation —
+     * "Del Rosario", "del rosario" and "DelRosario" are the same person.
+     */
+    private function identityMatches(object $employee, string $middleName, string $mobileLast4): bool
+    {
+        $normalise = fn (?string $v) => strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $v));
+
+        $middleOk = $normalise($employee->middle_name) !== ''
+            && $normalise($employee->middle_name) === $normalise($middleName);
+
+        $onFile = preg_replace('/\D/', '', (string) $employee->mobile);
+        $mobileOk = strlen($onFile) >= 4 && substr($onFile, -4) === $mobileLast4;
+
+        return $middleOk && $mobileOk;
+    }
+
+    /** Short-lived proof that the identity check passed for this ID + email. */
+    private function issueIdentityToken(string $employeeId, string $email): string
+    {
+        return Crypt::encryptString(json_encode([
+            'employee_id' => $employeeId,
+            'email' => $email,
+            'expires_at' => now()->addMinutes(30)->timestamp,
+        ]));
+    }
+
+    /**
+     * @return array{employee_id: string, email: string}|null
+     */
+    private function readIdentityToken(string $token): ?array
+    {
+        try {
+            $payload = json_decode(Crypt::decryptString($token), true);
+        } catch (\Throwable) {
+            return null; // tampered with or signed by a different app key
+        }
+
+        if (!is_array($payload) || ($payload['expires_at'] ?? 0) < now()->timestamp) {
+            return null;
+        }
+
+        return ['employee_id' => $payload['employee_id'], 'email' => $payload['email']];
     }
 }

@@ -65,7 +65,78 @@
         OTP sent to <strong>{{ employee.email }}</strong>
       </div>
 
-      <form @submit.prevent="handleComplete">
+      <!-- ── Wrong-email path ─────────────────────────────── -->
+      <template v-if="showIdentity">
+        <!-- Nothing to check the answers against without a mobile on file. -->
+        <div v-if="!employee.can_verify_identity" class="alert alert-warning small">
+          <div class="fw-semibold mb-1">
+            <i class="bi bi-telephone-x me-1"></i>We can't verify you automatically
+          </div>
+          There is no mobile number on file in HRIS for your Employee ID, so we have no way to
+          confirm it's you. Please contact the <strong>HR / Human Resources Division</strong> to
+          have your email address (or mobile number) corrected in HRIS, then register again.
+        </div>
+
+        <template v-else>
+          <div class="alert alert-secondary small">
+            <i class="bi bi-shield-check me-1"></i>
+            Answer these to confirm it's you, then give us an email you can actually open.
+          </div>
+
+          <form @submit.prevent="handleVerifyIdentity">
+            <AppInput
+              v-model="identity.middle_name"
+              label="Middle Name"
+              placeholder="As recorded in HRIS"
+              :error="errors.middle_name"
+              required
+            />
+
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">
+                Last 4 digits of your mobile number
+                <span v-if="employee.mobile_hint" class="text-muted fw-normal">
+                  ({{ employee.mobile_hint }})
+                </span>
+              </label>
+              <input
+                v-model="identity.mobile_last4"
+                type="text"
+                inputmode="numeric"
+                maxlength="4"
+                class="form-control text-center"
+                :class="{ 'is-invalid': errors.mobile_last4 }"
+                placeholder="0000"
+                style="letter-spacing: 8px; font-weight: 700;"
+                required
+              />
+              <div v-if="errors.mobile_last4" class="invalid-feedback">{{ errors.mobile_last4 }}</div>
+            </div>
+
+            <AppInput
+              v-model="identity.email"
+              label="Your Email Address"
+              type="email"
+              placeholder="you@example.com"
+              :error="errors.email"
+              hint="We'll send your verification code here and use it for your account."
+              required
+            />
+
+            <AppButton type="submit" variant="primary" block :loading="processing">
+              <i class="bi bi-shield-check me-1"></i>Verify &amp; Send Code
+            </AppButton>
+          </form>
+        </template>
+
+        <div class="text-center mt-3">
+          <button class="btn btn-link text-muted small" @click="showIdentity = false">
+            <i class="bi bi-arrow-left me-1"></i>Back
+          </button>
+        </div>
+      </template>
+
+      <form v-else @submit.prevent="handleComplete">
         <div class="mb-3">
           <label class="form-label fw-semibold">Enter OTP Code</label>
           <input
@@ -87,7 +158,7 @@
         </AppButton>
       </form>
 
-      <div class="text-center mt-3">
+      <div v-if="!showIdentity" class="text-center mt-3">
         <button
           class="btn btn-link text-muted small"
           :disabled="resendCooldown > 0"
@@ -96,7 +167,15 @@
           {{ resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : "Didn't receive? Resend OTP" }}
         </button>
       </div>
-      <div class="text-center">
+
+      <!-- The HRIS email is wrong for some members; this is their way in. -->
+      <div v-if="!showIdentity && !identityVerified" class="text-center">
+        <button class="btn btn-link small" @click="openIdentity">
+          <i class="bi bi-envelope-exclamation me-1"></i>This isn't my email / I can't open it
+        </button>
+      </div>
+
+      <div v-if="!showIdentity" class="text-center">
         <button class="btn btn-link text-muted small" @click="currentStep = 1">
           <i class="bi bi-arrow-left me-1"></i>Use different ID
         </button>
@@ -130,9 +209,56 @@ const notify = useNotificationStore()
 const device = useDeviceFingerprint()
 
 const currentStep = ref(1)
-const employee = reactive({ first_name: '', last_name: '', email: '', employment_type: '', department: '', position: '' })
+const employee = reactive({
+  first_name: '', last_name: '', email: '', employment_type: '', department: '', position: '',
+  can_verify_identity: false, mobile_hint: '',
+})
 const resendCooldown = ref(0)
 let resendTimer = null
+
+// ── Wrong-email path ──────────────────────────────────────
+// A member whose HRIS email is wrong proves who they are against other HRIS
+// fields, then nominates an email they can actually open.
+const showIdentity = ref(false)
+const identityVerified = ref(false)
+const identityToken = ref(null)
+const identity = reactive({ middle_name: '', mobile_last4: '', email: '' })
+
+function openIdentity() {
+  clearErrors()
+  showIdentity.value = true
+}
+
+async function handleVerifyIdentity() {
+  clearErrors()
+  try {
+    await submit(async () => {
+      const { data } = await auth.registerVerifyIdentity({
+        employee_id: form.employee_id,
+        middle_name: identity.middle_name,
+        mobile_last4: identity.mobile_last4,
+        email: identity.email,
+      })
+      const result = data.data ?? data
+
+      identityToken.value = result.identity_token
+      identityVerified.value = true
+      employee.email = result.email      // the OTP now goes to their address
+      showIdentity.value = false
+      form.otp = ''
+
+      notify.success('Verified. Check your email for the code.')
+      startResendCooldown()
+    })
+  } catch (error) {
+    const msg = error.response?.data?.message || 'We could not verify those details.'
+    if (error.response?.data?.errors && typeof error.response.data.errors === 'object'
+        && !error.response.data.errors.reason) {
+      setErrors(error.response.data.errors)
+    }
+    notify.error(msg)
+  }
+}
 
 const { form, errors, processing, submit, setErrors, clearErrors } = useForm({
   employee_id: '',
@@ -146,6 +272,13 @@ async function handleLookup() {
       const { data } = await auth.registerLookup({ employee_id: form.employee_id })
       const info = data.data ?? data
       Object.assign(employee, info)
+
+      // A different Employee ID means any earlier identity check is void.
+      identityVerified.value = false
+      identityToken.value = null
+      showIdentity.value = false
+      identity.middle_name = identity.mobile_last4 = identity.email = ''
+
       notify.success('Employee found! OTP sent to your email.')
       currentStep.value = 2
       form.otp = ''
@@ -168,6 +301,9 @@ async function handleComplete() {
       const { data } = await auth.registerComplete({
         employee_id: form.employee_id,
         otp: form.otp,
+        // Present only when the member went through the identity check —
+        // it's what authorises registering against their nominated email.
+        identity_token: identityToken.value ?? undefined,
         // Registering proves ownership of the account's email, so the backend
         // trusts this device — which is what makes a PIN usable right away.
         device_fingerprint: device.get(),
@@ -192,6 +328,20 @@ async function handleComplete() {
 
 async function handleResendOtp() {
   if (resendCooldown.value > 0) return
+
+  // Identity-verified members get the code at the address they nominated,
+  // not the wrong one HRIS holds.
+  if (identityVerified.value && identity.email) {
+    try {
+      await auth.registerResendOtp({ email: identity.email, type: 'registration' })
+      notify.success('Code resent to your email.')
+      startResendCooldown()
+    } catch {
+      notify.error('Failed to resend the code.')
+    }
+    return
+  }
+
   try {
     await auth.registerResendOtp({ email: employee.email, type: 'registration' })
     notify.success('OTP resent to your email.')

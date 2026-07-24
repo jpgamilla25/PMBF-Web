@@ -5,6 +5,7 @@ export default {
   registerLookup: (data) => api.post('register/lookup', data),
   registerComplete: (data) => api.post('register/complete', data),
   registerResendOtp: (data) => api.post('register/resend-otp', data),
+  registerVerifyIdentity: (data) => api.post('register/verify-identity', data),
 
   // Login via Email OTP
   loginRequestOtp: (data) => api.post('login/request-otp', data),

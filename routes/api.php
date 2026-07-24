@@ -75,6 +75,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('throttle:otp-send')->group(function () {
         Route::post('register/lookup', [AuthController::class, 'lookup']);
         Route::post('register/resend-otp', [AuthController::class, 'resendOtp']);
+        Route::post('register/verify-identity', [AuthController::class, 'verifyIdentity']);
     });
     Route::middleware('throttle:otp-verify')->group(function () {
         Route::post('register/complete', [AuthController::class, 'completeRegistration']);

@@ -132,7 +132,7 @@ class LoanService
             // Terms are granular to the half-month (e.g. 5.5), so parse as
             // float rather than int — casting to int would turn 5.5 into 5,
             // then the dedupe would drop it as a duplicate of an existing 5.
-            ->map(fn ($v) => FmisService::roundToHalf((float) trim($v)))
+            ->map(fn ($v) => FmisService::usableTermMonths((float) trim($v)))
             ->filter(fn ($v) => $v > 0)
             // A duplicated entry in the config would otherwise render the
             // same option twice in the term dropdown.
@@ -176,7 +176,7 @@ class LoanService
 
         // ── Check 0: Contract of Service term must fit remaining contract ──
         if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && $contractEnd) {
-            $remainingMonths = max(0, FmisService::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingMonths = max(0, FmisService::usableTermMonths(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($remainingMonths === 0) {
                 return [
@@ -380,7 +380,7 @@ class LoanService
         // Contract of Service: hard-reject when term exceeds remaining contract
         // months unless an extend_term exemption is active for this loan type.
         if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && ($contractEnd = $this->contractEnd($user))) {
-            $remainingMonths = max(0, FmisService::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingMonths = max(0, FmisService::usableTermMonths(now()->floatDiffInMonths($contractEnd, false)));
 
             if ($months > $remainingMonths) {
                 $exemption = $this->exemptionService->getActiveExemption($user, 'extend_term', $data['loan_type']);

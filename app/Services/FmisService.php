@@ -13,12 +13,24 @@ class FmisService
     public function __construct(private readonly HrisService $hrisService) {}
 
     /**
-     * Round a month count to the nearest half, e.g. 5.28 → 5.5, 5.8 → 6.0.
-     * Loan terms and contract lengths are granular to the half-month.
+     * Express a raw month count as a usable loan term.
+     *
+     * Any part of a month counts as a half-month, and never rounds up to the
+     * next whole one:
+     *
+     *   5.0  → 5.0     exactly five whole months
+     *   5.2  → 5.5     part-way into month six
+     *   5.9  → 5.5     still only part-way into month six
+     *   6.0  → 6.0
+     *
+     * Rounding to the nearest half instead would turn 5.9 into 6.0 and offer
+     * a full six-month term the contract cannot cover.
      */
-    public static function roundToHalf(float $months): float
+    public static function usableTermMonths(float $months): float
     {
-        return round($months * 2) / 2;
+        $whole = floor($months);
+
+        return $months > $whole ? $whole + 0.5 : $whole;
     }
 
     /**
@@ -94,19 +106,19 @@ class FmisService
         $contractStart = $emp?->contract_start;
         $contractEnd = $emp?->contract_end;
 
-        // Rounded to the nearest half-month, not whole: a Contract-of-Service
-        // contract can legitimately run 5.5 months, and flooring it to 5 would
-        // both understate the max loan and hide a valid 5.5-month term.
+        // Expressed in half-months: a part-month counts as a half, so a
+        // contract with 5.2 months left supports a 5.5-month term but never
+        // a 6-month one.
         $contractMonths = 0;
         if ($contractStart && $contractEnd) {
-            $contractMonths = max(0.5, self::roundToHalf($contractStart->floatDiffInMonths($contractEnd)));
+            $contractMonths = max(0.5, self::usableTermMonths($contractStart->floatDiffInMonths($contractEnd)));
         }
 
         // Remaining contract months from today — what's left to deduct against.
         // Floor at zero (an expired contract should yield no eligible term).
         $remainingContractMonths = 0;
         if ($contractEnd) {
-            $remainingContractMonths = max(0, self::roundToHalf(now()->floatDiffInMonths($contractEnd, false)));
+            $remainingContractMonths = max(0, self::usableTermMonths(now()->floatDiffInMonths($contractEnd, false)));
         }
 
         // SC max loan = a percentage of the value of the REMAINING contract.

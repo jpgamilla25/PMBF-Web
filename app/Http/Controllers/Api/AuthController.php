@@ -656,7 +656,12 @@ class AuthController extends Controller
         return substr($name, 0, 2) . str_repeat('*', max(strlen($name) - 2, 0)) . '@' . $domain;
     }
 
-    /** e.g. 09213928403 → 0921****8403, so the member knows which number to read from. */
+    /**
+     * e.g. 09213928403 → 0921*******
+     *
+     * Only the prefix is shown. The usual mask keeps the last four visible,
+     * which here would print the very digits the member is being asked for.
+     */
     private function maskMobile(?string $mobile): ?string
     {
         $digits = preg_replace('/\D/', '', (string) $mobile);
@@ -665,7 +670,7 @@ class AuthController extends Controller
             return null;
         }
 
-        return substr($digits, 0, 4) . str_repeat('*', strlen($digits) - 8) . substr($digits, -4);
+        return substr($digits, 0, 4) . str_repeat('*', strlen($digits) - 4);
     }
 
     /**

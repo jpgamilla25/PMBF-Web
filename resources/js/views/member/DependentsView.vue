@@ -23,6 +23,9 @@
               <div>
                 <h6 class="fw-bold mb-0">
                   {{ dep.full_name ?? `${dep.first_name ?? ''} ${dep.last_name ?? ''}`.trim() }}
+                  <span v-if="dep.is_beneficiary" class="badge bg-info ms-1">
+                    <i class="bi bi-star-fill me-1"></i>Beneficiary
+                  </span>
                 </h6>
                 <small class="text-muted">{{ dep.relationship ?? '-' }}</small>
               </div>
@@ -112,6 +115,20 @@
             :error="depForm.errors.coverage_type"
           />
         </div>
+        <div class="col-12">
+          <div class="form-check mb-3">
+            <input
+              id="is_beneficiary"
+              v-model="depForm.form.is_beneficiary"
+              class="form-check-input"
+              type="checkbox"
+            />
+            <label class="form-check-label" for="is_beneficiary">
+              Designate as <strong>beneficiary</strong>
+              <span class="text-muted small d-block">Mark if this dependent is a designated beneficiary for benefit claims.</span>
+            </label>
+          </div>
+        </div>
         <div class="col-md-6">
           <div class="mb-3">
             <label class="form-label">Attachments</label>
@@ -167,6 +184,7 @@ const depForm = useForm({
   relationship: '',
   birth_date: '',
   coverage_type: '',
+  is_beneficiary: false,
 })
 
 const relationshipOptions = [
@@ -227,7 +245,13 @@ async function handleSubmit() {
     await depForm.submit(async (data) => {
       const formData = new FormData()
       Object.keys(data).forEach((key) => {
-        if (data[key]) formData.append(key, data[key])
+        // Booleans must send explicitly (0/1) — a falsy checkbox would
+        // otherwise be dropped by the truthy check.
+        if (key === 'is_beneficiary') {
+          formData.append(key, data[key] ? '1' : '0')
+        } else if (data[key]) {
+          formData.append(key, data[key])
+        }
       })
       attachments.value.forEach((file) => {
         formData.append('attachments[]', file)

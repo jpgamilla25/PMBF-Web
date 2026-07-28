@@ -14,12 +14,14 @@ class Dependent extends Model
         'relationship',
         'birth_date',
         'coverage_type',
+        'is_beneficiary',
     ];
 
     protected function casts(): array
     {
         return [
             'birth_date' => 'date',
+            'is_beneficiary' => 'boolean',
         ];
     }
 

@@ -21,6 +21,7 @@ class DependentResource extends JsonResource
             'relationship' => $this->relationship,
             'birth_date' => $this->birth_date?->toDateString(),
             'coverage_type' => $this->coverage_type,
+            'is_beneficiary' => (bool) $this->is_beneficiary,
             'attachments_count' => $this->whenCounted('attachments'),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

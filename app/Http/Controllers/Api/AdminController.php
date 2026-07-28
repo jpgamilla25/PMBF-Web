@@ -67,10 +67,13 @@ class AdminController extends Controller
     {
         $user->loadCount(['loans', 'dependents', 'claims', 'benefits']);
 
-        return $this->success(
-            new UserResource($user),
-            'Member details retrieved.'
+        $data = (new UserResource($user))->toArray(request());
+        // Admin sees the member's dependents/beneficiaries when reviewing them.
+        $data['dependents'] = \App\Http\Resources\DependentResource::collection(
+            $user->dependents()->latest()->get()
         );
+
+        return $this->success($data, 'Member details retrieved.');
     }
 
     /**

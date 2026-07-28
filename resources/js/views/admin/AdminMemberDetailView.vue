@@ -96,6 +96,10 @@
                   :text="value ? value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'None'"
                 />
               </template>
+              <template #cell(is_beneficiary)="{ value }">
+                <span v-if="value" class="badge bg-info"><i class="bi bi-star-fill me-1"></i>Yes</span>
+                <span v-else class="text-muted">—</span>
+              </template>
             </AppTable>
           </AppCard>
         </div>
@@ -132,6 +136,7 @@ const dependentColumns = [
   { key: 'full_name', label: 'Name' },
   { key: 'relationship', label: 'Relationship' },
   { key: 'coverage_type', label: 'Coverage' },
+  { key: 'is_beneficiary', label: 'Beneficiary' },
 ]
 
 function formatLoanType(type) {

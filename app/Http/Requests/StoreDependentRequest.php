@@ -23,6 +23,7 @@ class StoreDependentRequest extends FormRequest
             'relationship' => ['required', 'string', 'in:Spouse,Child,Parent,Sibling,Other'],
             'birth_date' => ['required', 'date', 'before:today'],
             'coverage_type' => ['nullable', 'string', 'in:Dental,Hospitalization,Both'],
+            'is_beneficiary' => ['nullable', 'boolean'],
         ];
     }
 }

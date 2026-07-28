@@ -199,6 +199,15 @@ Route::prefix('v1')->group(function () {
                 Route::post('{loan}/release', [ApprovalController::class, 'release']);
             });
 
+        // Exemption review — admin and loan committee, each scoped by
+        // ExemptionService to the types their role owns. Kept under the
+        // /admin/exemptions path the frontend already calls.
+        Route::middleware('role:admin,loan_committee')->prefix('admin')->group(function () {
+            Route::get('exemptions', [ExemptionController::class, 'index']);
+            Route::post('exemptions/{exemptionRequest}/approve', [ExemptionController::class, 'approve']);
+            Route::post('exemptions/{exemptionRequest}/reject', [ExemptionController::class, 'reject']);
+        });
+
         // Admin
         Route::middleware('role:admin')->prefix('admin')->group(function () {
             Route::get('dashboard', [AdminController::class, 'dashboard']);
@@ -224,9 +233,6 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/divisions',         [\App\Http\Controllers\Api\ReportController::class, 'divisions']);
             // Legacy summary report
             Route::get('reports', [AdminController::class, 'reports']);
-            Route::get('exemptions', [ExemptionController::class, 'index']);
-            Route::post('exemptions/{exemptionRequest}/approve', [ExemptionController::class, 'approve']);
-            Route::post('exemptions/{exemptionRequest}/reject', [ExemptionController::class, 'reject']);
 
             // App Assets (logos, etc.)
             Route::post('app-assets/upload', function (\Illuminate\Http\Request $request) {

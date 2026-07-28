@@ -172,6 +172,17 @@
                   </span>
                 </span>
               </router-link>
+
+              <!-- Loan committee reviews below-minimum-pay special requests. -->
+              <router-link
+                v-if="authStore.isLoanCommittee"
+                to="/admin/exemptions"
+                class="nav-link sidebar-link"
+                :class="{ active: $route.path === '/admin/exemptions' }"
+                @click="sidebarOpen = false"
+              >
+                <i class="bi bi-envelope-paper me-2"></i>Special Approvals
+              </router-link>
             </template>
 
             <!-- Admin section -->

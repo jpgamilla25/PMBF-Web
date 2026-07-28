@@ -11,7 +11,29 @@ use Illuminate\Support\Facades\Mail;
 class ExemptionService
 {
     /**
-     * Create an exemption request. Sends email notification to admin users.
+     * Which role reviews a given exemption type.
+     *
+     * Below-minimum-take-home requests are a policy call, so they go to the
+     * Loan Committee rather than the administrator. Amount and term
+     * exemptions stay with the admin.
+     */
+    public static function reviewerRole(string $type): string
+    {
+        return $type === 'below_minimum_pay' ? 'loan_committee' : 'admin';
+    }
+
+    /** Exemption types a given role is responsible for reviewing. */
+    public static function typesForRole(string $role): array
+    {
+        return match ($role) {
+            'loan_committee' => ['below_minimum_pay'],
+            'admin' => ['exceed_max_amount', 'extend_term'],
+            default => [],
+        };
+    }
+
+    /**
+     * Create an exemption request. Emails the role that reviews this type.
      */
     public function createRequest(User $user, array $data): LoanExemptionRequest
     {
@@ -28,11 +50,14 @@ class ExemptionService
 
         $request->load('user');
 
-        // Notify all admin users
-        $adminEmails = User::where('role', 'admin')->pluck('email')->toArray();
+        // Notify the reviewing role (committee for below-min-pay, else admin).
+        $reviewerEmails = User::where('role', self::reviewerRole($data['type']))
+            ->where('status', 'active')
+            ->pluck('email')
+            ->toArray();
 
-        if (!empty($adminEmails)) {
-            Mail::to($adminEmails)->send(new ExemptionRequestMail($request));
+        if (!empty($reviewerEmails)) {
+            Mail::to($reviewerEmails)->send(new ExemptionRequestMail($request));
         }
 
         return $request;

@@ -126,7 +126,8 @@ const routes = [
     path: '/admin/exemptions',
     name: 'admin-exemptions',
     component: () => import('../views/admin/AdminExemptionsView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true },
+    // Committee reviews below-min-pay requests; the API scopes what each sees.
+    meta: { requiresAuth: true, requiresStaff: true },
   },
   {
     path: '/admin/activity-logs',

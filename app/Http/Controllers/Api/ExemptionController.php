@@ -111,6 +111,11 @@ class ExemptionController extends Controller
             'reviewer:id,first_name,last_name',
         ]);
 
+        // A reviewer only sees the exemption types their role is responsible
+        // for — below-min-pay for the committee, amount/term for the admin.
+        $reviewableTypes = ExemptionService::typesForRole($request->user()->role);
+        $query->whereIn('type', $reviewableTypes ?: ['__none__']);
+
         if ($status !== 'all') {
             $query->where('status', $status);
         }
@@ -130,9 +135,9 @@ class ExemptionController extends Controller
         return $this->success([
             'requests' => $query->orderByDesc('created_at')->get(),
             'counts' => [
-                'pending' => LoanExemptionRequest::where('status', 'pending')->count(),
-                'approved' => LoanExemptionRequest::where('status', 'approved')->count(),
-                'rejected' => LoanExemptionRequest::where('status', 'rejected')->count(),
+                'pending' => LoanExemptionRequest::whereIn('type', $reviewableTypes ?: ['__none__'])->where('status', 'pending')->count(),
+                'approved' => LoanExemptionRequest::whereIn('type', $reviewableTypes ?: ['__none__'])->where('status', 'approved')->count(),
+                'rejected' => LoanExemptionRequest::whereIn('type', $reviewableTypes ?: ['__none__'])->where('status', 'rejected')->count(),
             ],
         ]);
     }
@@ -145,6 +150,10 @@ class ExemptionController extends Controller
         $validated = $request->validate([
             'remarks' => 'nullable|string|max:2000',
         ]);
+
+        if ($denied = $this->denyIfNotReviewer($request, $exemptionRequest)) {
+            return $denied;
+        }
 
         if ($exemptionRequest->status !== 'pending') {
             return $this->error('This exemption request has already been processed.', 422);
@@ -171,6 +180,10 @@ class ExemptionController extends Controller
             'remarks' => 'required|string|max:2000',
         ]);
 
+        if ($denied = $this->denyIfNotReviewer($request, $exemptionRequest)) {
+            return $denied;
+        }
+
         if ($exemptionRequest->status !== 'pending') {
             return $this->error('This exemption request has already been processed.', 422);
         }
@@ -185,5 +198,20 @@ class ExemptionController extends Controller
             $exemptionRequest->fresh()->load(['user', 'reviewer']),
             'Exemption request rejected.'
         );
+    }
+
+    /**
+     * 403 unless this reviewer's role owns this exemption type — so an admin
+     * can't act on a committee request and vice versa.
+     */
+    private function denyIfNotReviewer(Request $request, LoanExemptionRequest $exemptionRequest): ?JsonResponse
+    {
+        $allowed = ExemptionService::typesForRole($request->user()->role);
+
+        if (!in_array($exemptionRequest->type, $allowed, true)) {
+            return $this->error('This request is reviewed by a different role.', 403);
+        }
+
+        return null;
     }
 }

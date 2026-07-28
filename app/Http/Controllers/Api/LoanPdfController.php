@@ -102,7 +102,9 @@ class LoanPdfController extends Controller
             'remaining' => $remaining,
         ]);
 
-        $pdf->setPaper('A4', 'portrait');
+        // Landscape — the official breakdown carries ten columns and overflows
+        // a portrait page (the Status column gets clipped).
+        $pdf->setPaper('A4', 'landscape');
 
         return $pdf->stream("Loan-{$loan->reference_no}-Payment-Breakdown.pdf");
     }

@@ -16,9 +16,9 @@
         .info-table td:first-child { color: #6b7280; width: 22%; }
         .info-table td.val { font-weight: bold; }
         .sched { border: 1px solid #e5e7eb; }
-        .sched th { background: #1e40af; color: #fff; padding: 6px 8px; font-size: 11px; text-align: right; }
+        .sched th { background: #1e40af; color: #fff; padding: 5px 6px; font-size: 10px; text-align: right; white-space: nowrap; }
         .sched th:first-child, .sched th:nth-child(2) { text-align: left; }
-        .sched td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; font-size: 11px; text-align: right; }
+        .sched td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; font-size: 10px; text-align: right; white-space: nowrap; }
         .sched td:first-child, .sched td:nth-child(2) { text-align: left; }
         .sched tbody tr:nth-child(even) { background: #f9fafb; }
         .sched tfoot td { font-weight: bold; border-top: 2px solid #1e40af; background: #eff6ff; padding: 7px 8px; }

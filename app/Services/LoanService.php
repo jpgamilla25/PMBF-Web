@@ -643,6 +643,53 @@ class LoanService
     }
 
     /**
+     * Principal still owed on a loan — the amount minus the principal portion
+     * of payments made so far. Unlike remaining_balance (which is the remaining
+     * total payable, principal + scheduled interest), this is what a renewal
+     * should refinance: carrying the full remaining_balance would capitalise
+     * interest that has not been earned yet, charging interest on interest.
+     */
+    public function outstandingPrincipal(Loan $loan): float
+    {
+        $amount = round((float) $loan->amount, 2);
+        $rows = $this->installments(
+            $amount,
+            (float) $loan->interest_rate,
+            (float) $loan->term_months,
+            $loan->interest_method ?? 'flat',
+        );
+
+        if (empty($rows)) {
+            return $amount;
+        }
+
+        $paid = round((float) $loan->total_paid, 2);
+        $principalPaid = 0.0;
+        $cumDue = 0.0;
+
+        foreach ($rows as $row) {
+            $cumDueBefore = $cumDue;
+            $cumDue = round($cumDue + $row['total_due'], 2);
+
+            if ($paid + 0.001 >= $cumDue) {
+                $principalPaid = round($principalPaid + $row['principal'], 2);
+                continue;
+            }
+
+            if ($paid > $cumDueBefore) {
+                // Partial period: a payment covers interest first, then principal.
+                $intoPeriod = round($paid - $cumDueBefore, 2);
+                $principalPart = max(0.0, round($intoPeriod - $row['interest'], 2));
+                $principalPaid = round($principalPaid + min($principalPart, $row['principal']), 2);
+            }
+
+            break;
+        }
+
+        return max(0.0, round($amount - $principalPaid, 2));
+    }
+
+    /**
      * Whether a loan can be renewed: active (approved/released), not fully
      * paid, and not already superseded by a renewal.
      */
@@ -665,7 +712,10 @@ class LoanService
      */
     public function renew(User $user, Loan $original, array $data): Loan
     {
-        $remaining = round($original->remaining_balance, 2);
+        // Refinance the outstanding PRINCIPAL, not remaining_balance — the latter
+        // still carries the old loan's scheduled interest, which would then be
+        // charged interest again on the new loan.
+        $remaining = $this->outstandingPrincipal($original);
         $topUp = max(0, (float) ($data['additional_amount'] ?? 0));
         $principal = round($remaining + $topUp, 2);
 
@@ -674,7 +724,7 @@ class LoanService
             'amount' => $principal,
             'term_months' => $data['term_months'],
             'purpose' => $data['purpose']
-                ?? "Renewal of {$original->reference_no} (₱" . number_format($remaining, 2) . ' outstanding'
+                ?? "Renewal of {$original->reference_no} (₱" . number_format($remaining, 2) . ' principal outstanding'
                     . ($topUp > 0 ? ' + ₱' . number_format($topUp, 2) . ' additional' : '') . ')',
             'start_date' => $data['start_date'] ?? null,
             'co_maker_id' => $data['co_maker_id'] ?? $original->co_maker_id,

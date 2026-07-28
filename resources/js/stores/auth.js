@@ -5,6 +5,7 @@ import { watch } from 'vue'
 import authService from '../services/auth'
 import approvalsService from '../services/approvals'
 import loansService from '../services/loans'
+import exemptionsService from '../services/exemptions'
 
 const PIN_HINT_KEY = 'pmbf_pin_hint'
 
@@ -24,6 +25,7 @@ export const useAuthStore = defineStore('auth', {
     pendingApprovalCount: 0,
     releaseCount: 0,
     coMakerPendingCount: 0,
+    specialApprovalCount: 0,
     // Who last signed in on this browser, so the PIN screen can greet them
     // before any network call. Contains no secret — ID and first name only.
     pinHint: readPinHint(),
@@ -59,6 +61,7 @@ export const useAuthStore = defineStore('auth', {
         this.user = data.data ?? data
         this.rememberPinHint(this.user)
         this.fetchPendingApprovalCount()
+        this.fetchSpecialApprovalCount()
       } catch {
         this.clearAuth()
       } finally {
@@ -94,6 +97,21 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
+     * Pending special-approval (exemption) requests — drives the sidebar badge
+     * so committee/admin can see at a glance there is something to act on.
+     */
+    async fetchSpecialApprovalCount() {
+      if (!this.isAdmin && !this.isLoanCommittee) return
+      try {
+        const { data } = await exemptionsService.getAll({ status: 'pending', per_page: 1 })
+        const result = data.data ?? data
+        this.specialApprovalCount = result.counts?.pending ?? (Array.isArray(result.requests ?? result) ? (result.requests ?? result).length : 0)
+      } catch {
+        // ignore
+      }
+    },
+
+    /**
      * Count of loans awaiting this user's co-maker consent (drives the
      * "My Loans" badge so co-makers know they have something to act on).
      */
@@ -115,6 +133,7 @@ export const useAuthStore = defineStore('auth', {
       this.setToken(token)
       this.fetchPendingApprovalCount()
       this.fetchCoMakerPendingCount()
+      this.fetchSpecialApprovalCount()
     },
 
     async logout() {
@@ -174,6 +193,7 @@ export const useAuthStore = defineStore('auth', {
         await this.fetchUser()
         await this.fetchPendingApprovalCount()
         await this.fetchCoMakerPendingCount()
+        await this.fetchSpecialApprovalCount()
       }
     },
   },

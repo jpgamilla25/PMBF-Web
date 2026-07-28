@@ -177,11 +177,19 @@
               <router-link
                 v-if="authStore.isLoanCommittee"
                 to="/admin/exemptions"
-                class="nav-link sidebar-link"
+                class="nav-link sidebar-link d-flex align-items-center"
                 :class="{ active: $route.path === '/admin/exemptions' }"
                 @click="sidebarOpen = false"
               >
                 <i class="bi bi-envelope-paper me-2"></i>Special Approvals
+                <span
+                  v-if="authStore.specialApprovalCount > 0"
+                  class="badge rounded-pill bg-danger ms-auto"
+                  style="font-size: 0.65rem;"
+                  title="Pending special approvals"
+                >
+                  {{ authStore.specialApprovalCount }}
+                </span>
               </router-link>
             </template>
 
@@ -193,11 +201,19 @@
                 v-for="item in adminMenuItems"
                 :key="item.to"
                 :to="item.to"
-                class="nav-link sidebar-link"
+                class="nav-link sidebar-link d-flex align-items-center"
                 :class="{ active: $route.path === item.to }"
                 @click="sidebarOpen = false"
               >
                 <i :class="item.icon" class="me-2"></i>{{ item.label }}
+                <span
+                  v-if="item.to === '/admin/exemptions' && authStore.specialApprovalCount > 0"
+                  class="badge rounded-pill bg-danger ms-auto"
+                  style="font-size: 0.65rem;"
+                  title="Pending special approvals"
+                >
+                  {{ authStore.specialApprovalCount }}
+                </span>
               </router-link>
             </template>
           </nav>

@@ -175,6 +175,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useLoading } from '@/composables/useLoading'
 import { useNotificationStore } from '@/stores/notification'
+import { useAuthStore } from '@/stores/auth'
 import exemptionsService from '@/services/exemptions'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
@@ -185,6 +186,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 
 const notify = useNotificationStore()
+const authStore = useAuthStore()
 const { loading, withLoading } = useLoading()
 
 const requests = ref([])
@@ -266,6 +268,7 @@ async function submitAction() {
 
     showModal.value = false
     await fetch()
+    authStore.fetchSpecialApprovalCount()
   } catch (error) {
     notify.error(error.response?.data?.message || 'Could not process this request.')
   } finally {

@@ -27,6 +27,19 @@ class ActionRequiredNotification extends Notification
         return ['database'];
     }
 
+    /**
+     * Why this loan was routed to admin: a requested future start month is a
+     * special request; otherwise it is over the standard amount limit.
+     */
+    private function adminApprovalReason(): string
+    {
+        if ($this->loan->start_date && $this->loan->start_date->gt(now()->endOfMonth())) {
+            return 'requests a future start month (' . $this->loan->start_date->format('F Y') . ')';
+        }
+
+        return 'exceeds the standard limit';
+    }
+
     public function toArray(object $notifiable): array
     {
         $this->loan->loadMissing('user');
@@ -44,7 +57,7 @@ class ActionRequiredNotification extends Notification
             ],
             'admin_approval' => [
                 'Loan Needs Admin Approval',
-                "{$ref} ({$amount}) from {$applicant} exceeds the standard limit and needs admin approval.",
+                "{$ref} ({$amount}) from {$applicant} {$this->adminApprovalReason()} and needs admin approval.",
                 'bi-shield-exclamation',
                 '/approvals/' . $this->loan->id,
             ],

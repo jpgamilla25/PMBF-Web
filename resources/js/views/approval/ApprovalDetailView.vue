@@ -86,8 +86,18 @@
                 <div class="fw-semibold">{{ loan.purpose }}</div>
               </div>
               <div v-if="loan.co_maker" class="col-12 mb-3">
-                <div class="text-muted small">Co-Maker</div>
-                <div class="fw-semibold">{{ loan.co_maker?.full_name ?? loan.co_maker_name ?? '-' }}</div>
+                <div class="text-muted small">Co-Maker{{ loan.co_maker_2 ? ' 1' : '' }}</div>
+                <div class="fw-semibold">
+                  {{ loan.co_maker?.full_name ?? loan.co_maker_name ?? '-' }}
+                  <span v-if="loan.co_maker_status" class="badge ms-1" :class="coMakerBadge(loan.co_maker_status)">{{ loan.co_maker_status }}</span>
+                </div>
+              </div>
+              <div v-if="loan.co_maker_2" class="col-12 mb-3">
+                <div class="text-muted small">Co-Maker 2</div>
+                <div class="fw-semibold">
+                  {{ loan.co_maker_2.full_name }}
+                  <span v-if="loan.co_maker_status_2" class="badge ms-1" :class="coMakerBadge(loan.co_maker_status_2)">{{ loan.co_maker_status_2 }}</span>
+                </div>
               </div>
             </div>
           </AppCard>
@@ -299,6 +309,10 @@ const disapproveForm = useForm({ remarks: '' })
 function formatLoanType(type) {
   if (!type) return '-'
   return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function coMakerBadge(status) {
+  return { approved: 'bg-success', declined: 'bg-danger', pending: 'bg-warning text-dark' }[status] ?? 'bg-secondary'
 }
 
 function formatStartMonth(dateStr) {

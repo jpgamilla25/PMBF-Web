@@ -528,7 +528,16 @@ class LoanService
             }
         }
 
-        $coMakerId = $data['co_maker_id'] ?? null;
+        // Co-makers: an array (COS-Enrolled may name up to two), falling back
+        // to the single co_maker_id for older callers. First → slot 1,
+        // second → slot 2.
+        $coMakerIds = array_values(array_filter(
+            $data['co_maker_ids'] ?? [$data['co_maker_id'] ?? null]
+        ));
+        $coMakerIds = array_slice(array_unique($coMakerIds), 0, 2);
+        $coMakerId = $coMakerIds[0] ?? null;
+        $coMakerId2 = $coMakerIds[1] ?? null;
+
         $needsCoMakerApproval = $this->isSC($user) && $coMakerId &&
             Configuration::getBool('sc_requires_co_maker', true);
 
@@ -556,6 +565,9 @@ class LoanService
             'co_maker_id' => $coMakerId,
             'co_maker_token' => $needsCoMakerApproval ? \Illuminate\Support\Str::random(48) : null,
             'co_maker_status' => $needsCoMakerApproval ? 'pending' : null,
+            'co_maker_id_2' => $coMakerId2,
+            'co_maker_token_2' => ($needsCoMakerApproval && $coMakerId2) ? \Illuminate\Support\Str::random(48) : null,
+            'co_maker_status_2' => ($needsCoMakerApproval && $coMakerId2) ? 'pending' : null,
             'requires_admin_approval' => $requiresAdminApproval,
             'status' => $initialStatus,
             'applied_at' => now(),

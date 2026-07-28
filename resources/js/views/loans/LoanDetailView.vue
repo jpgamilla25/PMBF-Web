@@ -133,8 +133,12 @@
                 <div>{{ loan.purpose }}</div>
               </div>
               <div v-if="loan.co_maker" class="col-sm-6">
-                <div class="text-muted small">Co-Maker</div>
+                <div class="text-muted small">Co-Maker{{ loan.co_maker_2 ? ' 1' : '' }}</div>
                 <div class="fw-semibold">{{ loan.co_maker.full_name }} ({{ loan.co_maker.employee_id }})</div>
+              </div>
+              <div v-if="loan.co_maker_2" class="col-sm-6">
+                <div class="text-muted small">Co-Maker 2</div>
+                <div class="fw-semibold">{{ loan.co_maker_2.full_name }} ({{ loan.co_maker_2.employee_id }})</div>
               </div>
               <div class="col-sm-6">
                 <div class="text-muted small">Date Applied</div>

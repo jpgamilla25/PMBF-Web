@@ -35,7 +35,7 @@ class ApprovalController extends Controller
             'admin' => null,
         ];
 
-        $query = Loan::with(['user', 'coMaker', 'approvals.approver'])
+        $query = Loan::with(['user', 'coMaker', 'coMaker2', 'approvals.approver'])
             ->withCount('payments');
 
         // Filter by tab/status
@@ -104,7 +104,7 @@ class ApprovalController extends Controller
 
     public function show(Request $request, Loan $loan): JsonResponse
     {
-        $loan->load(['user', 'coMaker', 'approvals.approver', 'payments']);
+        $loan->load(['user', 'coMaker', 'coMaker2', 'approvals.approver', 'payments']);
 
         // Detail view: approvers decide against take-home pay, which changes
         // every payroll, so this one reads live rather than the snapshot.
@@ -198,7 +198,7 @@ class ApprovalController extends Controller
         $level = $this->getUserLevel($user);
 
         $loan->advanceApproval($user, $action, $remarks);
-        $loan->refresh()->load(['user', 'coMaker', 'approvals.approver']);
+        $loan->refresh()->load(['user', 'coMaker', 'coMaker2', 'approvals.approver']);
 
         match ($action) {
             // Notify applicant + next level approvers

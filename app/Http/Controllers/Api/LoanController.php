@@ -75,7 +75,7 @@ class LoanController extends Controller
         // If OTP is disabled in config → create loan immediately
         if (!$this->loanService->isOtpRequired()) {
             $loan = $this->loanService->create($user, $validated);
-            $loan->load(['user', 'coMaker']);
+            $loan->load(['user', 'coMaker', 'coMaker2']);
 
             return $this->success([
                 'loan' => new LoanResource($loan),
@@ -178,6 +178,8 @@ class LoanController extends Controller
             'purpose' => 'required|string',
             'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
             'start_date' => 'nullable|date',
+            'co_maker_ids' => 'nullable|array|max:2',
+            'co_maker_ids.*' => 'integer|distinct|exists:users,id',
             'co_maker_id' => 'nullable|integer|exists:users,id',
         ];
     }
@@ -204,10 +206,10 @@ class LoanController extends Controller
         }
 
         $loan = $this->loanService->create($user, $request->only([
-            'loan_type', 'amount', 'purpose', 'term_months', 'start_date', 'co_maker_id',
+            'loan_type', 'amount', 'purpose', 'term_months', 'start_date', 'co_maker_id', 'co_maker_ids',
         ]));
 
-        $loan->load(['user', 'coMaker']);
+        $loan->load(['user', 'coMaker', 'coMaker2']);
 
         return $this->success(
             new LoanResource($loan),
@@ -229,7 +231,7 @@ class LoanController extends Controller
             return $this->error('Unauthorized.', 403);
         }
 
-        $loan->load(['user', 'coMaker', 'approvals.approver', 'payments']);
+        $loan->load(['user', 'coMaker', 'coMaker2', 'approvals.approver', 'payments']);
 
         return $this->success((new LoanResource($loan))->withHris(), 'Loan retrieved.');
     }
@@ -385,11 +387,17 @@ class LoanController extends Controller
     {
         $me = $request->user();
 
-        $loans = Loan::where('co_maker_id', $me->id)
-            ->where('status', 'co_maker_pending')
+        // A member may be named on either co-maker slot.
+        $loans = Loan::where('status', 'co_maker_pending')
+            ->where(function ($q) use ($me) {
+                $q->where('co_maker_id', $me->id)->orWhere('co_maker_id_2', $me->id);
+            })
             ->with('user')
             ->latest()
-            ->get();
+            ->get()
+            // Only surface a loan if THIS member's slot is still pending.
+            ->filter(fn (Loan $l) => $this->coMakerSlot($l, $me->id) !== null)
+            ->values();
 
         // How exposed this co-maker already is, so they can decide with the
         // full picture: their own active loans, plus loans they already co-make.
@@ -427,50 +435,82 @@ class LoanController extends Controller
             'remarks' => 'nullable|string|max:500',
         ]);
 
-        if ($loan->co_maker_id !== $request->user()->id) {
-            return $this->error('Unauthorized.', 403);
+        $me = $request->user();
+        $slot = $this->coMakerSlot($loan, $me->id);
+
+        if ($slot === null) {
+            return $this->error('This request is not awaiting your consent.', 403);
         }
 
         if ($loan->status !== 'co_maker_pending') {
             return $this->error('This loan is no longer waiting for your consent.', 422);
         }
 
-        $loan->load(['user', 'coMaker']);
+        $loan->load(['user', 'coMaker', 'coMaker2']);
+        $suffix = $slot === 2 ? '_2' : '';
 
-        if ($request->action === 'approve') {
-            $nextStatus = $loan->requires_admin_approval ? 'admin_pending' : 'pending';
-
+        // ── Decline: any co-maker declining ends the request ──
+        if ($request->action === 'decline') {
             $loan->update([
-                'co_maker_status' => 'approved',
-                'co_maker_acted_at' => now(),
-                'co_maker_token' => null,
-                'status' => $nextStatus,
+                "co_maker_status{$suffix}" => 'declined',
+                "co_maker_acted_at{$suffix}" => now(),
+                "co_maker_token{$suffix}" => null,
+                'status' => 'co_maker_declined',
+                'remarks' => $request->input('remarks') ?: $loan->remarks,
             ]);
 
-            $fresh = $loan->fresh(['user', 'coMaker']);
-            if ($loan->requires_admin_approval) {
-                $this->notificationService->notifyAdminApprovalRequired($fresh);
-            } else {
-                $this->notificationService->notifyNextApprovers($fresh);
-            }
-            $this->notificationService->notifyApplicant($loan, 'co_maker_approved', 'co_maker');
+            $this->notificationService->notifyApplicant(
+                $loan, 'co_maker_declined', 'co_maker', $request->input('remarks')
+            );
 
-            return $this->success(null, 'You have agreed to be the co-maker. The loan is now under review.');
+            return $this->success(null, 'You have declined. The applicant has been notified.');
         }
 
+        // ── Approve this slot ──
         $loan->update([
-            'co_maker_status' => 'declined',
-            'co_maker_acted_at' => now(),
-            'co_maker_token' => null,
-            'status' => 'co_maker_declined',
-            'remarks' => $request->input('remarks') ?: $loan->remarks,
+            "co_maker_status{$suffix}" => 'approved',
+            "co_maker_acted_at{$suffix}" => now(),
+            "co_maker_token{$suffix}" => null,
         ]);
+        $loan->refresh();
 
-        $this->notificationService->notifyApplicant(
-            $loan, 'co_maker_declined', 'co_maker', $request->input('remarks')
-        );
+        // Proceed only once every named co-maker has approved.
+        $allApproved = $loan->co_maker_status === 'approved'
+            && (!$loan->co_maker_id_2 || $loan->co_maker_status_2 === 'approved');
 
-        return $this->success(null, 'You have declined. The applicant has been notified.');
+        if (!$allApproved) {
+            return $this->success(null, 'Thanks — your consent is recorded. The loan proceeds once the other co-maker agrees.');
+        }
+
+        $nextStatus = $loan->requires_admin_approval ? 'admin_pending' : 'pending';
+        $loan->update(['status' => $nextStatus]);
+
+        $fresh = $loan->fresh(['user', 'coMaker', 'coMaker2']);
+        if ($loan->requires_admin_approval) {
+            $this->notificationService->notifyAdminApprovalRequired($fresh);
+        } else {
+            $this->notificationService->notifyNextApprovers($fresh);
+        }
+        $this->notificationService->notifyApplicant($loan, 'co_maker_approved', 'co_maker');
+
+        return $this->success(null, 'All co-makers have agreed. The loan is now under review.');
+    }
+
+    /**
+     * Which co-maker slot (1 or 2) this user occupies on the loan and is still
+     * pending, or null if neither.
+     */
+    private function coMakerSlot(Loan $loan, int $userId): ?int
+    {
+        if ($loan->co_maker_id === $userId && $loan->co_maker_status === 'pending') {
+            return 1;
+        }
+
+        if ($loan->co_maker_id_2 === $userId && $loan->co_maker_status_2 === 'pending') {
+            return 2;
+        }
+
+        return null;
     }
 
     /**

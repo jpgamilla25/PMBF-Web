@@ -21,14 +21,17 @@ class LoanNotificationService
      */
     public function notifyCoMakerApprovalRequest(Loan $loan): void
     {
-        $loan->loadMissing(['user', 'coMaker']);
+        $loan->loadMissing(['user', 'coMaker', 'coMaker2']);
 
-        if (!$loan->coMaker) {
-            return;
+        // A loan may name up to two co-makers; each is asked for consent.
+        foreach ([$loan->coMaker, $loan->coMaker2] as $coMaker) {
+            if (!$coMaker) {
+                continue;
+            }
+
+            Mail::to($coMaker->email)->send(new CoMakerApprovalRequestMail($loan));
+            $coMaker->notify(new ActionRequiredNotification($loan, 'co_maker'));
         }
-
-        Mail::to($loan->coMaker->email)->send(new CoMakerApprovalRequestMail($loan));
-        $loan->coMaker->notify(new ActionRequiredNotification($loan, 'co_maker'));
     }
 
     /**

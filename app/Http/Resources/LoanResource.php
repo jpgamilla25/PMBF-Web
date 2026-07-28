@@ -50,6 +50,7 @@ class LoanResource extends JsonResource
             'total_payable' => $this->total_payable,
             'co_maker_id' => $this->co_maker_id,
             'co_maker_status' => $this->co_maker_status,
+            'co_maker_status_2' => $this->co_maker_status_2,
             'co_maker_acted_at' => $this->co_maker_acted_at?->toIso8601String(),
             'status' => $this->status,
             'remarks' => $this->remarks,
@@ -58,6 +59,10 @@ class LoanResource extends JsonResource
             'released_at' => $this->released_at?->toIso8601String(),
             'user' => (new UserResource($this->whenLoaded('user')))->withHris($this->withHris),
             'co_maker' => (new UserResource($this->whenLoaded('coMaker')))->withHris($this->withHris),
+            'co_maker_2' => $this->when(
+                $this->co_maker_id_2 && $this->resource->relationLoaded('coMaker2'),
+                fn () => (new UserResource($this->coMaker2))->withHris($this->withHris)
+            ),
             'approvals' => LoanApprovalResource::collection($this->whenLoaded('approvals')),
             'payments' => PaymentResource::collection($this->whenLoaded('payments')),
             'payments_count' => $this->whenCounted('payments'),

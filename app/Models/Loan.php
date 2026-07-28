@@ -41,9 +41,13 @@ class Loan extends Model
         'monthly_amortization',
         'total_payable',
         'co_maker_id',
+        'co_maker_id_2',
         'co_maker_token',
+        'co_maker_token_2',
         'co_maker_status',
+        'co_maker_status_2',
         'co_maker_acted_at',
+        'co_maker_acted_at_2',
         'requires_admin_approval',
         'status',
         'remarks',
@@ -67,6 +71,7 @@ class Loan extends Model
             'released_at' => 'datetime',
             'start_date' => 'date',
             'co_maker_acted_at' => 'datetime',
+            'co_maker_acted_at_2' => 'datetime',
         ];
     }
 
@@ -78,6 +83,21 @@ class Loan extends Model
     public function coMaker()
     {
         return $this->belongsTo(User::class, 'co_maker_id');
+    }
+
+    public function coMaker2()
+    {
+        return $this->belongsTo(User::class, 'co_maker_id_2');
+    }
+
+    /**
+     * Every named co-maker, as [slot => user_id], skipping empty slots.
+     *
+     * @return array<int, int>
+     */
+    public function coMakerIds(): array
+    {
+        return array_filter([1 => $this->co_maker_id, 2 => $this->co_maker_id_2]);
     }
 
     public function approvals()

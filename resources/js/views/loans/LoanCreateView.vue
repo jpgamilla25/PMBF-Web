@@ -126,19 +126,42 @@
               hint="When your first deduction should begin (subject to admin approval). Leave as 'This month' to start on release."
             />
 
-            <AppSearchSelect
-              v-if="selectedTypeInfo?.requires_co_maker"
-              v-model="form.co_maker_id"
-              label="Co-Maker (Permanent Employee) *"
-              :options="coMakerOptions"
-              :loading="coMakerLoading"
-              :error="errors.co_maker_id"
-              placeholder="Search by name or ID..."
-              hint="Required: a Permanent employee must co-sign your loan"
-              remote
-              :disabled="!form.loan_type"
-              @search="searchCoMakers"
-            />
+            <!-- COS-Enrolled may name up to two co-makers (at least one). -->
+            <div v-if="selectedTypeInfo?.requires_co_maker">
+              <div v-for="(id, idx) in coMakerIds" :key="idx" class="mb-2">
+                <AppSearchSelect
+                  :model-value="coMakerIds[idx]"
+                  :label="idx === 0 ? 'Co-Maker (Permanent Employee) *' : 'Second Co-Maker (optional)'"
+                  :options="coMakerOptions"
+                  :loading="coMakerLoading"
+                  :error="idx === 0 ? errors.co_maker_ids : ''"
+                  placeholder="Search by name or ID..."
+                  :hint="idx === 0 ? 'Required: a Permanent employee must co-sign your loan' : ''"
+                  remote
+                  :disabled="!form.loan_type"
+                  @update:model-value="v => setCoMaker(idx, v)"
+                  @search="searchCoMakers"
+                />
+                <button
+                  v-if="idx > 0"
+                  type="button"
+                  class="btn btn-link btn-sm text-danger p-0"
+                  @click="removeCoMaker(idx)"
+                >
+                  <i class="bi bi-x-circle me-1"></i>Remove second co-maker
+                </button>
+              </div>
+
+              <button
+                v-if="coMakerIds.length < 2"
+                type="button"
+                class="btn btn-outline-secondary btn-sm mb-3"
+                :disabled="!coMakerIds[0]"
+                @click="addCoMaker"
+              >
+                <i class="bi bi-plus-circle me-1"></i>Add another co-maker
+              </button>
+            </div>
 
             <div v-if="amountExceedsMax" class="alert alert-warning small">
               <i class="bi bi-exclamation-triangle me-1"></i>
@@ -493,6 +516,25 @@ const { form, errors, processing, submit, setErrors } = useForm({
   co_maker_id: '',
 })
 
+// One or two co-makers (COS-Enrolled). Index 0 is required when the loan type
+// needs a co-maker; index 1 is optional.
+const coMakerIds = ref([''])
+
+function setCoMaker(idx, value) {
+  coMakerIds.value[idx] = value
+  // Keep the legacy single field in sync with the first slot.
+  if (idx === 0) form.co_maker_id = value
+}
+function addCoMaker() {
+  if (coMakerIds.value.length < 2) coMakerIds.value.push('')
+}
+function removeCoMaker(idx) {
+  coMakerIds.value.splice(idx, 1)
+}
+function coMakerPayload() {
+  return coMakerIds.value.map(v => Number(v)).filter(Boolean)
+}
+
 const isPermanent = computed(() => authStore.isPermanent)
 
 // This month + the next 11, as first-of-month dates for the start selector.
@@ -667,8 +709,8 @@ function validateForm() {
     notify.error(`Minimum loan amount is ₱${minLoanAmount.value.toLocaleString()}.`)
     return false
   }
-  if (selectedTypeInfo.value?.requires_co_maker && !form.co_maker_id) {
-    notify.error('Please select a co-maker.')
+  if (selectedTypeInfo.value?.requires_co_maker && coMakerPayload().length < 1) {
+    notify.error('Please select at least one co-maker.')
     return false
   }
   return true
@@ -789,7 +831,7 @@ async function searchCoMakers(query) {
 async function handleSubmit() {
   try {
     const response = await submit(async (data) => {
-      return await loansService.createLoan(data)
+      return await loansService.createLoan({ ...data, co_maker_ids: coMakerPayload() })
     })
     const result = response.data.data ?? response.data
 
@@ -798,7 +840,8 @@ async function handleSubmit() {
       notify.success('Loan application submitted successfully!')
       router.push(`/loans/${id}`)
     } else {
-      savedLoanData.value = { ...form }
+      // Carry the co-makers through to the OTP/PIN confirm step.
+      savedLoanData.value = { ...form, co_maker_ids: coMakerPayload() }
       notify.info('OTP sent to your email for verification.')
       currentStep.value = 'otp'
 

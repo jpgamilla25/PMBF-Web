@@ -48,9 +48,6 @@
         </div>
         <!-- Your current exposure, so you agree with the full picture. -->
         <div class="small mt-2 d-flex flex-wrap gap-2">
-          <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-            <i class="bi bi-cash-stack me-1"></i>Your active loans: {{ loan.my_active_loans ?? 0 }}
-          </span>
           <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
             <i class="bi bi-people me-1"></i>Loans you already co-make: {{ loan.my_active_comaker_loans ?? 0 }}
           </span>

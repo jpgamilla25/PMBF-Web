@@ -399,14 +399,20 @@ class LoanController extends Controller
             ->filter(fn (Loan $l) => $this->coMakerSlot($l, $me->id) !== null)
             ->values();
 
-        // How exposed this co-maker already is, so they can decide with the
-        // full picture: their own active loans, plus loans they already co-make.
-        $activeStatuses = ['approved', 'released'];
-        $myActiveLoans = Loan::where('user_id', $me->id)->whereIn('status', $activeStatuses)->count();
-        $myActiveComaker = Loan::where('co_maker_id', $me->id)->whereIn('status', $activeStatuses)->count();
+        // How exposed this co-maker already is: loans they co-make that are
+        // still outstanding. Either co-maker slot counts, and a loan drops off
+        // once it is fully paid (remaining balance hits zero) — a released loan
+        // stays "released" after the last payment, so status alone isn't enough.
+        $myActiveComaker = Loan::where(function ($q) use ($me) {
+            $q->where('co_maker_id', $me->id)->orWhere('co_maker_id_2', $me->id);
+        })
+            ->whereIn('status', ['approved', 'released'])
+            ->withSum('payments', 'amount')
+            ->get()
+            ->filter(fn (Loan $l) => $l->remaining_balance > 0.01)
+            ->count();
 
         return $this->success($loans->map(fn (Loan $l) => [
-            'my_active_loans' => $myActiveLoans,
             'my_active_comaker_loans' => $myActiveComaker,
             'id' => $l->id,
             'loan_type' => $l->loan_type,

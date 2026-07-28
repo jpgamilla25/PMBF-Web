@@ -115,6 +115,17 @@
               <i class="bi bi-exclamation-triangle me-1"></i>{{ noTermsReason }}
             </div>
 
+            <!-- Permanent members may choose a future start month (admin approves). -->
+            <AppInput
+              v-if="isPermanent && form.loan_type"
+              v-model="form.start_date"
+              label="Preferred Start Month"
+              type="select"
+              :options="startMonthOptions"
+              :error="errors.start_date"
+              hint="When your first deduction should begin (subject to admin approval). Leave as 'This month' to start on release."
+            />
+
             <AppSearchSelect
               v-if="selectedTypeInfo?.requires_co_maker"
               v-model="form.co_maker_id"
@@ -473,7 +484,23 @@ const { form, errors, processing, submit, setErrors } = useForm({
   amount: '',
   purpose: '',
   term_months: '',
+  start_date: '',
   co_maker_id: '',
+})
+
+const isPermanent = computed(() => authStore.isPermanent)
+
+// This month + the next 11, as first-of-month dates for the start selector.
+const startMonthOptions = computed(() => {
+  const opts = [{ value: '', label: 'This month (start on release)' }]
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    const label = d.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
+    opts.push({ value, label: i === 0 ? `This month (${label})` : label })
+  }
+  return opts
 })
 
 const selectedTypeInfo = computed(() => {

@@ -35,6 +35,7 @@ class Loan extends Model
         'purpose',
         'interest_rate',
         'term_months',
+        'start_date',
         'monthly_amortization',
         'co_maker_id',
         'co_maker_token',
@@ -59,6 +60,7 @@ class Loan extends Model
             'applied_at' => 'datetime',
             'approved_at' => 'datetime',
             'released_at' => 'datetime',
+            'start_date' => 'date',
             'co_maker_acted_at' => 'datetime',
         ];
     }

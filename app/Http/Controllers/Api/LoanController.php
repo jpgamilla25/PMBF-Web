@@ -174,6 +174,7 @@ class LoanController extends Controller
             'amount' => 'required|numeric|min:' . Configuration::getDecimal('min_loan_amount', 1000),
             'purpose' => 'required|string',
             'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
+            'start_date' => 'nullable|date',
             'co_maker_id' => 'nullable|integer|exists:users,id',
         ];
     }
@@ -200,7 +201,7 @@ class LoanController extends Controller
         }
 
         $loan = $this->loanService->create($user, $request->only([
-            'loan_type', 'amount', 'purpose', 'term_months', 'co_maker_id',
+            'loan_type', 'amount', 'purpose', 'term_months', 'start_date', 'co_maker_id',
         ]));
 
         $loan->load(['user', 'coMaker']);

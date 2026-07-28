@@ -63,6 +63,12 @@
                 <div class="text-muted small">Term (Months)</div>
                 <div class="fw-semibold">{{ loan.term_months ?? '-' }}</div>
               </div>
+              <div v-if="loan.start_date" class="col-sm-6 mb-3">
+                <div class="text-muted small">Requested Start Month</div>
+                <div class="fw-semibold text-primary">
+                  <i class="bi bi-calendar-event me-1"></i>{{ formatStartMonth(loan.start_date) }}
+                </div>
+              </div>
               <div class="col-sm-6 mb-3">
                 <div class="text-muted small">Interest Rate</div>
                 <div class="fw-semibold">{{ loan.interest_rate ?? '-' }}%</div>
@@ -293,6 +299,11 @@ const disapproveForm = useForm({ remarks: '' })
 function formatLoanType(type) {
   if (!type) return '-'
   return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatStartMonth(dateStr) {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleDateString('en-PH', { year: 'numeric', month: 'long' })
 }
 
 function formatDate(dateStr) {

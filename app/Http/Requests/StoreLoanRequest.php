@@ -26,6 +26,9 @@ class StoreLoanRequest extends FormRequest
             'amount' => ['required', 'numeric', 'min:' . Configuration::getDecimal('min_loan_amount', 1000)],
             'purpose' => ['required', 'string', 'max:500'],
             'term_months' => ['required', 'numeric', 'min:0.5', 'max:' . Configuration::getValue('max_loan_term_months', 60)],
+            // Optional future start month (Permanent only). Must be this
+            // month or later, within a year.
+            'start_date' => ['nullable', 'date', 'after_or_equal:' . now()->startOfMonth()->toDateString(), 'before_or_equal:' . now()->addYear()->toDateString()],
             'co_maker_id' => ['nullable', 'integer', 'exists:users,id'],
         ];
 

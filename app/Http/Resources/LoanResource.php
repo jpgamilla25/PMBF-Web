@@ -44,6 +44,7 @@ class LoanResource extends JsonResource
             'purpose' => $this->purpose,
             'interest_rate' => $this->interest_rate,
             'term_months' => $this->term_months,
+            'start_date' => $this->start_date?->toDateString(),
             'monthly_amortization' => $this->monthly_amortization,
             'total_payable' => $this->total_payable,
             'co_maker_id' => $this->co_maker_id,

@@ -420,6 +420,13 @@ class LoanService
             $initialStatus = 'pending';
         }
 
+        // Permanent members may request a future start month (normalised to
+        // the first of that month). Ignored for other types.
+        $startDate = null;
+        if ($this->isPermanent($user) && !empty($data['start_date'])) {
+            $startDate = \Carbon\Carbon::parse($data['start_date'])->startOfMonth()->toDateString();
+        }
+
         $loan = Loan::create([
             'user_id' => $user->id,
             'loan_type' => $data['loan_type'],
@@ -427,6 +434,7 @@ class LoanService
             'purpose' => $data['purpose'],
             'interest_rate' => $rate,
             'term_months' => $months,
+            'start_date' => $startDate,
             'monthly_amortization' => $amortization,
             'co_maker_id' => $coMakerId,
             'co_maker_token' => $needsCoMakerApproval ? \Illuminate\Support\Str::random(48) : null,
@@ -478,7 +486,11 @@ class LoanService
         $totalPaid = round((float) $loan->payments->sum('amount'), 2);
 
         $interestPerMonth = round($amount * ($rate / 100), 2);
-        $base = $loan->released_at ?? $loan->applied_at ?? $loan->created_at;
+        // A requested future start month anchors the schedule; otherwise the
+        // first deduction follows release (then application) date.
+        $base = $loan->start_date
+            ? $loan->start_date->copy()->subMonth()
+            : ($loan->released_at ?? $loan->applied_at ?? $loan->created_at);
 
         $isReleased = (bool) $loan->released_at;
         $today = now()->startOfDay();

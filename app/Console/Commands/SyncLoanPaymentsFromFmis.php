@@ -127,15 +127,28 @@ class SyncLoanPaymentsFromFmis extends Command
             $month = (int) ($row['month'] ?? 0);
             $voided = (bool) ($row['voided'] ?? false);
             $amount = $voided ? 0 : ($row['amount'] ?? 0);
+            // api-center emits the DV number as `DVControlNo` (matching the
+            // source table's column). Fall back to `dv_number` for older
+            // deployments that still use the pre-rename key.
+            $dvNumber = $row['DVControlNo'] ?? $row['dv_number'] ?? null;
+            $fund     = $row['fund'] ?? null;
+            // api-center now emits one row per DV_Details line with a 1-based
+            // line_no per (employee, dv, fund). Missing (legacy payload) → 1.
+            $lineNo   = (int) ($row['line_no'] ?? 1);
+
+            if ($dvNumber === null || $dvNumber === '' || $fund === null || $fund === '') {
+                continue;
+            }
 
             $fmisRows[] = [
                 'employee_id' => $empId,
                 'year' => $year,
                 'month' => $month,
                 'amount' => $amount,
-                'dv_number' => $row['dv_number'] ?? null,
+                'dv_number' => $dvNumber,
                 'dv_date' => $this->toDate($row['dv_date'] ?? null),
-                'fund' => $row['fund'] ?? null,
+                'fund' => $fund,
+                'line_no' => $lineNo,
                 'voided' => $voided,
                 'fmis_updated_at' => $this->toDateTime($row['updated_at'] ?? null),
                 'created_at' => $now,
@@ -153,12 +166,12 @@ class SyncLoanPaymentsFromFmis extends Command
             return;
         }
 
-        // FMIS sends one row per DV — a single (employee, month) may now have
-        // multiple DVs (e.g. 1st + 2nd half payroll). Unique key is the DV.
+        // One row per DV_Details deduction line: a single DV can carry
+        // amortization + arrears lines, and semi-monthly cutoffs split further.
         FmisLoanPayment::upsert(
             $fmisRows,
-            ['employee_id', 'dv_number'],
-            ['amount', 'year', 'month', 'dv_date', 'fund', 'voided', 'fmis_updated_at', 'updated_at']
+            ['employee_id', 'dv_number', 'fund', 'line_no'],
+            ['amount', 'year', 'month', 'dv_date', 'voided', 'fmis_updated_at', 'updated_at']
         );
     }
 

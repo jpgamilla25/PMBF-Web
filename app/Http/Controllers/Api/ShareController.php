@@ -283,25 +283,32 @@ class ShareController extends Controller
         $fmisRows = FmisShareContribution::where('employee_id', $user->employee_id)
             ->where('year', $year)
             ->orderBy('month')
+            ->orderBy('dv_date')
             ->get();
 
         $shareByMonth = $shareRows->keyBy('month');
-        $fmisByMonth = $fmisRows->keyBy('month');
+        $fmisByMonth  = $fmisRows->groupBy('month');
 
         $months = [];
         for ($m = 1; $m <= 12; $m++) {
             $s = $shareByMonth->get($m);
-            $f = $fmisByMonth->get($m);
+            $fs = $fmisByMonth->get($m) ?? collect();
+            $fmisSum = $fs->sum(fn ($f) => (float) $f->amount);
             $months[] = [
-                'month' => $m,
+                'month'          => $m,
                 'curated_amount' => $s ? (float) $s->amount : null,
-                'type' => $s?->type,          // 'share' | 'premium' | null (no curated row yet)
-                'fmis_amount' => $f ? (float) $f->amount : null,
-                'dv_number' => $f?->dv_number,
-                'dv_date' => $f?->dv_date?->toDateString(),
-                'fund' => $f?->fund,
-                'voided' => (bool) ($f?->voided ?? false),
-                'remarks' => $s?->remarks,
+                'type'           => $s?->type,
+                // Sum across every DV that fed this month (semi-monthly cutoffs).
+                'fmis_amount'    => $fs->isNotEmpty() ? $fmisSum : null,
+                'dv_count'       => $fs->count(),
+                'dvs'            => $fs->map(fn ($f) => [
+                    'dv_number' => $f->dv_number,
+                    'dv_date'   => $f->dv_date?->toDateString(),
+                    'fund'      => $f->fund,
+                    'amount'    => (float) $f->amount,
+                    'voided'    => (bool) $f->voided,
+                ])->values(),
+                'remarks'        => $s?->remarks,
             ];
         }
 

@@ -64,13 +64,18 @@
                   <button
                     v-if="row.fmis_amount != null || row.curated_amount != null"
                     class="btn btn-sm btn-link p-0"
-                    :title="expanded[row.month] ? 'Hide DV' : 'View DV'"
+                    :title="expanded[row.month] ? 'Hide DVs' : `View DVs (${row.dv_count || 0})`"
                     @click="toggle(row.month)"
                   >
                     <i class="bi" :class="expanded[row.month] ? 'bi-chevron-down' : 'bi-chevron-right'"></i>
                   </button>
                 </td>
-                <td class="fw-semibold">{{ monthNames[row.month - 1] }}</td>
+                <td class="fw-semibold">
+                  {{ monthNames[row.month - 1] }}
+                  <span v-if="row.dv_count > 1" class="badge bg-secondary-subtle text-secondary-emphasis ms-1" :title="`${row.dv_count} DVs this month`">
+                    {{ row.dv_count }}×
+                  </span>
+                </td>
                 <td>
                   <span v-if="row.type === 'share'" class="badge bg-info-subtle text-info-emphasis border border-info-subtle">share</span>
                   <span v-else-if="row.type === 'premium'" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">premium</span>
@@ -79,7 +84,7 @@
                 <td class="text-end">{{ row.curated_amount != null ? '₱' + formatPeso(row.curated_amount) : '—' }}</td>
                 <td class="text-end">{{ row.fmis_amount != null ? '₱' + formatPeso(row.fmis_amount) : '—' }}</td>
                 <td>
-                  <span v-if="row.voided" class="badge bg-danger">voided</span>
+                  <span v-if="row.dvs?.length && row.dvs.every(d => d.voided)" class="badge bg-danger">voided</span>
                   <span v-else-if="row.fmis_amount != null && row.curated_amount != null && Number(row.fmis_amount) !== Number(row.curated_amount)" class="badge bg-warning text-dark">drift</span>
                   <span v-else-if="row.curated_amount != null" class="badge bg-success">synced</span>
                   <span v-else class="text-muted">—</span>
@@ -88,21 +93,27 @@
               <tr v-if="expanded[row.month]">
                 <td></td>
                 <td colspan="5" class="bg-light">
-                  <div class="small text-muted mb-1 fw-semibold">DVs for {{ monthNames[row.month - 1] }} {{ data.year }}</div>
-                  <div v-if="row.dv_number || row.fmis_amount != null" class="border rounded p-2 bg-white">
-                    <div class="row g-2 small">
-                      <div class="col-sm-3"><span class="text-muted">DV No.</span><div class="font-monospace">{{ row.dv_number ?? '—' }}</div></div>
-                      <div class="col-sm-3"><span class="text-muted">DV Date</span><div>{{ row.dv_date ?? '—' }}</div></div>
-                      <div class="col-sm-3"><span class="text-muted">Fund</span><div>{{ row.fund ?? '—' }}</div></div>
-                      <div class="col-sm-3"><span class="text-muted">Amount</span><div class="fw-bold">₱{{ formatPeso(row.fmis_amount ?? 0) }}</div></div>
-                      <div class="col-sm-12">
-                        <span class="text-muted">Classification:</span>
-                        <span v-if="row.type === 'share'" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">share</span>
-                        <span v-else-if="row.type === 'premium'" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">premium</span>
-                        <span v-else class="badge bg-secondary-subtle text-secondary-emphasis ms-1">no curated row</span>
+                  <div class="small text-muted mb-1 fw-semibold">
+                    DVs for {{ monthNames[row.month - 1] }} {{ data.year }}
+                    <span v-if="row.dv_count > 1" class="text-body">({{ row.dv_count }} disbursements)</span>
+                  </div>
+                  <div v-if="row.dvs?.length" class="d-flex flex-column gap-2">
+                    <div v-for="(dv, i) in row.dvs" :key="i" class="border rounded p-2 bg-white">
+                      <div class="row g-2 small align-items-center">
+                        <div class="col-sm-3"><span class="text-muted">DVControlNo.</span><div class="font-monospace">{{ dv.dv_number ?? '—' }}</div></div>
+                        <div class="col-sm-3"><span class="text-muted">DV Date</span><div>{{ dv.dv_date ?? '—' }}</div></div>
+                        <div class="col-sm-3"><span class="text-muted">Fund</span><div>{{ dv.fund ?? '—' }}</div></div>
+                        <div class="col-sm-3"><span class="text-muted">Amount</span><div class="fw-bold">₱{{ formatPeso(dv.amount ?? 0) }}</div></div>
+                        <div class="col-sm-12">
+                          <span class="text-muted">Classification:</span>
+                          <span v-if="row.type === 'share'" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">share</span>
+                          <span v-else-if="row.type === 'premium'" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">premium</span>
+                          <span v-else class="badge bg-secondary-subtle text-secondary-emphasis ms-1">no curated row</span>
+                          <span v-if="dv.voided" class="badge bg-danger ms-1">voided</span>
+                        </div>
                       </div>
-                      <div v-if="row.remarks" class="col-sm-12 fst-italic text-muted">"{{ row.remarks }}"</div>
                     </div>
+                    <div v-if="row.remarks" class="fst-italic text-muted small">"{{ row.remarks }}"</div>
                   </div>
                   <div v-else class="text-muted small fst-italic">No DV recorded from FMIS for this month.</div>
                 </td>

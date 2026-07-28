@@ -136,9 +136,9 @@ class SyncSharesFromFmis extends Command
 
         $now = now();
         $fmisRows = [];
-        $ledgerRows = [];
-        $shareCount = 0;
-        $premiumCount = 0;
+        // ledgerAggregates keyed on "empId|year|month" so multiple DVs for the
+        // same member/month collapse to one share_capitals row.
+        $ledgerAggregates = [];
         $fallbackCount = 0;
         $registered = 0;
         $unregistered = 0;
@@ -153,15 +153,30 @@ class SyncSharesFromFmis extends Command
             $month = (int) ($row['month'] ?? 0);
             $voided = (bool) ($row['voided'] ?? false);
             $amount = $voided ? 0 : ($row['amount'] ?? 0);
+            // api-center emits the DV number as `DVControlNo` (matching the
+            // source table's column). Fall back to `dv_number` for older
+            // deployments that still use the pre-rename key.
+            $dvNumber = $row['DVControlNo'] ?? $row['dv_number'] ?? null;
+            $fund     = $row['fund'] ?? null;
+            // api-center now emits one row per DV_Details line with a 1-based
+            // line_no per (employee, dv, fund). Missing (legacy payload) → 1.
+            $lineNo   = (int) ($row['line_no'] ?? 1);
+
+            // Uniqueness is now (employee, dv_number, fund, line_no). We still
+            // require dv_number since it anchors the whole grouping.
+            if ($dvNumber === null || $dvNumber === '' || $fund === null || $fund === '') {
+                continue;
+            }
 
             $fmisRows[] = [
                 'employee_id' => $empId,
                 'year' => $year,
                 'month' => $month,
                 'amount' => $amount,
-                'dv_number' => $row['dv_number'] ?? null,
+                'dv_number' => $dvNumber,
                 'dv_date' => $this->toDate($row['dv_date'] ?? null),
-                'fund' => $row['fund'] ?? null,
+                'fund' => $fund,
+                'line_no' => $lineNo,
                 'voided' => $voided,
                 'fmis_updated_at' => $this->toDateTime($row['updated_at'] ?? null),
                 'created_at' => $now,
@@ -169,55 +184,50 @@ class SyncSharesFromFmis extends Command
             ];
 
             $user = $userMap[$empId] ?? null;
-            if ($user !== null) {
-                // Prefer the local stint history — it's tagged historically,
-                // so a re-sync of a promoted member's 2010 month gets 'premium'
-                // (their COS stint then) instead of 'share' (their current
-                // snapshot). Fall back to the snapshot only when no local
-                // stints exist yet for that employee.
-                $stints = $stintsByEmployee->get($empId);
-                if ($stints && $stints->isNotEmpty()) {
-                    $type = \App\Services\HrisService::stintTypeAt($stints, $year, $month);
-                } else {
-                    $type = match ($user['employment_type']) {
-                        'Permanent' => 'share',
-                        'Contract of Service' => 'premium',
-                        default => null, // Non-Member — raw FMIS only, no member ledger
-                    };
-                    if ($type !== null) $fallbackCount++;
-                }
-
-                if ($type !== null) {
-                    $ledgerRows[] = [
-                        'user_id' => $user['id'],
-                        'year' => $year,
-                        'month' => $month,
-                        'amount' => $amount,
-                        'type' => $type,
-                        'remarks' => sprintf(
-                            'Synced from FMIS DV %s (fund: %s)',
-                            $row['dv_number'] ?? 'n/a',
-                            $row['fund'] ?? 'n/a'
-                        ),
-                        'created_at' => $now,
-                        'updated_at' => $now,
-                    ];
-
-                    if ($type === 'share')   $shareCount++;
-                    if ($type === 'premium') $premiumCount++;
-                }
-
-                $registered++;
-            } else {
+            if ($user === null) {
                 $unregistered++;
+                continue;
+            }
+            $registered++;
+
+            // Prefer the local stint history — it's tagged historically,
+            // so a re-sync of a promoted member's 2010 month gets 'premium'
+            // (their COS stint then) instead of 'share' (their current
+            // snapshot). Fall back to the snapshot only when no local
+            // stints exist yet for that employee.
+            $stints = $stintsByEmployee->get($empId);
+            if ($stints && $stints->isNotEmpty()) {
+                $type = \App\Services\HrisService::stintTypeAt($stints, $year, $month);
+            } else {
+                $type = match ($user['employment_type']) {
+                    'Permanent' => 'share',
+                    'Contract of Service' => 'premium',
+                    default => null, // Non-Member — raw FMIS only, no member ledger
+                };
+                if ($type !== null) $fallbackCount++;
+            }
+
+            if ($type === null) {
+                continue;
+            }
+
+            // One aggregate per (member, year, month) — the actual amount
+            // gets rebuilt as SUM(FMIS) after we persist the DV rows.
+            $key = "{$empId}|{$year}|{$month}";
+            if (!isset($ledgerAggregates[$key])) {
+                $ledgerAggregates[$key] = [
+                    'user_id'     => $user['id'],
+                    'employee_id' => $empId,
+                    'year'        => $year,
+                    'month'       => $month,
+                    'type'        => $type,
+                ];
             }
         }
 
         $totals['raw'] += count($fmisRows);
         $totals['registered'] += $registered;
         $totals['unregistered'] += $unregistered;
-        $totals['shares'] += $shareCount;
-        $totals['premiums'] += $premiumCount;
         $totals['fallback'] += $fallbackCount;
 
         if ($dryRun || $fmisRows === []) {
@@ -226,9 +236,51 @@ class SyncSharesFromFmis extends Command
 
         FmisShareContribution::upsert(
             $fmisRows,
-            ['employee_id', 'year', 'month'],
-            ['amount', 'dv_number', 'dv_date', 'fund', 'voided', 'fmis_updated_at', 'updated_at']
+            ['employee_id', 'dv_number', 'fund', 'line_no'],
+            ['amount', 'year', 'month', 'dv_date', 'voided', 'fmis_updated_at', 'updated_at']
         );
+
+        if ($ledgerAggregates === []) {
+            return;
+        }
+
+        // Rebuild share_capitals.amount as SUM(FMIS.amount) for every touched
+        // (employee, year, month). Captures split-cutoff DVs that would've
+        // been silently overwritten under the old unique key.
+        $touchedEmpIds  = array_values(array_unique(array_column($ledgerAggregates, 'employee_id')));
+        $touchedYears   = array_values(array_unique(array_column($ledgerAggregates, 'year')));
+        $touchedMonths  = array_values(array_unique(array_column($ledgerAggregates, 'month')));
+
+        $sums = FmisShareContribution::whereIn('employee_id', $touchedEmpIds)
+            ->whereIn('year', $touchedYears)
+            ->whereIn('month', $touchedMonths)
+            ->selectRaw('employee_id, year, month, SUM(amount) AS total, COUNT(*) AS dv_count')
+            ->groupBy('employee_id', 'year', 'month')
+            ->get()
+            ->keyBy(fn ($r) => "{$r->employee_id}|{$r->year}|{$r->month}");
+
+        $ledgerRows = [];
+        $shareCount = 0;
+        $premiumCount = 0;
+        foreach ($ledgerAggregates as $key => $agg) {
+            $sum = $sums->get($key);
+            if (!$sum) continue;
+            $ledgerRows[] = [
+                'user_id'    => $agg['user_id'],
+                'year'       => $agg['year'],
+                'month'      => $agg['month'],
+                'amount'     => $sum->total,
+                'type'       => $agg['type'],
+                'remarks'    => sprintf('Aggregated from %d FMIS DV(s)', $sum->dv_count),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            if ($agg['type'] === 'share')   $shareCount++;
+            if ($agg['type'] === 'premium') $premiumCount++;
+        }
+
+        $totals['shares']   += $shareCount;
+        $totals['premiums'] += $premiumCount;
 
         if ($ledgerRows !== []) {
             // `type` intentionally not in the update columns — a re-sync of an

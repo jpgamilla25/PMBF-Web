@@ -78,13 +78,19 @@
         <table class="sched">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Due Date</th>
-                    <th>Amortization</th>
-                    <th>Principal</th>
+                    <th rowspan="2">#</th>
+                    <th rowspan="2">Due Date</th>
+                    <th rowspan="2">Principal</th>
+                    <th rowspan="2">Interest</th>
+                    <th rowspan="2">Total Loan</th>
+                    <th rowspan="2">Monthly Due</th>
+                    <th colspan="2" style="text-align:center; border-bottom:1px solid #93c5fd;">Application of Payment</th>
+                    <th rowspan="2">Remaining Balance</th>
+                    <th rowspan="2" style="text-align:center;">Status</th>
+                </tr>
+                <tr>
                     <th>Interest</th>
-                    <th>Balance</th>
-                    <th style="text-align:center;">Status</th>
+                    <th>Principal</th>
                 </tr>
             </thead>
             <tbody>
@@ -92,9 +98,12 @@
                 <tr>
                     <td>{{ $row['period'] }}</td>
                     <td>{{ $row['due_date']?->format('M d, Y') ?? '-' }}</td>
-                    <td>&#x20B1;{{ number_format($row['total_due'], 2) }}</td>
-                    <td>&#x20B1;{{ number_format($row['principal'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['loan_principal'], 2) }}</td>
                     <td>&#x20B1;{{ number_format($row['interest'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['total_loan'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['total_due'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['interest'], 2) }}</td>
+                    <td>&#x20B1;{{ number_format($row['principal'], 2) }}</td>
                     <td>&#x20B1;{{ number_format($row['balance'], 2) }}</td>
                     <td style="text-align:center;">
                         @php
@@ -107,10 +116,10 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td colspan="2">TOTAL</td>
+                    <td colspan="5">TOTAL</td>
                     <td>&#x20B1;{{ number_format($totalPayable, 2) }}</td>
-                    <td>&#x20B1;{{ number_format($loan->amount, 2) }}</td>
                     <td>&#x20B1;{{ number_format($totalPayable - $loan->amount, 2) }}</td>
+                    <td>&#x20B1;{{ number_format($loan->amount, 2) }}</td>
                     <td colspan="2"></td>
                 </tr>
             </tfoot>

@@ -406,10 +406,12 @@ class LoanService
             // interest (summed from the yearly amounts, so the balance stays
             // clean — e.g. exactly 16,000 rather than 16,000.08).
             $blockInterest = [];
+            $blockPrincipals = [];
             $totalInterest = 0.0;
             for ($b = 0; $b < $years; $b++) {
                 $blockPrincipal = round($amount * ($years - $b) / $years);   // whole-peso step
                 $yearInterest = round($blockPrincipal * $annualPct / 100, 2); // e.g. 8,000.00
+                $blockPrincipals[$b] = $blockPrincipal;
                 $blockInterest[$b] = round($yearInterest / 12, 2);           // per month, e.g. 666.67
                 $monthsInBlock = min(12, $periods - $b * 12);
                 $totalInterest = round($totalInterest + $yearInterest * $monthsInBlock / 12, 2);
@@ -420,7 +422,9 @@ class LoanService
             $paidSoFar = 0.0;
 
             for ($i = 1; $i <= $periods; $i++) {
-                $interest = $blockInterest[intdiv($i - 1, 12)] ?? 0.0;
+                $block = intdiv($i - 1, 12);
+                $interest = $blockInterest[$block] ?? 0.0;
+                $loanPrincipal = $blockPrincipals[$block] ?? 0.0;
                 // Flat monthly due; the last period absorbs the rounding residual
                 // so the balance clears to zero.
                 $due = $i < $periods ? $monthly : round($total - $monthly * ($periods - 1), 2);
@@ -428,7 +432,16 @@ class LoanService
                 $paidSoFar = round($paidSoFar + $due, 2);
                 $balance = max(0.0, round($total - $paidSoFar, 2));
 
-                $rows[] = ['interest' => $interest, 'principal' => $principal, 'total_due' => $due, 'balance' => $balance];
+                $rows[] = [
+                    'interest' => $interest,
+                    'principal' => $principal,
+                    'total_due' => $due,
+                    'balance' => $balance,
+                    // The year's outstanding principal + its monthly interest,
+                    // shown as separate columns in the official breakdown.
+                    'loan_principal' => $loanPrincipal,
+                    'total_loan' => round($loanPrincipal + $interest, 2),
+                ];
             }
 
             return $rows;
@@ -447,7 +460,15 @@ class LoanService
             $paidSoFar = round($paidSoFar + $due, 2);
             $balance = max(0.0, round($total - $paidSoFar, 2));
 
-            $rows[] = ['interest' => $interestPerPeriod, 'principal' => $principal, 'total_due' => $due, 'balance' => $balance];
+            $rows[] = [
+                'interest' => $interestPerPeriod,
+                'principal' => $principal,
+                'total_due' => $due,
+                'balance' => $balance,
+                // Flat interest is always on the full principal.
+                'loan_principal' => round($amount, 2),
+                'total_loan' => round($amount + $interestPerPeriod, 2),
+            ];
         }
 
         return $rows;
@@ -775,6 +796,10 @@ class LoanService
                 'paid_amount' => $appliedToPeriod,
                 'balance' => $balance,
                 'status' => $status,
+                // Official-form columns: the year's outstanding principal and
+                // that principal plus its monthly interest.
+                'loan_principal' => $row['loan_principal'] ?? round($amount, 2),
+                'total_loan' => $row['total_loan'] ?? round(($row['loan_principal'] ?? $amount) + $row['interest'], 2),
             ];
         }
 

@@ -206,7 +206,8 @@
               <div class="col-sm-6">
                 <div class="text-muted small">Interest Rate</div>
                 <div class="fw-bold">
-                  {{ reviewData.interest_rate }}% / month
+                  {{ formatMonthlyRate(reviewData.interest_rate) }}% / month
+                  <span class="text-muted fw-normal small">({{ formatAnnualRate(reviewData.interest_rate) }}% / year)</span>
                   <span class="badge ms-1" :class="reviewData.interest_method === 'diminishing' ? 'bg-info' : 'bg-secondary'">
                     {{ reviewData.interest_method === 'diminishing' ? 'Diminishing' : 'Flat' }}
                   </span>
@@ -723,6 +724,19 @@ async function submitApplication() {
 
 function getEstimatedRate() {
   return selectedTypeInfo.value?.interest_rate ?? 0
+}
+
+// The stored rate is monthly; a per-annum config divides by 12 and leaves a
+// long fraction (8% p.a. → 0.083333…), so show 3 decimals monthly and the
+// annual equivalent (×12) alongside it. parseFloat trims trailing zeros.
+function trimRate(value, decimals) {
+  return parseFloat((Number(value) || 0).toFixed(decimals)).toString()
+}
+function formatMonthlyRate(rate) {
+  return trimRate(rate, 3)
+}
+function formatAnnualRate(rate) {
+  return trimRate((Number(rate) || 0) * 12, 2)
 }
 
 // ─── Load data ────────────────────────────────────────────

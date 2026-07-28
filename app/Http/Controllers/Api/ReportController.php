@@ -17,6 +17,10 @@ class ReportController extends Controller
 {
     use ApiResponse;
 
+    // Loans that are no longer outstanding: fully paid, void, or closed by a
+    // renewal (the balance moved to the renewal loan). None count as "active".
+    private const INACTIVE_STATUSES = ['completed', 'disapproved', 'cancelled', 'co_maker_declined', 'renewed'];
+
     // ── Loans Report ──────────────────────────────────────────────
 
     public function loans(Request $request): JsonResponse
@@ -51,7 +55,7 @@ class ReportController extends Controller
             $file = fopen('php://output', 'w');
             fputcsv($file, ['Loan #', 'Applicant', 'Employee ID', 'Type', 'Employment Type', 'Amount', 'Interest Rate', 'Term (mos)', 'Monthly Amortization', 'Total Payable', 'Status', 'Applied At', 'Released At', 'Total Paid', 'Remaining Balance']);
             foreach ($loans as $l) {
-                $totalPayable = $l->amount + ($l->amount * ($l->interest_rate / 100) * $l->term_months);
+                $totalPayable = (float) $l->total_payable;
                 $totalPaid    = $l->payments->sum('amount');
                 fputcsv($file, [
                     $l->id,
@@ -68,7 +72,7 @@ class ReportController extends Controller
                     $l->applied_at?->format('Y-m-d'),
                     $l->released_at?->format('Y-m-d'),
                     $totalPaid,
-                    round($totalPayable - $totalPaid, 2),
+                    round($l->remaining_balance, 2),
                 ]);
             }
             fclose($file);
@@ -207,7 +211,7 @@ class ReportController extends Controller
         $summary = [
             'total_count'   => $members->count(),
             'by_type'       => $members->groupBy('employment_type')->map->count(),
-            'active_loans'  => $members->filter(fn($m) => $m->loans->whereNotIn('status', ['completed', 'disapproved'])->count() > 0)->count(),
+            'active_loans'  => $members->filter(fn($m) => $m->loans->whereNotIn('status', self::INACTIVE_STATUSES)->count() > 0)->count(),
         ];
 
         return $this->success([
@@ -229,7 +233,7 @@ class ReportController extends Controller
             $file = fopen('php://output', 'w');
             fputcsv($file, ['Employee ID', 'Last Name', 'First Name', 'Middle Name', 'Email', 'Employment Type', 'Department', 'Role', 'Status', 'Total Loans', 'Active Loans', 'Joined']);
             foreach ($members as $m) {
-                $activeLoans = $m->loans->whereNotIn('status', ['completed', 'disapproved'])->count();
+                $activeLoans = $m->loans->whereNotIn('status', self::INACTIVE_STATUSES)->count();
                 fputcsv($file, [
                     $m->employee_id,
                     $m->last_name,
@@ -258,7 +262,7 @@ class ReportController extends Controller
         $summary = [
             'total_count'  => $members->count(),
             'by_type'      => $members->groupBy('employment_type')->map->count(),
-            'active_loans' => $members->filter(fn($m) => $m->loans->whereNotIn('status', ['completed', 'disapproved'])->count() > 0)->count(),
+            'active_loans' => $members->filter(fn($m) => $m->loans->whereNotIn('status', self::INACTIVE_STATUSES)->count() > 0)->count(),
         ];
 
         $filters = $this->describeFilters($request, ['employment_type', 'status', 'department']);
@@ -594,8 +598,10 @@ class ReportController extends Controller
     private function formatLedgerLoan($loan): array
     {
         $principal = (float) $loan->amount;
-        $interest  = round($principal * ((float) $loan->interest_rate / 100) * (float) $loan->term_months, 2);
-        $total     = $loan->total_payable; // principal + interest (exact)
+        $total     = (float) $loan->total_payable; // principal + interest (exact, stored)
+        // Interest is total − principal so it matches the actual method
+        // (annual-step/diminishing), not a flat recomputation.
+        $interest  = round($total - $principal, 2);
 
         $running = $total;
         $rows = $loan->payments->sortBy('payment_date')->values()->map(function ($p) use (&$running) {
@@ -628,7 +634,7 @@ class ReportController extends Controller
             'released_at'         => $loan->released_at?->format('Y-m-d'),
             'payments'            => $rows,
             'total_paid'          => round($totalPaid, 2),
-            'remaining'           => max(0, round($total - $totalPaid, 2)),
+            'remaining'           => round($loan->remaining_balance, 2),
         ];
     }
 
@@ -636,7 +642,10 @@ class ReportController extends Controller
 
     private function formatLoan($loan): array
     {
-        $totalPayable = $loan->amount + ($loan->amount * ($loan->interest_rate / 100) * $loan->term_months);
+        // Use the stored total payable — recomputing with a flat formula would
+        // be wrong for diminishing/annual-step loans. remaining_balance already
+        // reads zero for renewed/completed loans.
+        $totalPayable = (float) $loan->total_payable;
         $totalPaid    = $loan->payments->sum('amount');
         return [
             'id'                  => $loan->id,
@@ -650,7 +659,7 @@ class ReportController extends Controller
             'monthly_amortization'=> $loan->monthly_amortization,
             'total_payable'       => round($totalPayable, 2),
             'total_paid'          => round($totalPaid, 2),
-            'remaining_balance'   => round($totalPayable - $totalPaid, 2),
+            'remaining_balance'   => round($loan->remaining_balance, 2),
             'status'              => $loan->status,
             'applied_at'          => $loan->applied_at?->format('Y-m-d'),
             'released_at'         => $loan->released_at?->format('Y-m-d'),
@@ -686,7 +695,7 @@ class ReportController extends Controller
             'role'            => $member->role,
             'status'          => $member->status ?? 'active',
             'loans_count'     => $member->loans_count,
-            'active_loans'    => $member->loans->whereNotIn('status', ['completed', 'disapproved'])->count(),
+            'active_loans'    => $member->loans->whereNotIn('status', self::INACTIVE_STATUSES)->count(),
             'joined_at'       => $member->created_at->format('Y-m-d'),
         ];
     }

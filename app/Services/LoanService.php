@@ -392,24 +392,43 @@ class LoanService
         $balance = round($amount, 2);
 
         if ($method === 'diminishing' && $r > 0) {
-            // EMI over the (possibly fractional) term.
-            $pow = (1 + $r) ** $months;
-            $emi = round($amount * $r * $pow / ($pow - 1), 2);
+            // Annual-step reducing balance (the fund's official method): the
+            // principal used for interest steps down once per YEAR — 100%, then
+            // (Y-1)/Y, … of the original — not every month. Each year's interest
+            // is that year's principal × the annual rate; the total (principal +
+            // interest) is then spread evenly across every month. The stored
+            // rate is monthly, so scale it back to the annual rate (×12) and
+            // round, which also cancels the 8/12 division residue.
+            $annualPct = round($ratePct * 12, 2);
+            $years = max(1, (int) ceil($periods / 12));
+
+            // Per-month interest within each yearly block, plus the running total
+            // interest (summed from the yearly amounts, so the balance stays
+            // clean — e.g. exactly 16,000 rather than 16,000.08).
+            $blockInterest = [];
+            $totalInterest = 0.0;
+            for ($b = 0; $b < $years; $b++) {
+                $blockPrincipal = round($amount * ($years - $b) / $years);   // whole-peso step
+                $yearInterest = round($blockPrincipal * $annualPct / 100, 2); // e.g. 8,000.00
+                $blockInterest[$b] = round($yearInterest / 12, 2);           // per month, e.g. 666.67
+                $monthsInBlock = min(12, $periods - $b * 12);
+                $totalInterest = round($totalInterest + $yearInterest * $monthsInBlock / 12, 2);
+            }
+
+            $total = round($amount + $totalInterest, 2);
+            $monthly = round($total / $periods, 2);
+            $paidSoFar = 0.0;
 
             for ($i = 1; $i <= $periods; $i++) {
-                $interest = round($balance * $r, 2);
+                $interest = $blockInterest[intdiv($i - 1, 12)] ?? 0.0;
+                // Flat monthly due; the last period absorbs the rounding residual
+                // so the balance clears to zero.
+                $due = $i < $periods ? $monthly : round($total - $monthly * ($periods - 1), 2);
+                $principal = round($due - $interest, 2);
+                $paidSoFar = round($paidSoFar + $due, 2);
+                $balance = max(0.0, round($total - $paidSoFar, 2));
 
-                if ($i === $periods) {
-                    $principal = $balance;               // clear the balance
-                } else {
-                    $principal = round($emi - $interest, 2);
-                    $principal = max(0.0, min($principal, $balance));
-                }
-
-                $due = round($principal + $interest, 2);
-                $balance = round($balance - $principal, 2);
-
-                $rows[] = ['interest' => $interest, 'principal' => $principal, 'total_due' => $due, 'balance' => max(0.0, $balance)];
+                $rows[] = ['interest' => $interest, 'principal' => $principal, 'total_due' => $due, 'balance' => $balance];
             }
 
             return $rows;
@@ -707,9 +726,9 @@ class LoanService
 
             $cumulativeBefore = $cumulative;
             $cumulative = round($cumulative + $installment, 2);
-            // Outstanding *principal* after this period — the breakdown already
-            // amortises it (subtracting only the principal portion), so use that
-            // rather than draining the full total-payable by each installment.
+            // Remaining balance after this period, straight from the breakdown
+            // (total payable less what has been paid), falling back to the same
+            // computation if an older row lacks it.
             $balance = $row['balance'] ?? max(0, round($totalPayable - $cumulative, 2));
             $dueDate = $base ? $base->copy()->addMonths($i) : null;
 

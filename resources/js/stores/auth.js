@@ -45,6 +45,10 @@ export const useAuthStore = defineStore('auth', {
     canApprove: (state) =>
       ['receiver', 'loan_committee', 'chairperson', 'admin'].includes(state.user?.role),
     hasPin: (state) => !!state.user?.has_pin,
+    // COS-Enrolled members call their share capital "Medical Premium".
+    isCosEnrolled: (state) => state.user?.employment_type === 'Contract of Service',
+    sharesTerm: (state) =>
+      state.user?.employment_type === 'Contract of Service' ? 'Medical Premium' : 'Share Capital',
   },
 
   actions: {

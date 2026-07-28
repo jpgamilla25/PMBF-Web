@@ -237,7 +237,6 @@ class LoanChatService
             'emergency' => 'Emergency',
             'consolidate' => 'Consolidated',
             'salary' => 'Salary Loan',
-            'regular' => 'Regular',
         ];
 
         foreach ($aliases as $alias => $type) {

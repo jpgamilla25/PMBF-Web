@@ -85,7 +85,6 @@ class LoanService
             // Each type carries its own rate so the application screen and the
             // stored loan agree with whatever the admin configured.
             $permanentTypes = [
-                'Regular' => ['permanent_max_loan_regular', 100000],
                 'Consolidated' => ['permanent_max_loan_consolidated', 200000],
                 'Multi-Purpose' => ['permanent_max_loan_multipurpose', 100000],
                 'Emergency' => ['permanent_max_loan_emergency', 30000],

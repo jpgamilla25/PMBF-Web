@@ -258,8 +258,8 @@ const themeIcons = {
 const memberTypeOptions = [
   { value: 'all', label: 'All Members', short: 'All', icon: 'bi bi-grid-3x3-gap', color: 'ctx-all' },
   { value: 'Permanent', label: 'Permanent', short: 'Perm', icon: 'bi bi-building', color: 'ctx-perm' },
-  { value: 'Contract of Service', label: 'Contract of Service', short: 'COS', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
-  { value: 'Non-Member', label: 'Non-Members', short: 'Non', icon: 'bi bi-person-dash', color: 'ctx-non' },
+  { value: 'Contract of Service', label: 'COS-Enrolled', short: 'Enrolled', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
+  { value: 'Non-Member', label: 'COS-Non Enrolled', short: 'Non-Enr', icon: 'bi bi-person-dash', color: 'ctx-non' },
 ]
 
 // Dependents, Claims and Benefits are member benefits available only to Permanent employees.
@@ -270,12 +270,17 @@ const allMainMenuItems = [
   { to: '/dependents', label: 'Dependents', icon: 'bi bi-people', permanentOnly: true },
   { to: '/claims', label: 'Claims', icon: 'bi bi-file-earmark-text', permanentOnly: true },
   { to: '/benefits', label: 'Benefits', icon: 'bi bi-gift', permanentOnly: true },
-  { to: '/shares', label: 'My Shares', icon: 'bi bi-pie-chart' },
+  { to: '/shares', label: 'My Shares', icon: 'bi bi-pie-chart', sharesLabel: true },
   { to: '/profile', label: 'Profile', icon: 'bi bi-person-gear' },
 ]
 
 const mainMenuItems = computed(() =>
-  allMainMenuItems.filter((item) => !item.permanentOnly || authStore.isPermanent)
+  allMainMenuItems
+    .filter((item) => !item.permanentOnly || authStore.isPermanent)
+    // COS-Enrolled members see "Medical Premium" instead of "My Shares".
+    .map((item) => item.sharesLabel && authStore.isCosEnrolled
+      ? { ...item, label: 'Medical Premium' }
+      : item)
 )
 
 const adminMenuItems = [

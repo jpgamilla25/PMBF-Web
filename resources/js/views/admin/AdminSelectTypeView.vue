@@ -65,8 +65,8 @@ const options = [
   },
   {
     value: 'Contract of Service',
-    label: 'Contract of Service',
-    description: 'Manage Contract of Service employees, salary loans, co-maker requirements & contract-based terms',
+    label: 'COS-Enrolled',
+    description: 'Manage enrolled Contract of Service employees, salary loans, co-maker requirements & contract-based terms',
     icon: 'bi bi-file-earmark-text fs-1',
     iconBg: 'icon-orange',
     cardClass: 'card-orange',
@@ -74,8 +74,8 @@ const options = [
   },
   {
     value: 'Non-Member',
-    label: 'Non-Members',
-    description: 'Manage non-member registrations, separate interest rates & loan limits',
+    label: 'COS-Non Enrolled',
+    description: 'Manage non-enrolled Contract of Service registrations, separate interest rates & loan limits',
     icon: 'bi bi-person-dash fs-1',
     iconBg: 'icon-gray',
     cardClass: 'card-gray',

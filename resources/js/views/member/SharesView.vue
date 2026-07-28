@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <h4 class="fw-bold mb-4">My Share Capital</h4>
+    <h4 class="fw-bold mb-4">My {{ term }}</h4>
 
     <AppLoading :loading="loading" text="Loading shares..." />
 
@@ -8,10 +8,10 @@
       <!-- Summary Cards -->
       <div class="row g-3 mb-4">
         <div class="col-sm-6 col-lg-4">
-          <AppStatCard title="Current Monthly Share" :value="data.current_monthly ?? 0" icon="bi bi-calendar-check" color="primary" prefix="₱" />
+          <AppStatCard :title="`Current Monthly ${term === 'Medical Premium' ? 'Premium' : 'Share'}`" :value="data.current_monthly ?? 0" icon="bi bi-calendar-check" color="primary" prefix="₱" />
         </div>
         <div class="col-sm-6 col-lg-4">
-          <AppStatCard title="Total Shares" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />
+          <AppStatCard :title="`Total ${term === 'Medical Premium' ? 'Premium' : 'Shares'}`" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />
         </div>
         <div class="col-sm-6 col-lg-4">
           <div class="card shadow-sm border-0 h-100">
@@ -78,7 +78,7 @@
     </template>
 
     <!-- Request Update Modal -->
-    <AppModal :show="showRequestModal" title="Request Share Capital Update" @close="showRequestModal = false">
+    <AppModal :show="showRequestModal" :title="`Request ${term} Update`" @close="showRequestModal = false">
       <div class="alert alert-info small">
         <i class="bi bi-info-circle me-1"></i>
         Changes will take effect <strong>next month</strong> after admin approval.
@@ -99,6 +99,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useNotificationStore } from '@/stores/notification'
+import { useAuthStore } from '@/stores/auth'
 import shares from '@/services/shares'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppStatCard from '@/components/ui/AppStatCard.vue'
@@ -109,6 +110,9 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 
 const notify = useNotificationStore()
+const authStore = useAuthStore()
+// COS-Enrolled call this "Medical Premium"; everyone else "Share Capital".
+const term = computed(() => authStore.sharesTerm)
 const loading = ref(true)
 const data = ref({})
 const selectedYear = ref(new Date().getFullYear())

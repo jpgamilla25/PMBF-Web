@@ -19,7 +19,8 @@ class Loan extends Model
      */
     public const TYPES = [
         'Salary Loan',
-        'Regular',
+        // 'Regular' is retired (duplicate of Consolidated). Kept in the DB
+        // enum for any historical rows, but no longer offered or accepted.
         'Consolidated',
         'Multi-Purpose',
         'Emergency',

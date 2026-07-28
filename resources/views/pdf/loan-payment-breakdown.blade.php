@@ -55,7 +55,11 @@
             </tr>
             <tr>
                 <td>Interest Rate</td>
-                <td class="val">{{ $loan->interest_rate }}% / month</td>
+                @php
+                    $rateMo = rtrim(rtrim(number_format((float) $loan->interest_rate, 3, '.', ''), '0'), '.');
+                    $rateYr = rtrim(rtrim(number_format((float) $loan->interest_rate * 12, 2, '.', ''), '0'), '.');
+                @endphp
+                <td class="val">{{ $rateMo }}% / month ({{ $rateYr }}% / year)</td>
                 <td>Term</td>
                 <td class="val">{{ $loan->term_months }} months</td>
             </tr>

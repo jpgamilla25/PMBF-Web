@@ -50,7 +50,11 @@
             </tr>
             <tr style="border-bottom: 1px solid #f0f0f0;">
                 <td style="color: #6b7280;">Interest Rate</td>
-                <td>{{ $loan->interest_rate }}% / month</td>
+                @php
+                    $rateMo = rtrim(rtrim(number_format((float) $loan->interest_rate, 3, '.', ''), '0'), '.');
+                    $rateYr = rtrim(rtrim(number_format((float) $loan->interest_rate * 12, 2, '.', ''), '0'), '.');
+                @endphp
+                <td>{{ $rateMo }}% / month ({{ $rateYr }}% / year)</td>
             </tr>
             <tr style="border-bottom: 1px solid #f0f0f0;">
                 <td style="color: #6b7280;">Monthly Amortization</td>

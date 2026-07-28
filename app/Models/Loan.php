@@ -60,7 +60,10 @@ class Loan extends Model
     {
         return [
             'amount' => 'decimal:2',
-            'interest_rate' => 'decimal:2',
+            // 4 dp so a per-annum rate (8% ÷ 12 = 0.6667%/mo) is not rounded
+            // back to 0.67 on read, which would desync the schedule from the
+            // stored monthly amortization.
+            'interest_rate' => 'decimal:4',
             'monthly_amortization' => 'decimal:2',
             // Fractional to allow half-month terms (e.g. 5.5).
             'term_months' => 'decimal:2',

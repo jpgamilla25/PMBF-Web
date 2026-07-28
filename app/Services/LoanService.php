@@ -697,12 +697,17 @@ class LoanService
     }
 
     /**
-     * Whether a loan can be renewed: active (approved/released), not fully
-     * paid, and not already superseded by a renewal.
+     * Whether a loan can be renewed: Permanent members only, active
+     * (approved/released), not fully paid, and not already superseded by a
+     * pending/active renewal.
      */
     public function canRenew(Loan $loan): bool
     {
-        return in_array($loan->status, ['approved', 'released'], true)
+        $owner = $loan->relationLoaded('user') ? $loan->user : $loan->user()->first();
+
+        return $owner !== null
+            && $this->isPermanent($owner)
+            && in_array($loan->status, ['approved', 'released'], true)
             && $loan->remaining_balance > 0.01
             && !Loan::where('renewed_from_loan_id', $loan->id)
                 ->whereNotIn('status', ['disapproved', 'cancelled'])

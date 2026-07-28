@@ -275,8 +275,16 @@ class LoanController extends Controller
         // one; the difference is the net proceeds released to the member.
         $outstanding = $this->loanService->outstandingPrincipal($loan);
 
+        // Accept any term the member is actually offered for this loan type, so
+        // an admin-added term (e.g. 72 months) works without also bumping the
+        // separate max_loan_term_months cap.
+        $availableTerms = $this->loanService->getAvailableLoanTypes($user)[$loan->loan_type]['available_terms'] ?? [];
+        $maxTerm = !empty($availableTerms)
+            ? max($availableTerms)
+            : Configuration::getValue('max_loan_term_months', 60);
+
         $validated = $request->validate([
-            'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
+            'term_months' => 'required|numeric|min:0.5|max:' . $maxTerm,
             'amount' => 'required|numeric|min:' . $outstanding,
             'purpose' => 'nullable|string|max:500',
             'start_date' => 'nullable|date',

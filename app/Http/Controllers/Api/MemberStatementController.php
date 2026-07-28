@@ -208,7 +208,10 @@ class MemberStatementController extends Controller
         }
 
         $totalPaid = round((float) $loan->payments->sum('amount'), 2);
-        $remaining = max(0, round($totalPayable - $totalPaid, 2));
+        // A renewed loan is closed — its balance was rolled into the renewal —
+        // and a completed loan is fully paid, so neither is still outstanding.
+        $isClosed = in_array($loan->status, ['renewed', 'completed'], true);
+        $remaining = $isClosed ? 0.0 : max(0, round($totalPayable - $totalPaid, 2));
 
         return [
             'loan_id'              => $loan->id,
@@ -229,7 +232,7 @@ class MemberStatementController extends Controller
             'paid_in_range'        => round($inRange, 2),
             'total_paid'           => $totalPaid,
             'remaining'            => $remaining,
-            'is_active'            => $remaining > 0.01 && $loan->status !== 'completed',
+            'is_active'            => !$isClosed && $remaining > 0.01,
         ];
     }
 

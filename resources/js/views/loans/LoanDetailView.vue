@@ -328,7 +328,28 @@ const cancelling = ref(false)
 const showRenewModal = ref(false)
 const renewing = ref(false)
 const renewForm = ref({ term_months: 12, amount: 0 })
-const renewTermOptions = [3, 6, 12, 18, 24, 36, 48, 60]
+// Sourced from the member's configured terms for this loan type, so admin
+// changes (e.g. adding 72 months) show up here without touching code.
+const renewTermOptions = ref([3, 6, 12, 18, 24, 36, 48, 60])
+
+async function loadRenewTermOptions() {
+  try {
+    const { data } = await loansService.getTypes()
+    // Response shape: { data: { types: { Consolidated: {...} }, ... } }
+    const payload = data.data ?? data
+    const types = payload.types ?? payload
+    const match = types?.[loan.value?.loan_type]
+      ?? Object.values(types || {}).find((t) => t?.name === loan.value?.loan_type)
+    const terms = match?.available_terms
+    if (Array.isArray(terms) && terms.length) {
+      // Keep the loan's own term selectable even if config later dropped it.
+      const own = Number(loan.value?.term_months)
+      renewTermOptions.value = [...new Set([...terms, own].filter(Boolean))].sort((a, b) => a - b)
+    }
+  } catch {
+    // keep the fallback list
+  }
+}
 // Principal still owed on the old loan — rolled into the renewal.
 const renewOutstanding = computed(() => Number(loan.value?.outstanding_principal ?? 0))
 // Cash released to the member = new amount − outstanding principal.
@@ -344,6 +365,7 @@ function openRenew() {
     term_months: Number(loan.value?.term_months) || 12,
     amount: Number(loan.value?.amount ?? loan.value?.outstanding_principal ?? 0),
   }
+  loadRenewTermOptions()
   showRenewModal.value = true
 }
 
@@ -354,10 +376,11 @@ async function submitRenew() {
       term_months: renewForm.value.term_months,
       amount: renewForm.value.amount,
     })
-    const newLoan = data.data ?? data
     notify.success(data.message ?? 'Renewal submitted.')
     showRenewModal.value = false
-    router.push(`/loans/${newLoan.id ?? newLoan.data?.id}`)
+    // Reload this loan so the Renew button disappears — a renewal is now pending
+    // against it — without leaving the page.
+    await loadLoan()
   } catch (e) {
     notify.error(e.response?.data?.message || 'Failed to submit renewal.')
   } finally {
@@ -464,14 +487,16 @@ async function handleCancel() {
   }
 }
 
+async function loadLoan() {
+  const { data } = await loansService.getLoan(route.params.id)
+  const d = data.data ?? data
+  loan.value = d
+  approvalSteps.value = d.approval_progress ?? d.approvals ?? []
+  payments.value = d.payments ?? []
+}
+
 onMounted(() => {
-  withLoading(async () => {
-    const { data } = await loansService.getLoan(route.params.id)
-    const d = data.data ?? data
-    loan.value = d
-    approvalSteps.value = d.approval_progress ?? d.approvals ?? []
-    payments.value = d.payments ?? []
-  })
+  withLoading(loadLoan)
 })
 </script>
 

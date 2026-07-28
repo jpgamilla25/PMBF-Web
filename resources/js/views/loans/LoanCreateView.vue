@@ -182,7 +182,12 @@
               </div>
               <div class="col-sm-6">
                 <div class="text-muted small">Interest Rate</div>
-                <div class="fw-bold">{{ reviewData.interest_rate }}% / month</div>
+                <div class="fw-bold">
+                  {{ reviewData.interest_rate }}% / month
+                  <span class="badge ms-1" :class="reviewData.interest_method === 'diminishing' ? 'bg-info' : 'bg-secondary'">
+                    {{ reviewData.interest_method === 'diminishing' ? 'Diminishing' : 'Flat' }}
+                  </span>
+                </div>
               </div>
               <div class="col-sm-6">
                 <div class="text-muted small">Est. Monthly Amortization</div>
@@ -515,13 +520,29 @@ const amountExceedsMax = computed(() => {
 })
 
 // Live summary — recomputes as the user types, no separate review step needed.
+// Mirrors LoanService so the estimate matches what will be stored.
 const reviewData = computed(() => {
   const rate = getEstimatedRate()
+  const method = selectedTypeInfo.value?.interest_method ?? 'flat'
   const amount = Number(form.amount) || 0
   const months = Number(form.term_months) || 0
-  const totalInterest = months > 0 ? amount * (rate / 100) * months : 0
-  const totalPayable = amount + totalInterest
-  const monthly = months > 0 ? totalPayable / months : 0
+
+  let monthly = 0
+  let totalPayable = amount
+
+  if (amount > 0 && months > 0) {
+    const r = rate / 100
+    if (method === 'diminishing' && r > 0) {
+      // EMI (annuity): interest charged on the reducing balance.
+      const pow = Math.pow(1 + r, months)
+      monthly = amount * r * pow / (pow - 1)
+      totalPayable = monthly * months
+    } else {
+      // Flat: constant interest on the full principal.
+      totalPayable = amount + amount * r * months
+      monthly = totalPayable / months
+    }
+  }
 
   let coMakerName = ''
   if (form.co_maker_id) {
@@ -531,6 +552,7 @@ const reviewData = computed(() => {
 
   return {
     interest_rate: rate,
+    interest_method: method,
     monthly_amortization: Math.round(monthly * 100) / 100,
     total_payable: Math.round(totalPayable * 100) / 100,
     co_maker_name: coMakerName,

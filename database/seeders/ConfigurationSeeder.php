@@ -39,6 +39,44 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 3,
             ],
 
+            // Interest computation method per member type.
+            [
+                'key' => 'interest_method_permanent',
+                'value' => 'diminishing',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Interest Method',
+                'options' => json_encode([
+                    ['value' => 'flat', 'label' => 'Flat (interest on full principal)'],
+                    ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
+                ]),
+                'sort_order' => 4,
+            ],
+            [
+                'key' => 'interest_method_sc',
+                'value' => 'flat',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Contract of Service — Interest Method',
+                'options' => json_encode([
+                    ['value' => 'flat', 'label' => 'Flat (interest on full principal)'],
+                    ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
+                ]),
+                'sort_order' => 5,
+            ],
+            [
+                'key' => 'interest_method_non_member',
+                'value' => 'flat',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Non-Members — Interest Method',
+                'options' => json_encode([
+                    ['value' => 'flat', 'label' => 'Flat (interest on full principal)'],
+                    ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
+                ]),
+                'sort_order' => 6,
+            ],
+
             // Per-loan-type overrides. Seeded blank on purpose: an empty value
             // falls back to the member-type rate above, so an admin only fills
             // in the types that genuinely differ.

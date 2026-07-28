@@ -34,10 +34,12 @@ class Loan extends Model
         'amount',
         'purpose',
         'interest_rate',
+        'interest_method',
         'term_months',
         'start_date',
         'renewed_from_loan_id',
         'monthly_amortization',
+        'total_payable',
         'co_maker_id',
         'co_maker_token',
         'co_maker_status',
@@ -58,6 +60,8 @@ class Loan extends Model
             'monthly_amortization' => 'decimal:2',
             // Fractional to allow half-month terms (e.g. 5.5).
             'term_months' => 'decimal:2',
+            // NB: total_payable is intentionally NOT cast — the accessor below
+            // reads the raw stored value and falls back to the flat formula.
             'applied_at' => 'datetime',
             'approved_at' => 'datetime',
             'released_at' => 'datetime',
@@ -118,13 +122,22 @@ class Loan extends Model
     }
 
     /**
-     * Exact total payable = principal + flat interest (rate% per month × term).
-     * Computed from the principal, NOT from monthly_amortization × term, which
-     * would re-introduce the per-month rounding (e.g. 88,333.33 × 6 = 529,999.98
-     * instead of the correct 530,000.00).
+     * Total payable over the life of the loan.
+     *
+     * New loans store the exact figure at creation (the only reliable source
+     * for a diminishing-balance loan once rounding is applied). Legacy loans
+     * with no stored value fall back to the flat formula — principal + flat
+     * interest — computed from the principal, not monthly × term, to avoid
+     * re-introducing per-month rounding.
      */
     public function getTotalPayableAttribute(): float
     {
+        $stored = $this->attributes['total_payable'] ?? null;
+
+        if ($stored !== null) {
+            return (float) $stored;
+        }
+
         $interest = (float) $this->amount * ((float) $this->interest_rate / 100) * (float) $this->term_months;
 
         return round((float) $this->amount + $interest, 2);

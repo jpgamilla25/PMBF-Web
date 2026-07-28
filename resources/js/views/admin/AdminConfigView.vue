@@ -180,10 +180,13 @@ const groupVisibility = {
  * 'SC' previously meant the SC context fell through to showing every rate.
  */
 const interestRateScopes = {
-  Permanent: ['interest_rate_permanent'],
-  'Contract of Service': ['interest_rate_sc'],
-  'Non-Member': ['interest_rate_non_member'],
-  all: ['interest_rate_sc', 'interest_rate_permanent', 'interest_rate_non_member'],
+  Permanent: ['interest_rate_permanent', 'interest_method_permanent'],
+  'Contract of Service': ['interest_rate_sc', 'interest_method_sc'],
+  'Non-Member': ['interest_rate_non_member', 'interest_method_non_member'],
+  all: [
+    'interest_rate_sc', 'interest_rate_permanent', 'interest_rate_non_member',
+    'interest_method_sc', 'interest_method_permanent', 'interest_method_non_member',
+  ],
 }
 
 function isRateKeyVisible(key, type) {

@@ -73,6 +73,7 @@ class LoanService
                     'can_request_extension' => Configuration::getBool('sc_can_extend_with_board_approval', true),
                     'available_terms' => $terms,
                     'interest_rate' => $this->getInterestRate($user, 'Salary Loan'),
+                    'interest_method' => $this->getInterestMethod($user),
                 ],
             ];
         }
@@ -99,6 +100,7 @@ class LoanService
                     'take_home_pay' => $takeHome,
                     'available_terms' => $terms,
                     'interest_rate' => $this->getInterestRate($user, $name),
+                    'interest_method' => $this->getInterestMethod($user),
                 ];
             }
 
@@ -116,6 +118,7 @@ class LoanService
                 'max_amount' => $nonMax,
                 'available_terms' => $terms,
                 'interest_rate' => $this->getInterestRate($user, $name),
+                'interest_method' => $this->getInterestMethod($user),
             ];
         }
 
@@ -326,16 +329,120 @@ class LoanService
     }
 
     /**
-     * Calculate monthly amortization (flat interest).
+     * Interest method for a member — 'flat' or 'diminishing' — from config,
+     * defaulting Permanent to diminishing and everyone else to flat.
      */
-    public function calculateAmortization(float $amount, float $monthlyRate, float $months): float
+    public function getInterestMethod(User $user): string
     {
-        if ($months <= 0) {
-            return 0.0;
+        $scope = match (true) {
+            $this->isSC($user) => 'sc',
+            $this->isPermanent($user) => 'permanent',
+            default => 'non_member',
+        };
+
+        $default = $scope === 'permanent' ? 'diminishing' : 'flat';
+        $method = strtolower((string) Configuration::getValue("interest_method_{$scope}", $default));
+
+        return $method === 'diminishing' ? 'diminishing' : 'flat';
+    }
+
+    /**
+     * The regular monthly payment for a loan.
+     *
+     * Flat: (principal + flat interest) / term.
+     * Diminishing: the EMI (annuity) payment, interest charged on the reducing
+     * balance each period.
+     */
+    public function calculateAmortization(float $amount, float $monthlyRate, float $months, string $method = 'flat'): float
+    {
+        $figures = $this->loanFigures($amount, $monthlyRate, $months, $method);
+
+        return $figures['monthly'];
+    }
+
+    /**
+     * The per-period breakdown, whichever method applies. Both the schedule
+     * and the stored totals derive from this one place, so they can never
+     * disagree.
+     *
+     * Guarantees: principal parts sum exactly to the principal, and the final
+     * period absorbs any rounding residual.
+     *
+     * @return array<int, array{interest: float, principal: float, total_due: float, balance: float}>
+     */
+    public function installments(float $amount, float $ratePct, float $months, string $method): array
+    {
+        if ($amount <= 0 || $months <= 0) {
+            return [];
         }
 
-        $totalInterest = $amount * ($monthlyRate / 100) * $months;
-        return round(($amount + $totalInterest) / $months, 2);
+        $r = $ratePct / 100;
+        $periods = (int) ceil($months);
+        $rows = [];
+        $balance = round($amount, 2);
+
+        if ($method === 'diminishing' && $r > 0) {
+            // EMI over the (possibly fractional) term.
+            $pow = (1 + $r) ** $months;
+            $emi = round($amount * $r * $pow / ($pow - 1), 2);
+
+            for ($i = 1; $i <= $periods; $i++) {
+                $interest = round($balance * $r, 2);
+
+                if ($i === $periods) {
+                    $principal = $balance;               // clear the balance
+                } else {
+                    $principal = round($emi - $interest, 2);
+                    $principal = max(0.0, min($principal, $balance));
+                }
+
+                $due = round($principal + $interest, 2);
+                $balance = round($balance - $principal, 2);
+
+                $rows[] = ['interest' => $interest, 'principal' => $principal, 'total_due' => $due, 'balance' => max(0.0, $balance)];
+            }
+
+            return $rows;
+        }
+
+        // Flat: interest is a constant slice on the full principal; the payment
+        // is constant and the final period absorbs rounding.
+        $total = round($amount + $amount * $r * $months, 2);
+        $monthly = round($total / $months, 2);
+        $interestPerPeriod = round($amount * $r, 2);
+        $paidSoFar = 0.0;
+
+        for ($i = 1; $i <= $periods; $i++) {
+            $due = $i < $periods ? $monthly : round($total - $monthly * ($periods - 1), 2);
+            $principal = round($due - $interestPerPeriod, 2);
+            $paidSoFar = round($paidSoFar + $due, 2);
+            $balance = max(0.0, round($total - $paidSoFar, 2));
+
+            $rows[] = ['interest' => $interestPerPeriod, 'principal' => $principal, 'total_due' => $due, 'balance' => $balance];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Regular monthly payment + exact total payable for a loan.
+     *
+     * @return array{monthly: float, total: float}
+     */
+    public function loanFigures(float $amount, float $ratePct, float $months, string $method): array
+    {
+        if ($months <= 0 || $amount <= 0) {
+            return ['monthly' => 0.0, 'total' => round(max(0, $amount), 2)];
+        }
+
+        $rows = $this->installments($amount, $ratePct, $months, $method);
+        $total = round(array_sum(array_column($rows, 'total_due')), 2);
+
+        // The "monthly" figure is the regular full-period payment, i.e. the
+        // first period (the last may be a smaller rounding/partial period).
+        $monthly = $rows[0]['total_due'] ?? 0.0;
+
+        return ['monthly' => round($monthly, 2), 'total' => $total];
     }
 
     /**
@@ -405,7 +512,21 @@ class LoanService
             }
         }
 
-        $amortization = $this->calculateAmortization($amount, $rate, $months);
+        // Interest method + exact figures, locked onto the loan at creation.
+        $method = $this->getInterestMethod($user);
+        $figures = $this->loanFigures($amount, $rate, $months, $method);
+        $amortization = $figures['monthly'];
+
+        // Permanent members may request a future start month (normalised to the
+        // first of that month). A future month is a special request the
+        // administrator approves first, so route it to admin_pending.
+        $startDate = null;
+        if ($this->isPermanent($user) && !empty($data['start_date'])) {
+            $startDate = \Carbon\Carbon::parse($data['start_date'])->startOfMonth()->toDateString();
+            if (\Carbon\Carbon::parse($startDate)->gt(now()->endOfMonth())) {
+                $requiresAdminApproval = true;
+            }
+        }
 
         $coMakerId = $data['co_maker_id'] ?? null;
         $needsCoMakerApproval = $this->isSC($user) && $coMakerId &&
@@ -420,23 +541,18 @@ class LoanService
             $initialStatus = 'pending';
         }
 
-        // Permanent members may request a future start month (normalised to
-        // the first of that month). Ignored for other types.
-        $startDate = null;
-        if ($this->isPermanent($user) && !empty($data['start_date'])) {
-            $startDate = \Carbon\Carbon::parse($data['start_date'])->startOfMonth()->toDateString();
-        }
-
         $loan = Loan::create([
             'user_id' => $user->id,
             'loan_type' => $data['loan_type'],
             'amount' => $amount,
             'purpose' => $data['purpose'],
             'interest_rate' => $rate,
+            'interest_method' => $method,
             'term_months' => $months,
             'start_date' => $startDate,
             'renewed_from_loan_id' => $data['renewed_from_loan_id'] ?? null,
             'monthly_amortization' => $amortization,
+            'total_payable' => $figures['total'],
             'co_maker_id' => $coMakerId,
             'co_maker_token' => $needsCoMakerApproval ? \Illuminate\Support\Str::random(48) : null,
             'co_maker_status' => $needsCoMakerApproval ? 'pending' : null,
@@ -533,6 +649,7 @@ class LoanService
 
         $amount = (float) $loan->amount;
         $rate = (float) $loan->interest_rate;
+        $method = $loan->interest_method ?? 'flat';
         // Exact term for the maths; a fractional term (5.5) becomes ceil()
         // payment periods where the last one is partial.
         $termExact = max(0.5, (float) $loan->term_months);
@@ -541,7 +658,9 @@ class LoanService
         $totalPayable = $loan->total_payable;
         $totalPaid = round((float) $loan->payments->sum('amount'), 2);
 
-        $interestPerMonth = round($amount * ($rate / 100), 2);
+        // Per-period principal/interest split — flat or diminishing.
+        $breakdown = $this->installments($amount, $rate, $termExact, $method);
+
         // A requested future start month anchors the schedule; otherwise the
         // first deduction follows release (then application) date.
         $base = $loan->start_date
@@ -558,10 +677,8 @@ class LoanService
         $next = null;
 
         for ($i = 1; $i <= $term; $i++) {
-            // Final installment absorbs the per-month rounding.
-            $installment = $i < $term
-                ? $monthly
-                : round($totalPayable - ($monthly * ($term - 1)), 2);
+            $row = $breakdown[$i - 1] ?? ['interest' => 0.0, 'principal' => 0.0, 'total_due' => 0.0];
+            $installment = $row['total_due'];
 
             $cumulativeBefore = $cumulative;
             $cumulative = round($cumulative + $installment, 2);
@@ -605,8 +722,8 @@ class LoanService
                 // Carbon so the PDF view can format it; JSON-encodes to ISO-8601.
                 'due_date' => $dueDate,
                 'due_date_label' => $dueDate?->format('M d, Y'),
-                'principal' => round($installment - $interestPerMonth, 2),
-                'interest' => $interestPerMonth,
+                'principal' => $row['principal'],
+                'interest' => $row['interest'],
                 'total_due' => $installment,
                 'paid_amount' => $appliedToPeriod,
                 'balance' => $balance,

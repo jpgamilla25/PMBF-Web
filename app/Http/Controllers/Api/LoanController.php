@@ -86,17 +86,20 @@ class LoanController extends Controller
         // OTP enabled → send OTP, return preview
         $this->otpService->generate($user->email, 'loan_application');
 
-        // Must match the rate create() will store once the OTP is verified.
+        // Must match what create() stores once the OTP is verified.
         $rate = $this->loanService->getInterestRate($user, $validated['loan_type'] ?? null);
+        $method = $this->loanService->getInterestMethod($user);
 
         return $this->success([
             'otp_required' => true,
             'loan_data' => $validated,
             'interest_rate' => $rate,
+            'interest_method' => $method,
             'monthly_amortization' => $this->loanService->calculateAmortization(
                 (float) $validated['amount'],
                 $rate,
-                (float) $validated['term_months']
+                (float) $validated['term_months'],
+                $method
             ),
         ], 'OTP sent. Please verify to complete your loan application.');
     }

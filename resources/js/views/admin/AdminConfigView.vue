@@ -50,14 +50,25 @@
 
     <template v-if="!loading && Object.keys(searchedGroups).length">
       <div v-for="(configs, group) in searchedGroups" :key="group" class="card mb-4">
-        <div class="card-header d-flex align-items-center">
+        <div class="card-header d-flex align-items-center flex-wrap gap-2">
           <i :class="groupIcon(group)" class="me-2 text-primary"></i>
           <h6 class="mb-0 fw-bold">{{ formatGroupName(group) }}</h6>
+          <!-- Rate Period governs every rate below, so it sits in the header. -->
+          <div
+            v-for="pc in periodConfigs(configs)"
+            :key="pc.key"
+            class="ms-auto d-flex align-items-center gap-2"
+          >
+            <label :for="pc.key" class="small text-muted mb-0">{{ periodLabel(pc) }}</label>
+            <select :id="pc.key" v-model="values[pc.key]" class="form-select form-select-sm w-auto">
+              <option v-for="opt in pc.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+          </div>
         </div>
         <div class="card-body">
           <div class="row">
             <div
-              v-for="config in configs"
+              v-for="config in visibleFields(configs, group)"
               :key="config.key"
               :class="config.type === 'boolean' ? 'col-md-6 col-lg-4' : 'col-md-6'"
               class="mb-3"
@@ -65,18 +76,18 @@
               <!-- Boolean -->
               <div v-if="config.type === 'boolean'" class="form-check form-switch">
                 <input :id="config.key" v-model="values[config.key]" class="form-check-input" type="checkbox" role="switch" :true-value="'1'" :false-value="'0'" />
-                <label :for="config.key" class="form-check-label small">{{ config.description }}</label>
+                <label :for="config.key" class="form-check-label small">{{ configLabel(config) }}</label>
               </div>
               <!-- Select -->
               <div v-else-if="config.type === 'select'">
-                <label :for="config.key" class="form-label fw-medium small mb-1">{{ config.description }}</label>
+                <label :for="config.key" class="form-label fw-medium small mb-1">{{ configLabel(config) }}</label>
                 <select :id="config.key" v-model="values[config.key]" class="form-select form-select-sm">
                   <option v-for="opt in config.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
                 </select>
               </div>
               <!-- Decimal -->
               <div v-else-if="config.type === 'decimal'">
-                <label :for="config.key" class="form-label fw-medium small mb-1">{{ config.description }}</label>
+                <label :for="config.key" class="form-label fw-medium small mb-1">{{ configLabel(config) }}</label>
                 <div class="input-group input-group-sm">
                   <input :id="config.key" v-model="values[config.key]" type="number" :step="isRateKey(config.key) ? '0.0001' : '0.01'" min="0" class="form-control" @blur="formatDecimal(config.key)" />
                   <span v-if="config.suffix" class="input-group-text">{{ config.suffix }}</span>
@@ -84,7 +95,7 @@
               </div>
               <!-- Number -->
               <div v-else-if="config.type === 'number'">
-                <label :for="config.key" class="form-label fw-medium small mb-1">{{ config.description }}</label>
+                <label :for="config.key" class="form-label fw-medium small mb-1">{{ configLabel(config) }}</label>
                 <div class="input-group input-group-sm">
                   <input :id="config.key" v-model="values[config.key]" type="number" min="0" step="1" class="form-control" />
                   <span v-if="config.suffix" class="input-group-text">{{ config.suffix }}</span>
@@ -331,6 +342,48 @@ function formatGroupName(group) { return groupNames[group] || group.replace(/_/g
 // Interest rates may need finer precision (e.g. 8% p.a. → 0.6667%/month), so
 // they keep up to 4 decimals; other decimals (amounts) stay at 2.
 function isRateKey(key) { return String(key).startsWith('interest_rate') }
+
+/** Rate Period selectors, lifted out of the field grid into the card header. */
+function periodConfigs(configs) {
+  return (configs || []).filter(c => String(c.key).startsWith('interest_period_'))
+}
+
+/** Fields shown in the grid — period selectors live in the header instead. */
+function visibleFields(configs, group) {
+  if (group !== 'interest_rates') return configs
+  return (configs || []).filter(c => !String(c.key).startsWith('interest_period_'))
+}
+
+/** Header label for a period selector: just "Rate Period", or scope-prefixed
+ *  when several show at once (the "all members" view). */
+function periodLabel(config) {
+  return periodConfigs(searchedGroups.value?.interest_rates || []).length > 1
+    ? config.description
+    : 'Rate Period'
+}
+
+/** Which member-type scope an interest_rate_* key belongs to. */
+function rateScopeOf(key) {
+  if (String(key).startsWith('interest_rate_sc')) return 'sc'
+  if (String(key).startsWith('interest_rate_non_member')) return 'non_member'
+  if (String(key).startsWith('interest_rate_permanent')) return 'permanent'
+  return null
+}
+
+// The rate labels were seeded as "… Monthly Interest Rate", but the period is
+// now a per-scope setting, so drop the baked-in "Monthly" and show the real
+// unit instead of implying the rate is always monthly.
+function configLabel(config) {
+  let label = config.description || ''
+  const scope = rateScopeOf(config.key)
+  if (!scope) return label
+
+  label = label.replace(/\bMonthly\s+/i, '')
+  if (/Interest Rate$/i.test(label)) {
+    label += values[`interest_period_${scope}`] === 'per_annum' ? ' (per year)' : ' (per month)'
+  }
+  return label
+}
 function formatDecimal(key) {
   const v = parseFloat(values[key])
   if (isNaN(v)) return

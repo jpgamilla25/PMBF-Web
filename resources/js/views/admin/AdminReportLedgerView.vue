@@ -54,7 +54,13 @@
         </div>
       </div>
 
-      <div class="d-flex justify-content-end mb-3">
+      <div class="d-flex justify-content-end gap-2 mb-3">
+        <AppButton variant="outline-danger" size="sm" @click="exportPdf">
+          <i class="bi bi-filetype-pdf me-1"></i>Export PDF
+        </AppButton>
+        <AppButton variant="outline-success" size="sm" :loading="exportingCsv" @click="exportCsv">
+          <i class="bi bi-filetype-xlsx me-1"></i>Export Excel
+        </AppButton>
         <AppButton variant="outline-primary" size="sm" @click="printLedger">
           <i class="bi bi-printer me-1"></i>Print
         </AppButton>
@@ -239,5 +245,30 @@ function resetFilters() {
 
 function printLedger() {
   window.print()
+}
+
+const exportingCsv = ref(false)
+
+async function exportCsv() {
+  exportingCsv.value = true
+  try {
+    const response = await admin.downloadReportCsv('ledger', activeFilters())
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `loan-ledger-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    notify.error('Failed to export.')
+  } finally {
+    exportingCsv.value = false
+  }
+}
+
+function exportPdf() {
+  const token = localStorage.getItem('pmbf_token') ?? ''
+  const params = new URLSearchParams({ token, ...activeFilters() })
+  window.open(`/api/v1/reports/ledger/pdf?${params}`, '_blank')
 }
 </script>

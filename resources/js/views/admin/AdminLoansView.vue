@@ -1,8 +1,19 @@
 <template>
   <AppLayout>
-    <div class="d-flex align-items-center justify-content-between mb-4">
-      <h4 class="fw-bold mb-0">All Loans</h4>
-      <span v-if="meta.total" class="text-muted small">{{ meta.total }} loans</span>
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <h4 class="fw-bold mb-0">All Loans</h4>
+        <span v-if="meta.total" class="text-muted small">{{ meta.total }} loans</span>
+      </div>
+      <!-- Export respects the current Status / Type / member-type filters. -->
+      <div class="d-flex gap-2">
+        <AppButton variant="outline-danger" size="sm" @click="exportPdf">
+          <i class="bi bi-filetype-pdf me-1"></i>Export PDF
+        </AppButton>
+        <AppButton variant="outline-success" size="sm" :loading="exportingCsv" @click="exportCsv">
+          <i class="bi bi-filetype-xlsx me-1"></i>Export Excel
+        </AppButton>
+      </div>
     </div>
 
     <!-- Filter Bar -->
@@ -131,6 +142,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { usePagination } from '@/composables/usePagination'
 import { useAdminContextStore } from '@/stores/adminContext'
+import { useNotificationStore } from '@/stores/notification'
 import admin from '@/services/admin'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
@@ -141,10 +153,45 @@ import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 
 const adminContext = useAdminContextStore()
+const notify = useNotificationStore()
 const { items, meta, loading, filters, fetch } = usePagination(admin.getLoans)
 
 const statusFilter = ref('')
 const typeFilter = ref('')
+const exportingCsv = ref(false)
+
+// The status/type/member-type currently applied, forwarded to the export
+// endpoints so the file matches what's on screen.
+function activeFilters() {
+  const f = {}
+  if (statusFilter.value) f.status = statusFilter.value
+  if (typeFilter.value) f.loan_type = typeFilter.value
+  if (adminContext.memberType !== 'all') f.employment_type = adminContext.memberType
+  return f
+}
+
+async function exportCsv() {
+  exportingCsv.value = true
+  try {
+    const response = await admin.downloadReportCsv('loans', activeFilters())
+    const url = URL.createObjectURL(new Blob([response.data]))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `loans-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    notify.error('Failed to export.')
+  } finally {
+    exportingCsv.value = false
+  }
+}
+
+function exportPdf() {
+  const token = localStorage.getItem('pmbf_token') ?? ''
+  const params = new URLSearchParams({ token, ...activeFilters() })
+  window.open(`/api/v1/reports/loans/pdf?${params}`, '_blank')
+}
 
 const statusOptions = [
   { value: '', label: 'All Statuses' },

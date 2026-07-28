@@ -524,6 +524,63 @@ class ReportController extends Controller
      */
     public function ledger(Request $request): JsonResponse
     {
+        return $this->success($this->buildLedger($request));
+    }
+
+    /**
+     * Loan ledger as CSV — one row per member (the AA SUMMARY view).
+     */
+    public function ledgerCsv(Request $request): StreamedResponse
+    {
+        $members = $this->buildLedger($request)['members'];
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="loan-ledger-' . now()->format('Y-m-d') . '.csv"',
+        ];
+
+        $callback = function () use ($members) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, ['No.', 'Employee ID', 'Name', 'Division', 'Employment Type', 'Previous Loan Balance', 'Current Balance', 'Active Loans']);
+            $i = 1;
+            foreach ($members as $m) {
+                fputcsv($file, [
+                    $i++,
+                    $m['employee_id'],
+                    $m['full_name'],
+                    $m['division'],
+                    $m['employment_type'],
+                    number_format($m['previous_loan_balance'], 2, '.', ''),
+                    number_format($m['balance'], 2, '.', ''),
+                    $m['loans']->count(),
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Loan ledger as PDF — the AA SUMMARY table plus totals.
+     */
+    public function ledgerPdf(Request $request)
+    {
+        $data = $this->buildLedger($request);
+        $filters = $this->describeFilters($request, ['employment_type', 'search']);
+
+        $pdf = Pdf::loadView('pdf.report-ledger', [
+            'members' => $data['members'],
+            'summary' => $data['summary'],
+            'filters' => $filters,
+        ]);
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->stream('loan-ledger-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    private function buildLedger(Request $request): array
+    {
         $excluded = ['cancelled', 'disapproved', 'co_maker_declined'];
 
         $query = User::query()
@@ -585,10 +642,10 @@ class ReportController extends Controller
             'total_balance'     => round($members->sum('balance'), 2),
         ];
 
-        return $this->success([
+        return [
             'members' => $members,
             'summary' => $summary,
-        ]);
+        ];
     }
 
     /**

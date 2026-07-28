@@ -69,6 +69,7 @@ Route::prefix('v1')->group(function () {
     Route::get('reports/shares/pdf',   [\App\Http\Controllers\Api\ReportController::class, 'sharesPdf']);
     Route::get('reports/premiums/pdf', [\App\Http\Controllers\Api\ReportController::class, 'premiumsPdf']);
     Route::get('reports/notice-of-deduction/pdf', [\App\Http\Controllers\Api\ReportController::class, 'noticeOfDeductionPdf']);
+    Route::get('reports/ledger/pdf',   [\App\Http\Controllers\Api\ReportController::class, 'ledgerPdf']);
 
     // Registration: ID → OTP → Done
     // Throttled: employee IDs are guessable, so OTP sends and code guesses
@@ -236,6 +237,7 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/premiums',          [\App\Http\Controllers\Api\ReportController::class, 'premiums']);
             Route::get('reports/premiums/csv',      [\App\Http\Controllers\Api\ReportController::class, 'premiumsCsv']);
             Route::get('reports/ledger',            [\App\Http\Controllers\Api\ReportController::class, 'ledger']);
+            Route::get('reports/ledger/csv',        [\App\Http\Controllers\Api\ReportController::class, 'ledgerCsv']);
             Route::get('reports/notice-of-deduction',[\App\Http\Controllers\Api\ReportController::class, 'noticeOfDeduction']);
             Route::get('reports/divisions',         [\App\Http\Controllers\Api\ReportController::class, 'divisions']);
             // Legacy summary report

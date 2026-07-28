@@ -104,20 +104,27 @@ trait HasApprovalWorkflow
 
         $progress = [];
 
-        // Prepend co_maker step if this loan has a co-maker
-        if ($this->co_maker_id) {
-            $coMakerStatus = match ($this->co_maker_status) {
+        // Prepend a consent step for each named co-maker (COS-Enrolled loans may
+        // have two). Both must agree before the loan proceeds.
+        $coMakerSlots = array_filter([
+            ['id' => $this->co_maker_id, 'status' => $this->co_maker_status, 'maker' => $this->coMaker, 'acted_at' => $this->co_maker_acted_at],
+            ['id' => $this->co_maker_id_2, 'status' => $this->co_maker_status_2, 'maker' => $this->coMaker2, 'acted_at' => $this->co_maker_acted_at_2],
+        ], fn ($slot) => (bool) $slot['id']);
+
+        $hasTwo = count($coMakerSlots) > 1;
+        foreach (array_values($coMakerSlots) as $i => $slot) {
+            $coMakerStatus = match ($slot['status']) {
                 'approved' => 'approved',
                 'declined' => 'disapproved',
                 default => $this->status === 'co_maker_pending' ? 'pending' : 'approved',
             };
             $progress[] = [
                 'level' => 'co_maker',
-                'label' => 'Co-Maker Consent',
+                'label' => $hasTwo ? 'Co-Maker ' . ($i + 1) . ' Consent' : 'Co-Maker Consent',
                 'status' => $coMakerStatus,
-                'approver' => $this->coMaker?->full_name ?? null,
+                'approver' => $slot['maker']?->full_name ?? null,
                 'remarks' => null,
-                'acted_at' => $this->co_maker_acted_at?->toIso8601String(),
+                'acted_at' => $slot['acted_at']?->toIso8601String(),
             ];
         }
 

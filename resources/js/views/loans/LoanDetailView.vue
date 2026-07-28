@@ -153,8 +153,8 @@
             <div>
               <strong>Awaiting Co-Maker Consent</strong><br>
               <span class="small">
-                An email has been sent to your co-maker
-                <strong>{{ loan.co_maker?.full_name }}</strong>.
+                An email has been sent to your co-maker<span v-if="loan.co_maker_2">s</span>
+                <strong>{{ coMakerNames }}</strong>.
                 The application will proceed to the approvers once they agree.
               </span>
             </div>
@@ -375,6 +375,13 @@ const agreementUrl = computed(() => {
 const canCancel = computed(() => {
   if (!loan.value) return false
   return ['co_maker_pending', 'admin_pending', 'pending', 'receiver_approved', 'committee_approved'].includes(loan.value.status)
+})
+
+// Both named co-makers (COS-Enrolled loans may have two), joined for display.
+const coMakerNames = computed(() => {
+  return [loan.value?.co_maker?.full_name, loan.value?.co_maker_2?.full_name]
+    .filter(Boolean)
+    .join(' and ')
 })
 
 // The schedule only means something once the loan is committed — i.e. approved

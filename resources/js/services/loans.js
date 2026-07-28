@@ -11,6 +11,7 @@ export default {
   getTypes: () => api.get('/loans/types'),
   getStats: () => api.get('/loans/stats'),
   checkEligibility: (data) => api.post('/loans/check-eligibility', data),
+  renewLoan: (id, data) => api.post(`/loans/${id}/renew`, data),
   cancelLoan: (id) => api.post(`/loans/${id}/cancel`),
   getCoMakers: (params = {}) => api.get('/loans/co-makers', { params }),
   getLoanPdfUrl: (id) => `/api/v1/loans/${id}/pdf`,

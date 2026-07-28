@@ -36,6 +36,7 @@ class Loan extends Model
         'interest_rate',
         'term_months',
         'start_date',
+        'renewed_from_loan_id',
         'monthly_amortization',
         'co_maker_id',
         'co_maker_token',

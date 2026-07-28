@@ -41,6 +41,15 @@
         >
           <i class="bi bi-file-earmark-text me-1"></i>Loan Agreement
         </a>
+        <!-- Renew (active loan with a balance) -->
+        <button
+          v-if="loan && loan.can_renew"
+          class="btn btn-outline-success btn-sm"
+          @click="openRenew"
+        >
+          <i class="bi bi-arrow-repeat me-1"></i>Renew Loan
+        </button>
+
         <!-- Cancel Button (only for pending loans) -->
         <button
           v-if="loan && canCancel"
@@ -51,6 +60,41 @@
         </button>
       </div>
     </div>
+
+    <!-- Renew modal -->
+    <AppModal :show="showRenewModal" title="Renew Loan" @close="showRenewModal = false">
+      <p class="small text-body-secondary">
+        Refinance the remaining balance of <strong>{{ loan?.reference_no }}</strong> into a new loan
+        with a fresh term. Your current loan stays active until the renewal is released.
+      </p>
+      <div class="alert alert-info small py-2">
+        Outstanding balance to refinance:
+        <strong>&#8369;{{ Number(loan?.remaining_balance ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
+      </div>
+
+      <label class="form-label small fw-semibold">Additional amount (optional)</label>
+      <div class="input-group input-group-sm mb-3">
+        <span class="input-group-text">&#8369;</span>
+        <input v-model.number="renewForm.additional_amount" type="number" min="0" step="100" class="form-control" placeholder="0.00" />
+      </div>
+
+      <label class="form-label small fw-semibold">New term</label>
+      <select v-model="renewForm.term_months" class="form-select form-select-sm mb-3">
+        <option v-for="t in renewTermOptions" :key="t" :value="t">{{ t }} months</option>
+      </select>
+
+      <div class="small text-body-secondary">
+        New principal:
+        <strong>&#8369;{{ renewPrincipal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
+      </div>
+
+      <template #footer>
+        <button class="btn btn-secondary" :disabled="renewing" @click="showRenewModal = false">Cancel</button>
+        <button class="btn btn-success" :disabled="renewing || !renewForm.term_months" @click="submitRenew">
+          <span v-if="renewing" class="spinner-border spinner-border-sm me-1"></span>Submit Renewal
+        </button>
+      </template>
+    </AppModal>
 
     <AppLoading :loading="loading" text="Loading loan details..." />
 
@@ -267,6 +311,38 @@ const approvalSteps = ref([])
 const payments = ref([])
 const showCancelModal = ref(false)
 const cancelling = ref(false)
+
+// Renewal
+const showRenewModal = ref(false)
+const renewing = ref(false)
+const renewForm = ref({ term_months: 12, additional_amount: 0 })
+const renewTermOptions = [3, 6, 12, 18, 24, 36, 48, 60]
+const renewPrincipal = computed(() =>
+  Number(loan.value?.remaining_balance ?? 0) + Number(renewForm.value.additional_amount || 0)
+)
+
+function openRenew() {
+  renewForm.value = { term_months: 12, additional_amount: 0 }
+  showRenewModal.value = true
+}
+
+async function submitRenew() {
+  renewing.value = true
+  try {
+    const { data } = await loansService.renewLoan(loan.value.id, {
+      term_months: renewForm.value.term_months,
+      additional_amount: renewForm.value.additional_amount || 0,
+    })
+    const newLoan = data.data ?? data
+    notify.success(data.message ?? 'Renewal submitted.')
+    showRenewModal.value = false
+    router.push(`/loans/${newLoan.id ?? newLoan.data?.id}`)
+  } catch (e) {
+    notify.error(e.response?.data?.message || 'Failed to submit renewal.')
+  } finally {
+    renewing.value = false
+  }
+}
 
 const paymentColumns = [
   { key: 'payment_date', label: 'Date' },

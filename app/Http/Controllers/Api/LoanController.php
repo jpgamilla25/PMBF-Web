@@ -248,6 +248,43 @@ class LoanController extends Controller
     }
 
     /**
+     * Renew a loan — refinance its remaining balance into a new loan with a
+     * fresh term. POST /loans/{loan}/renew
+     */
+    public function renew(Request $request, Loan $loan): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($loan->user_id !== $user->id) {
+            return $this->error('Unauthorized.', 403);
+        }
+
+        if (!$this->loanService->canRenew($loan)) {
+            return $this->error(
+                'This loan cannot be renewed. It must be an active loan with a remaining balance and no pending renewal.',
+                422
+            );
+        }
+
+        $validated = $request->validate([
+            'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
+            'additional_amount' => 'nullable|numeric|min:0',
+            'purpose' => 'nullable|string|max:500',
+            'start_date' => 'nullable|date',
+            'co_maker_id' => 'nullable|integer|exists:users,id',
+        ]);
+
+        $newLoan = $this->loanService->renew($user, $loan, $validated);
+        $newLoan->load(['user', 'coMaker']);
+
+        return $this->success(
+            new LoanResource($newLoan),
+            'Renewal submitted. Your current loan stays active until the renewal is released.',
+            201
+        );
+    }
+
+    /**
      * Cancel a pending loan application.
      */
     public function cancel(Request $request, Loan $loan): JsonResponse

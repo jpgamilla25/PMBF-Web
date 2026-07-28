@@ -45,6 +45,7 @@ class LoanResource extends JsonResource
             'interest_rate' => $this->interest_rate,
             'term_months' => $this->term_months,
             'start_date' => $this->start_date?->toDateString(),
+            'renewed_from_loan_id' => $this->renewed_from_loan_id,
             'monthly_amortization' => $this->monthly_amortization,
             'total_payable' => $this->total_payable,
             'co_maker_id' => $this->co_maker_id,
@@ -64,6 +65,10 @@ class LoanResource extends JsonResource
             // list views get these without paying for every payment row.
             'total_paid' => $this->when($this->hasPaymentTotals(), fn () => $this->total_paid),
             'remaining_balance' => $this->when($this->hasPaymentTotals(), fn () => $this->remaining_balance),
+            'can_renew' => $this->when(
+                $this->hasPaymentTotals(),
+                fn () => app(\App\Services\LoanService::class)->canRenew($this->resource)
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
             // Approval helpers for frontend

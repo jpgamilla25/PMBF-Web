@@ -163,6 +163,7 @@ Route::prefix('v1')->group(function () {
             Route::post('resend-otp', [LoanController::class, 'resendOtp']);
             Route::get('{loan}', [LoanController::class, 'show']);
             Route::get('{loan}/schedule', [LoanController::class, 'schedule']);
+            Route::post('{loan}/renew', [LoanController::class, 'renew']);
             Route::post('{loan}/cancel', [LoanController::class, 'cancel']);
         });
 

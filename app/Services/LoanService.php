@@ -435,6 +435,7 @@ class LoanService
             'interest_rate' => $rate,
             'term_months' => $months,
             'start_date' => $startDate,
+            'renewed_from_loan_id' => $data['renewed_from_loan_id'] ?? null,
             'monthly_amortization' => $amortization,
             'co_maker_id' => $coMakerId,
             'co_maker_token' => $needsCoMakerApproval ? \Illuminate\Support\Str::random(48) : null,
@@ -458,6 +459,61 @@ class LoanService
         }
 
         return $loan;
+    }
+
+    /**
+     * Whether a loan can be renewed: active (approved/released), not fully
+     * paid, and not already superseded by a renewal.
+     */
+    public function canRenew(Loan $loan): bool
+    {
+        return in_array($loan->status, ['approved', 'released'], true)
+            && $loan->remaining_balance > 0.01
+            && !Loan::where('renewed_from_loan_id', $loan->id)
+                ->whereNotIn('status', ['disapproved', 'cancelled'])
+                ->exists();
+    }
+
+    /**
+     * Renew a loan: refinance its remaining balance (optionally plus a top-up)
+     * into a new loan of the same type with a fresh term. The original is
+     * settled only when the renewal is released — see ApprovalController —
+     * so a rejected renewal leaves the member's existing loan intact.
+     *
+     * @param  array{term_months: mixed, additional_amount?: mixed, purpose?: string, start_date?: string, co_maker_id?: mixed}  $data
+     */
+    public function renew(User $user, Loan $original, array $data): Loan
+    {
+        $remaining = round($original->remaining_balance, 2);
+        $topUp = max(0, (float) ($data['additional_amount'] ?? 0));
+        $principal = round($remaining + $topUp, 2);
+
+        return $this->create($user, [
+            'loan_type' => $original->loan_type,
+            'amount' => $principal,
+            'term_months' => $data['term_months'],
+            'purpose' => $data['purpose']
+                ?? "Renewal of {$original->reference_no} (₱" . number_format($remaining, 2) . ' outstanding'
+                    . ($topUp > 0 ? ' + ₱' . number_format($topUp, 2) . ' additional' : '') . ')',
+            'start_date' => $data['start_date'] ?? null,
+            'co_maker_id' => $data['co_maker_id'] ?? $original->co_maker_id,
+            'renewed_from_loan_id' => $original->id,
+        ]);
+    }
+
+    /**
+     * Mark the original loan as renewed once its renewal loan is released.
+     * Its remaining balance is now owed through the new loan.
+     */
+    public function settleRenewedParent(Loan $renewalLoan): void
+    {
+        if (!$renewalLoan->renewed_from_loan_id) {
+            return;
+        }
+
+        Loan::where('id', $renewalLoan->renewed_from_loan_id)
+            ->whereIn('status', ['approved', 'released'])
+            ->update(['status' => 'renewed']);
     }
 
     /**

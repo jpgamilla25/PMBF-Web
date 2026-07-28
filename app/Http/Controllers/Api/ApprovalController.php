@@ -208,6 +208,11 @@ class ApprovalController extends Controller
             default => $this->notificationService->onDisapproved($loan, $level, $remarks),
         };
 
+        // A released renewal settles the loan it refinanced.
+        if ($action === 'released') {
+            app(\App\Services\LoanService::class)->settleRenewedParent($loan);
+        }
+
         $this->autoReleaseIfConfigured($loan, $user, $action);
     }
 

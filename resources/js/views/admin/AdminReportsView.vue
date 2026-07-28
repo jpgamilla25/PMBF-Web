@@ -4,7 +4,7 @@
     <p class="text-muted small mb-4">Generate, filter, and export data reports as PDF or CSV.</p>
 
     <div class="row g-4">
-      <div v-for="r in reportTypes" :key="r.key" class="col-sm-6 col-lg-3">
+      <div v-for="r in visibleReportTypes" :key="r.key" class="col-sm-6 col-lg-3">
         <div class="card border-0 shadow-sm h-100 report-card" @click="$router.push(r.route)">
           <div class="card-body d-flex flex-column">
             <div class="report-icon mb-3" :style="{ background: r.bg }">
@@ -43,10 +43,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAdminContextStore } from '@/stores/adminContext'
 import AppLayout from '@/components/layout/AppLayout.vue'
 
 const router = useRouter()
+const adminContext = useAdminContextStore()
 
 const reportTypes = [
   {
@@ -79,11 +82,22 @@ const reportTypes = [
   {
     key: 'shares',
     title: 'Share Capital Report',
-    desc: 'Monthly share capital per member for a given year with totals and summaries.',
+    desc: 'Monthly share capital per Permanent member for a given year with totals and summaries.',
     icon: 'bi bi-pie-chart-fill fs-4',
     route: '/admin/reports/shares',
     color: '#92400e',
     bg: '#fef3c7',
+    onlyFor: ['all', 'Permanent'],
+  },
+  {
+    key: 'premiums',
+    title: 'Premium Contributions Report',
+    desc: 'Monthly premium contributions per Contract of Service member with totals and summaries.',
+    icon: 'bi bi-shield-check fs-4',
+    route: '/admin/reports/premiums',
+    color: '#5b21b6',
+    bg: '#ede9fe',
+    onlyFor: ['all', 'Contract of Service'],
   },
   {
     key: 'ledger',
@@ -104,6 +118,10 @@ const reportTypes = [
     bg: '#fed7aa',
   },
 ]
+
+const visibleReportTypes = computed(() =>
+  reportTypes.filter((r) => !r.onlyFor || r.onlyFor.includes(adminContext.memberType || 'all'))
+)
 </script>
 
 <style scoped>

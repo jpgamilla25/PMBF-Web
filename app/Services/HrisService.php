@@ -89,6 +89,165 @@ class HrisService
     }
 
     /**
+     * Fetch the employment-stint history from
+     * /api/v2/hris/employees/{id}/employment. Returns an array of stints
+     * normalized to internal types ('share' for permanent, 'premium' for cos)
+     * with Carbon-parsed dates. Returns null on transport failure or when the
+     * envelope isn't the expected shape. Cached for CACHE_TTL_SECONDS.
+     *
+     * @return list<array{type:string,start_date:\Illuminate\Support\Carbon,end_date:?\Illuminate\Support\Carbon,is_current:bool}>|null
+     */
+    public function getEmployment(string $id): ?array
+    {
+        $memoKey = "stints:{$id}";
+        if (\array_key_exists($memoKey, $this->memo)) {
+            return $this->memo[$memoKey]['data'];
+        }
+
+        $key = "hris:employment:{$id}";
+        $cached = Cache::get($key);
+        if ($cached !== null) {
+            $data = $cached === self::MISS ? null : $this->hydrateStints($cached);
+            $this->memo[$memoKey] = ['data' => $data, 'available' => true];
+            return $data;
+        }
+
+        $result = $this->callEmploymentApi($id);
+        if ($result['available']) {
+            // Cache primitives only — Carbon can't round-trip through the
+            // file cache reliably (unserialize race on class autoload).
+            Cache::put(
+                $key,
+                $result['data'] === null ? self::MISS : $this->dehydrateStints($result['data']),
+                self::CACHE_TTL_SECONDS
+            );
+        }
+
+        $this->memo[$memoKey] = $result;
+        return $result['data'];
+    }
+
+    /** @param list<array<string,mixed>> $stints */
+    private function dehydrateStints(array $stints): array
+    {
+        return array_map(fn ($s) => [
+            'type'       => $s['type'],
+            'start_date' => $s['start_date']?->toDateString(),
+            'end_date'   => $s['end_date']?->toDateString(),
+            'is_current' => $s['is_current'],
+        ], $stints);
+    }
+
+    /** @param list<array<string,mixed>> $stints */
+    private function hydrateStints(array $stints): array
+    {
+        return array_map(fn ($s) => [
+            'type'       => $s['type'],
+            'start_date' => !empty($s['start_date']) ? \Illuminate\Support\Carbon::parse($s['start_date']) : null,
+            'end_date'   => !empty($s['end_date'])   ? \Illuminate\Support\Carbon::parse($s['end_date'])   : null,
+            'is_current' => (bool) ($s['is_current'] ?? false),
+        ], $stints);
+    }
+
+    /**
+     * Which internal type ('share' | 'premium') covers a given year/month?
+     * Anchor at the 15th of the month so a stint that ends mid-month is
+     * classified by whichever half-month owns the majority. Accepts either an
+     * array of arrays (from getEmployment) or a Collection<EmploymentStint>.
+     */
+    public static function stintTypeAt(iterable $stints, int $year, int $month): ?string
+    {
+        $anchor = \Illuminate\Support\Carbon::create($year, $month, 15);
+        foreach ($stints as $s) {
+            $start = \is_array($s) ? $s['start_date'] : $s->start_date;
+            $end   = \is_array($s) ? ($s['end_date'] ?? null) : $s->end_date;
+            $type  = \is_array($s) ? ($s['type'] ?? null) : $s->type;
+            if (!$start || !$type) continue;
+
+            if ($anchor->gte($start) && (!$end || $anchor->lte($end->copy()->endOfDay()))) {
+                return $type;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * HTTP call for /employees/{id}/employment. Follows the same envelope
+     * conventions as callApi(): 404 = "no such employee" (available=true),
+     * anything else non-2xx = "HRIS unavailable" (available=false).
+     *
+     * @return array{data: ?list<array<string,mixed>>, available: bool}
+     */
+    private function callEmploymentApi(string $id): array
+    {
+        $baseUrl = rtrim((string) config('services.hris.url'), '/');
+        $url = "{$baseUrl}/employees/" . rawurlencode($id) . '/employment';
+
+        try {
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+                'Authorization' => 'Bearer ' . config('services.hris.token'),
+                'x-api-key' => config('services.hris.key'),
+            ])
+                ->withOptions(['verify' => config('services.hris.verify')])
+                ->timeout(5)
+                ->connectTimeout(3)
+                ->retry(1, 200, throw: false)
+                ->get($url);
+        } catch (\Throwable $e) {
+            Log::error('HRIS employment API request threw exception', [
+                'employee_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            return ['data' => null, 'available' => false];
+        }
+
+        if ($response->status() === 404) {
+            return ['data' => null, 'available' => true];
+        }
+
+        if (!$response->successful()) {
+            Log::warning('HRIS employment API request failed', [
+                'employee_id' => $id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return ['data' => null, 'available' => false];
+        }
+
+        $body = $response->json();
+
+        if (!\is_array($body) || !\array_key_exists('status', $body)) {
+            Log::warning('HRIS employment API returned an unexpected body', [
+                'employee_id' => $id,
+                'body' => $response->body(),
+            ]);
+            return ['data' => null, 'available' => false];
+        }
+
+        if ($body['status'] !== 'success') {
+            return ['data' => null, 'available' => true];
+        }
+
+        $stints = collect($body['data']['stints'] ?? [])
+            ->map(fn ($s) => [
+                'type' => match (strtolower((string) ($s['type'] ?? ''))) {
+                    'permanent' => 'share',
+                    'cos'       => 'premium',
+                    default     => null,
+                },
+                'start_date' => !empty($s['start']) ? \Illuminate\Support\Carbon::parse($s['start']) : null,
+                'end_date'   => !empty($s['end'])   ? \Illuminate\Support\Carbon::parse($s['end'])   : null,
+                'is_current' => (bool) ($s['is_current'] ?? false),
+            ])
+            ->filter(fn ($s) => $s['type'] !== null && $s['start_date'] !== null)
+            ->values()
+            ->all();
+
+        return ['data' => $stints, 'available' => true];
+    }
+
+    /**
      * Resolve an employee, going through the memo then the cache then the API.
      *
      * `available` is false when the API never gave us a usable answer, so

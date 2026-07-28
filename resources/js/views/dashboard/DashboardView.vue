@@ -281,13 +281,23 @@
           </div>
         </div>
 
-        <!-- Shares for member -->
+        <!-- Shares for Permanent members -->
         <div v-if="stats.total_shares !== undefined" class="row g-3 mb-4">
           <div class="col-sm-6 col-xl-3">
             <AppStatCard title="My Total Shares" :value="stats.total_shares ?? 0" icon="bi bi-pie-chart" color="primary" prefix="₱" />
           </div>
           <div class="col-sm-6 col-xl-3">
             <AppStatCard title="Monthly Share" :value="stats.current_monthly_share ?? 0" icon="bi bi-calendar-check" color="success" prefix="₱" />
+          </div>
+        </div>
+
+        <!-- Premiums for Contract of Service members -->
+        <div v-if="stats.total_premium !== undefined" class="row g-3 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <AppStatCard title="Total Premium Contributions" :value="stats.total_premium ?? 0" icon="bi bi-shield-check" color="primary" prefix="₱" />
+          </div>
+          <div class="col-sm-6 col-xl-3">
+            <AppStatCard title="Monthly Premium" :value="stats.current_monthly_premium ?? 0" icon="bi bi-calendar-check" color="success" prefix="₱" />
           </div>
         </div>
 

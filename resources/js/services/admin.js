@@ -57,6 +57,9 @@ export default {
   getReportShares(params = {}) {
     return api.get('/admin/reports/shares', { params })
   },
+  getReportPremiums(params = {}) {
+    return api.get('/admin/reports/premiums', { params })
+  },
   getReportLedger(params = {}) {
     return api.get('/admin/reports/ledger', { params })
   },

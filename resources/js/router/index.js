@@ -169,7 +169,13 @@ const routes = [
     path: '/admin/reports/shares',
     name: 'admin-report-shares',
     component: () => import('../views/admin/AdminReportSharesView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true },
+    meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Permanent'] },
+  },
+  {
+    path: '/admin/reports/premiums',
+    name: 'admin-report-premiums',
+    component: () => import('../views/admin/AdminReportPremiumsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Contract of Service'] },
   },
   {
     path: '/admin/reports/ledger',
@@ -187,7 +193,13 @@ const routes = [
     path: '/admin/shares',
     name: 'admin-shares',
     component: () => import('../views/admin/AdminSharesView.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true },
+    meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Permanent'] },
+  },
+  {
+    path: '/admin/premiums',
+    name: 'admin-premiums',
+    component: () => import('../views/admin/AdminPremiumsView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Contract of Service'] },
   },
   {
     path: '/admin/schedule',
@@ -230,7 +242,18 @@ const routes = [
   {
     path: '/shares',
     name: 'shares',
+    // Any authenticated member can visit — backend filters by type='share' and
+    // user_id. A promoted Permanent member (was COS) sees their new share rows;
+    // a still-COS member gets an empty list here.
     component: () => import('../views/member/SharesView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/premiums',
+    name: 'premiums',
+    // Same idea — a promoted member can still bookmark /premiums to review
+    // their historical premium rows even after their nav shifts to /shares.
+    component: () => import('../views/member/PremiumsView.vue'),
     meta: { requiresAuth: true },
   },
 
@@ -308,6 +331,16 @@ router.beforeEach(async (to, from, next) => {
   // Staff-only routes
   if (to.meta.requiresStaff && !auth.isStaff) {
     return next({ name: 'dashboard' })
+  }
+
+  // Admin-context gate: admin pages that only make sense for a specific
+  // member type (e.g. Share Capital = Permanent, Premiums = COS) hide when
+  // the admin has scoped their working context to the other pool.
+  if (isAuthenticated && auth.isAdmin && to.meta.adminContextIn) {
+    const ctx = adminContext.memberType || 'all'
+    if (!to.meta.adminContextIn.includes(ctx)) {
+      return next({ name: 'admin-reports' })
+    }
   }
 
   next()

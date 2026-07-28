@@ -9,6 +9,7 @@ class ShareCapital extends Model
     protected $fillable = [
         'user_id',
         'amount',
+        'type',
         'year',
         'month',
         'remarks',

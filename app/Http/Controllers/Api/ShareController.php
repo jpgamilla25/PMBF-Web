@@ -26,16 +26,23 @@ class ShareController extends Controller
         $user = $request->user();
         $year = $request->input('year', now()->year);
 
+        // Filter by type='share' so a member promoted from Contract of Service
+        // sees only their post-promotion share rows here; their historical
+        // premium rows show up on /premiums/my instead.
         $shares = ShareCapital::where('user_id', $user->id)
+            ->where('type', 'share')
             ->where('year', $year)
             ->orderBy('month')
             ->get();
 
         $currentShare = ShareCapital::where('user_id', $user->id)
+            ->where('type', 'share')
             ->orderByDesc('year')->orderByDesc('month')
             ->first();
 
-        $total = ShareCapital::where('user_id', $user->id)->sum('amount');
+        $total = ShareCapital::where('user_id', $user->id)
+            ->where('type', 'share')
+            ->sum('amount');
 
         return $this->success([
             'current_monthly' => $currentShare?->amount ?? 0,
@@ -60,6 +67,12 @@ class ShareController extends Controller
 
         $user = $request->user();
 
+        // Share update requests only make sense for Permanent employees;
+        // COS members' contributions are premiums (non-refundable coverage).
+        if ($user->employment_type !== 'Permanent') {
+            return $this->error('Share capital is only available to Permanent employees.', 403);
+        }
+
         // Check for existing pending request
         $hasPending = ShareUpdateRequest::where('user_id', $user->id)
             ->where('status', 'pending')
@@ -70,6 +83,7 @@ class ShareController extends Controller
         }
 
         $currentShare = ShareCapital::where('user_id', $user->id)
+            ->where('type', 'share')
             ->orderByDesc('year')->orderByDesc('month')
             ->first();
 
@@ -94,6 +108,7 @@ class ShareController extends Controller
         $month = $request->input('month');
 
         $query = ShareCapital::with('user:id,first_name,last_name,middle_name,employee_id,employment_type,department')
+            ->where('type', 'share')
             ->where('year', $year);
 
         if ($month) {
@@ -114,7 +129,7 @@ class ShareController extends Controller
         $shares = $query->orderBy('month')->get();
 
         // Get totals
-        $totalQuery = ShareCapital::where('year', $year);
+        $totalQuery = ShareCapital::where('type', 'share')->where('year', $year);
         if ($request->filled('employment_type') && $request->input('employment_type') !== 'all') {
             $totalQuery->whereHas('user', fn ($q) => $q->where('employment_type', $request->input('employment_type')));
         }
@@ -122,6 +137,7 @@ class ShareController extends Controller
 
         // Group by user for summary
         $summary = ShareCapital::selectRaw('user_id, SUM(amount) as total, MAX(amount) as latest_amount')
+            ->where('type', 'share')
             ->where('year', $year)
             ->when($request->filled('employment_type') && $request->input('employment_type') !== 'all', function ($q) use ($request) {
                 $q->whereHas('user', fn ($q2) => $q2->where('employment_type', $request->input('employment_type')));
@@ -166,6 +182,7 @@ class ShareController extends Controller
             ],
             [
                 'amount' => $request->input('amount'),
+                'type' => 'share',
                 'remarks' => $request->input('remarks'),
                 'updated_by' => $request->user()->id,
             ]
@@ -194,7 +211,7 @@ class ShareController extends Controller
         for ($m = $fromMonth; $m <= 12; $m++) {
             ShareCapital::updateOrCreate(
                 ['user_id' => $userId, 'year' => $year, 'month' => $m],
-                ['amount' => $amount, 'updated_by' => $request->user()->id]
+                ['amount' => $amount, 'type' => 'share', 'updated_by' => $request->user()->id]
             );
         }
 
@@ -240,6 +257,7 @@ class ShareController extends Controller
             ],
             [
                 'amount' => $shareUpdateRequest->requested_amount,
+                'type' => 'share',
                 'updated_by' => $request->user()->id,
                 'remarks' => 'Updated via approved request #' . $shareUpdateRequest->id,
             ]
@@ -257,6 +275,7 @@ class ShareController extends Controller
         $year = (int) $request->input('year', now()->year);
 
         $shareRows = ShareCapital::where('user_id', $user->id)
+            ->where('type', 'share')
             ->where('year', $year)
             ->orderBy('month')
             ->get();
@@ -276,6 +295,7 @@ class ShareController extends Controller
             $months[] = [
                 'month' => $m,
                 'curated_amount' => $s ? (float) $s->amount : null,
+                'type' => $s?->type,          // 'share' | 'premium' | null (no curated row yet)
                 'fmis_amount' => $f ? (float) $f->amount : null,
                 'dv_number' => $f?->dv_number,
                 'dv_date' => $f?->dv_date?->toDateString(),

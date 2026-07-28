@@ -387,15 +387,128 @@ class ReportController extends Controller
         return $pdf->stream('shares-report-' . $year . '.pdf');
     }
 
+    // ── Premium Contributions Report (COS-only) ───────────────────
+
+    public function premiums(Request $request): JsonResponse
+    {
+        $year  = (int) $request->input('year', now()->year);
+        $rows  = $this->buildPremiumsQuery($request, $year)->get();
+        $byUser = $rows->groupBy('user_id');
+
+        $data = $byUser->map(function ($entries) {
+            $user  = $entries->first()->user;
+            $total = $entries->sum('amount');
+            return [
+                'user_id'         => $user->id,
+                'employee_id'     => $user->employee_id,
+                'name'            => $user->last_name . ', ' . $user->first_name,
+                'employment_type' => $user->employment_type,
+                'department'      => $user->department,
+                'monthly'         => $entries->sortBy('month')->map(fn($e) => ['month' => $e->month, 'amount' => $e->amount]),
+                'total'           => $total,
+            ];
+        })->values();
+
+        $summary = [
+            'total_amount' => $data->sum('total'),
+            'member_count' => $data->count(),
+            'year'         => $year,
+        ];
+
+        return $this->success([
+            'premiums' => $data,
+            'summary'  => $summary,
+        ]);
+    }
+
+    public function premiumsCsv(Request $request): StreamedResponse
+    {
+        $year   = (int) $request->input('year', now()->year);
+        $rows   = $this->buildPremiumsQuery($request, $year)->get();
+        $byUser = $rows->groupBy('user_id');
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="premiums-report-' . $year . '.csv"',
+        ];
+
+        $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+        $callback = function () use ($byUser, $months, $year) {
+            $file = fopen('php://output', 'w');
+            $header = ['Employee ID', 'Name', 'Department'];
+            foreach ($months as $m) $header[] = "$m $year";
+            $header[] = 'Total';
+            fputcsv($file, $header);
+
+            foreach ($byUser as $entries) {
+                $user = $entries->first()->user;
+                $row  = [$user->employee_id, $user->last_name . ', ' . $user->first_name, $user->department];
+                $monthMap = $entries->keyBy('month');
+                for ($m = 1; $m <= 12; $m++) {
+                    $row[] = $monthMap->has($m) ? $monthMap[$m]->amount : '';
+                }
+                $row[] = $entries->sum('amount');
+                fputcsv($file, $row);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    public function premiumsPdf(Request $request)
+    {
+        $year   = (int) $request->input('year', now()->year);
+        $rows   = $this->buildPremiumsQuery($request, $year)->get();
+        $byUser = $rows->groupBy('user_id');
+
+        $data = $byUser->map(function ($entries) {
+            $user = $entries->first()->user;
+            return [
+                'user'    => $user,
+                'monthly' => $entries->keyBy('month'),
+                'total'   => $entries->sum('amount'),
+            ];
+        })->values();
+
+        $summary = [
+            'total_amount' => $data->sum('total'),
+            'member_count' => $data->count(),
+            'year'         => $year,
+        ];
+
+        $filters = $this->describeFilters($request, ['year']);
+
+        $pdf = Pdf::loadView('pdf.report-premiums', compact('data', 'summary', 'filters', 'year'));
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->stream('premiums-report-' . $year . '.pdf');
+    }
+
+    /**
+     * Premium rows in share_capitals (type='premium') — historically tagged
+     * at write time. A promoted Permanent member's old premium rows still
+     * show up here; their new share rows do not.
+     */
+    private function buildPremiumsQuery(Request $request, int $year)
+    {
+        return ShareCapital::with('user')
+            ->where('type', 'premium')
+            ->where('year', $year)
+            ->orderBy('month');
+    }
+
+    /**
+     * Share rows in share_capitals (type='share') — the row's historical
+     * tag, not the user's current employment_type.
+     */
     private function buildSharesQuery(Request $request, int $year)
     {
-        $query = ShareCapital::with('user')->where('year', $year)->orderBy('month');
-
-        if ($request->filled('employment_type')) {
-            $query->whereHas('user', fn($q) => $q->where('employment_type', $request->employment_type));
-        }
-
-        return $query;
+        return ShareCapital::with('user')
+            ->where('type', 'share')
+            ->where('year', $year)
+            ->orderBy('month');
     }
 
     // ── Loan Ledger Report ─────────────────────────────────────────

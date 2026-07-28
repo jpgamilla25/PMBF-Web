@@ -297,33 +297,44 @@ const allMainMenuItems = [
   { to: '/dependents', label: 'Dependents', icon: 'bi bi-people', permanentOnly: true },
   { to: '/claims', label: 'Claims', icon: 'bi bi-file-earmark-text', permanentOnly: true },
   { to: '/benefits', label: 'Benefits', icon: 'bi bi-gift', permanentOnly: true },
-  { to: '/shares', label: 'My Shares', icon: 'bi bi-pie-chart', sharesLabel: true },
+  { to: '/shares', label: 'My Shares', icon: 'bi bi-pie-chart', permanentOnly: true },
+  { to: '/premiums', label: 'My Premiums', icon: 'bi bi-shield-check', cosOnly: true },
   { to: '/profile', label: 'Profile', icon: 'bi bi-person-gear' },
 ]
 
 const mainMenuItems = computed(() =>
-  allMainMenuItems
-    .filter((item) => !item.permanentOnly || authStore.isPermanent)
-    // COS-Enrolled members see "Medical Premium" instead of "My Shares".
-    .map((item) => item.sharesLabel && authStore.isCosEnrolled
-      ? { ...item, label: 'Medical Premium' }
-      : item)
+  allMainMenuItems.filter((item) => {
+    if (item.permanentOnly && !authStore.isPermanent) return false
+    if (item.cosOnly && authStore.user?.employment_type !== 'Contract of Service') return false
+    return true
+  })
 )
 
-const adminMenuItems = [
+// `onlyFor` scopes an admin nav item to the current adminContext.memberType.
+// Share Capital is Permanent-only data; Premiums are Contract-of-Service-only —
+// hide each when the admin explicitly scoped to the other pool.
+const allAdminMenuItems = [
   { to: '/admin/user-types', label: 'User Types', icon: 'bi bi-person-gear' },
   { to: '/admin/members', label: 'Members', icon: 'bi bi-people-fill' },
   { to: '/admin/loans', label: 'All Loans', icon: 'bi bi-cash-coin' },
   { to: '/admin/payments', label: 'Payments', icon: 'bi bi-credit-card' },
   { to: '/admin/config', label: 'Configuration', icon: 'bi bi-gear' },
   { to: '/admin/reports', label: 'Reports', icon: 'bi bi-file-earmark-bar-graph' },
-  { to: '/admin/shares', label: 'Share Capital', icon: 'bi bi-pie-chart' },
+  { to: '/admin/shares', label: 'Share Capital', icon: 'bi bi-pie-chart', onlyFor: ['all', 'Permanent'] },
+  { to: '/admin/premiums', label: 'Premiums', icon: 'bi bi-shield-check', onlyFor: ['all', 'Contract of Service'] },
   { to: '/admin/schedule', label: 'Schedule Monitor', icon: 'bi bi-clock-history' },
   { to: '/admin/exemptions', label: 'Special Approvals', icon: 'bi bi-envelope-paper' },
   { to: '/admin/activity-logs', label: 'Audit Trail', icon: 'bi bi-journal-text' },
   { to: '/admin/import', label: 'Import Data', icon: 'bi bi-upload' },
   { to: '/admin/mobile-settings', label: 'Mobile App', icon: 'bi bi-phone' },
 ]
+
+const adminMenuItems = computed(() =>
+  allAdminMenuItems.filter((item) => {
+    if (!item.onlyFor) return true
+    return item.onlyFor.includes(adminContext.memberType || 'all')
+  })
+)
 
 const userRoleLabel = computed(() => {
   const role = authStore.user?.role

@@ -67,6 +67,7 @@ Route::prefix('v1')->group(function () {
     Route::get('reports/payments/pdf', [\App\Http\Controllers\Api\ReportController::class, 'paymentsPdf']);
     Route::get('reports/members/pdf',  [\App\Http\Controllers\Api\ReportController::class, 'membersPdf']);
     Route::get('reports/shares/pdf',   [\App\Http\Controllers\Api\ReportController::class, 'sharesPdf']);
+    Route::get('reports/premiums/pdf', [\App\Http\Controllers\Api\ReportController::class, 'premiumsPdf']);
     Route::get('reports/notice-of-deduction/pdf', [\App\Http\Controllers\Api\ReportController::class, 'noticeOfDeductionPdf']);
 
     // Registration: ID → OTP → Done
@@ -144,6 +145,9 @@ Route::prefix('v1')->group(function () {
         // Shares (member)
         Route::get('shares/my', [\App\Http\Controllers\Api\ShareController::class, 'myShares']);
         Route::post('shares/request-update', [\App\Http\Controllers\Api\ShareController::class, 'requestUpdate']);
+
+        // Premiums (COS member)
+        Route::get('premiums/my', [\App\Http\Controllers\Api\PremiumController::class, 'myPremiums']);
 
         // Co-maker: view and respond to pending consent requests
         Route::get('co-maker/pending', [LoanController::class, 'pendingCoMaker']);
@@ -229,6 +233,8 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/members/csv',       [\App\Http\Controllers\Api\ReportController::class, 'membersCsv']);
             Route::get('reports/shares',            [\App\Http\Controllers\Api\ReportController::class, 'shares']);
             Route::get('reports/shares/csv',        [\App\Http\Controllers\Api\ReportController::class, 'sharesCsv']);
+            Route::get('reports/premiums',          [\App\Http\Controllers\Api\ReportController::class, 'premiums']);
+            Route::get('reports/premiums/csv',      [\App\Http\Controllers\Api\ReportController::class, 'premiumsCsv']);
             Route::get('reports/ledger',            [\App\Http\Controllers\Api\ReportController::class, 'ledger']);
             Route::get('reports/notice-of-deduction',[\App\Http\Controllers\Api\ReportController::class, 'noticeOfDeduction']);
             Route::get('reports/divisions',         [\App\Http\Controllers\Api\ReportController::class, 'divisions']);
@@ -299,6 +305,13 @@ Route::prefix('v1')->group(function () {
             Route::get('shares/pending-requests', [\App\Http\Controllers\Api\ShareController::class, 'pendingRequests']);
             Route::post('shares/requests/{shareUpdateRequest}/approve', [\App\Http\Controllers\Api\ShareController::class, 'approveRequest']);
             Route::post('shares/requests/{shareUpdateRequest}/reject', [\App\Http\Controllers\Api\ShareController::class, 'rejectRequest']);
+
+            // Premiums (admin) — mirrors the shares admin surface
+            Route::get('premiums', [\App\Http\Controllers\Api\PremiumController::class, 'index']);
+            Route::post('premiums', [\App\Http\Controllers\Api\PremiumController::class, 'store']);
+            Route::post('premiums/bulk', [\App\Http\Controllers\Api\PremiumController::class, 'bulkStore']);
+            Route::get('premiums/analytics', [\App\Http\Controllers\Api\PremiumController::class, 'analytics']);
+            Route::get('premiums/members/{user}', [\App\Http\Controllers\Api\PremiumController::class, 'memberPremiums']);
 
             // Scheduler monitor
             Route::get('schedule',          [\App\Http\Controllers\Api\AdminScheduleController::class, 'index']);

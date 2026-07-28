@@ -867,9 +867,28 @@ class LoanService
             'next_payment' => $nextPayment,
             'recent_loans' => $recentLoans,
             'pending_approvals' => $pendingApprovals,
-            'total_shares' => ShareCapital::where('user_id', $user->id)->sum('amount'),
-            'current_monthly_share' => ShareCapital::where('user_id', $user->id)
-                ->orderByDesc('year')->orderByDesc('month')->first()?->amount ?? 0,
+            // Contribution stats — surface shares for Permanent, premiums for
+            // Contract of Service. Type discriminates the same share_capitals
+            // table, so a promoted member's dashboard flips over cleanly:
+            // Permanent tile shows only new type='share' rows; historical
+            // type='premium' rows are still visible on /premiums/my.
+            ...($user->employment_type === 'Contract of Service'
+                ? [
+                    'total_premium' => ShareCapital::where('user_id', $user->id)
+                        ->where('type', 'premium')
+                        ->sum('amount'),
+                    'current_monthly_premium' => ShareCapital::where('user_id', $user->id)
+                        ->where('type', 'premium')
+                        ->orderByDesc('year')->orderByDesc('month')->first()?->amount ?? 0,
+                ]
+                : [
+                    'total_shares' => ShareCapital::where('user_id', $user->id)
+                        ->where('type', 'share')
+                        ->sum('amount'),
+                    'current_monthly_share' => ShareCapital::where('user_id', $user->id)
+                        ->where('type', 'share')
+                        ->orderByDesc('year')->orderByDesc('month')->first()?->amount ?? 0,
+                ]),
         ];
     }
 }

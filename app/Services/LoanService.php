@@ -469,8 +469,11 @@ class LoanService
     public function create(User $user, array $data): Loan
     {
         // Rate is resolved for THIS loan type, so a per-type override in config
-        // is what actually gets stored on the loan.
-        $rate = $this->getInterestRate($user, $data['loan_type'] ?? null);
+        // is what actually gets stored on the loan. Round to the column's 4-dp
+        // precision up front (a per-annum rate like 8/12 is non-terminating), so
+        // the stored amortization matches the schedule, which recomputes from
+        // the persisted rate.
+        $rate = round($this->getInterestRate($user, $data['loan_type'] ?? null), 4);
         $amount = (float) $data['amount'];
         // Float, not int — a 5.5-month term must survive to the stored loan.
         $months = (float) $data['term_months'];

@@ -148,13 +148,19 @@ const typeFilter = ref('')
 
 const statusOptions = [
   { value: '', label: 'All Statuses' },
+  { value: 'co_maker_pending', label: 'Awaiting Co-Maker' },
+  { value: 'admin_pending', label: 'Awaiting Admin' },
   { value: 'pending', label: 'Pending' },
   { value: 'receiver_approved', label: 'Receiver Approved' },
   { value: 'committee_approved', label: 'Committee Approved' },
+  { value: 'chairperson_approved', label: 'Chairperson Approved' },
   { value: 'approved', label: 'Approved' },
   { value: 'released', label: 'Released' },
-  { value: 'disapproved', label: 'Disapproved' },
+  { value: 'renewed', label: 'Renewed' },
   { value: 'completed', label: 'Completed' },
+  { value: 'disapproved', label: 'Disapproved' },
+  { value: 'co_maker_declined', label: 'Co-Maker Declined' },
+  { value: 'cancelled', label: 'Cancelled' },
 ]
 
 const typeOptions = [

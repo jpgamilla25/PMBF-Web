@@ -77,6 +77,47 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 6,
             ],
 
+            // How the rates above are expressed. "Per year" divides by 12 to get
+            // the monthly rate the schedule runs on — so 8% p.a. becomes 0.6667%
+            // per month with no rounding. Switching a scope to per-annum means
+            // EVERY rate field for that scope is read as an annual figure.
+            [
+                'key' => 'interest_period_permanent',
+                'value' => 'per_month',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Rate Period',
+                'options' => json_encode([
+                    ['value' => 'per_month', 'label' => 'Per month'],
+                    ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
+                ]),
+                'sort_order' => 7,
+            ],
+            [
+                'key' => 'interest_period_sc',
+                'value' => 'per_month',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Contract of Service — Rate Period',
+                'options' => json_encode([
+                    ['value' => 'per_month', 'label' => 'Per month'],
+                    ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
+                ]),
+                'sort_order' => 8,
+            ],
+            [
+                'key' => 'interest_period_non_member',
+                'value' => 'per_month',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'Non-Members — Rate Period',
+                'options' => json_encode([
+                    ['value' => 'per_month', 'label' => 'Per month'],
+                    ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
+                ]),
+                'sort_order' => 9,
+            ],
+
             // Per-loan-type overrides. Seeded blank on purpose: an empty value
             // falls back to the member-type rate above, so an admin only fills
             // in the types that genuinely differ.

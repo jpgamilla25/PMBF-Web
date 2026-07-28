@@ -306,15 +306,25 @@ class LoanService
             default => ['non_member', 2.00],
         };
 
+        $rate = null;
+
         if ($loanType !== null) {
             $override = Configuration::getValue(self::interestRateKey($scope, $loanType));
 
             if ($override !== null && trim((string) $override) !== '') {
-                return (float) $override;
+                $rate = (float) $override;
             }
         }
 
-        return Configuration::getDecimal("interest_rate_{$scope}", $default);
+        $rate ??= Configuration::getDecimal("interest_rate_{$scope}", $default);
+
+        // Rates may be configured per year; the schedule always runs on a
+        // monthly rate, so convert 8% p.a. → 0.6667%/month with no rounding.
+        if (Configuration::getValue("interest_period_{$scope}") === 'per_annum') {
+            $rate /= 12;
+        }
+
+        return $rate;
     }
 
     /**

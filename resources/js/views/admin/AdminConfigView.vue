@@ -78,7 +78,7 @@
               <div v-else-if="config.type === 'decimal'">
                 <label :for="config.key" class="form-label fw-medium small mb-1">{{ config.description }}</label>
                 <div class="input-group input-group-sm">
-                  <input :id="config.key" v-model="values[config.key]" type="number" step="0.01" min="0" class="form-control" @blur="formatDecimal(config.key)" />
+                  <input :id="config.key" v-model="values[config.key]" type="number" :step="isRateKey(config.key) ? '0.0001' : '0.01'" min="0" class="form-control" @blur="formatDecimal(config.key)" />
                   <span v-if="config.suffix" class="input-group-text">{{ config.suffix }}</span>
                 </div>
               </div>
@@ -180,12 +180,13 @@ const groupVisibility = {
  * 'SC' previously meant the SC context fell through to showing every rate.
  */
 const interestRateScopes = {
-  Permanent: ['interest_rate_permanent', 'interest_method_permanent'],
-  'Contract of Service': ['interest_rate_sc', 'interest_method_sc'],
-  'Non-Member': ['interest_rate_non_member', 'interest_method_non_member'],
+  Permanent: ['interest_rate_permanent', 'interest_method_permanent', 'interest_period_permanent'],
+  'Contract of Service': ['interest_rate_sc', 'interest_method_sc', 'interest_period_sc'],
+  'Non-Member': ['interest_rate_non_member', 'interest_method_non_member', 'interest_period_non_member'],
   all: [
     'interest_rate_sc', 'interest_rate_permanent', 'interest_rate_non_member',
     'interest_method_sc', 'interest_method_permanent', 'interest_method_non_member',
+    'interest_period_sc', 'interest_period_permanent', 'interest_period_non_member',
   ],
 }
 
@@ -327,7 +328,14 @@ const hasChanges = computed(() => {
 
 function groupIcon(group) { return groupIcons[group] || 'bi bi-gear' }
 function formatGroupName(group) { return groupNames[group] || group.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) }
-function formatDecimal(key) { const v = parseFloat(values[key]); if (!isNaN(v)) values[key] = v.toFixed(2) }
+// Interest rates may need finer precision (e.g. 8% p.a. → 0.6667%/month), so
+// they keep up to 4 decimals; other decimals (amounts) stay at 2.
+function isRateKey(key) { return String(key).startsWith('interest_rate') }
+function formatDecimal(key) {
+  const v = parseFloat(values[key])
+  if (isNaN(v)) return
+  values[key] = isRateKey(key) ? String(parseFloat(v.toFixed(4))) : v.toFixed(2)
+}
 function resetChanges() { Object.keys(originalValues.value).forEach(k => { values[k] = originalValues.value[k] }) }
 
 /** Determine the label for tag items based on config key */

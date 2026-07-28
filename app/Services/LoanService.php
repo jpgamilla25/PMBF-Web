@@ -664,6 +664,13 @@ class LoanService
         }
 
         $paid = round((float) $loan->total_paid, 2);
+
+        // Fully settled — nothing left to roll over. Return exactly zero rather
+        // than the sub-peso residue the per-row principal rounding leaves behind.
+        if ($paid + 0.5 >= round((float) $loan->total_payable, 2)) {
+            return 0.0;
+        }
+
         $principalPaid = 0.0;
         $cumDue = 0.0;
 
@@ -703,29 +710,34 @@ class LoanService
     }
 
     /**
-     * Renew a loan: refinance its remaining balance (optionally plus a top-up)
-     * into a new loan of the same type with a fresh term. The original is
-     * settled only when the renewal is released — see ApprovalController —
-     * so a rejected renewal leaves the member's existing loan intact.
+     * Renew a loan: the member re-borrows up to a chosen amount, the schedule
+     * restarts from month 1 on a fresh term, and the old loan's outstanding
+     * principal is rolled into the new one. What the member actually receives is
+     * the NET PROCEEDS = new amount − outstanding principal (e.g. a ₱200k loan
+     * with ₱100k still owed, renewed back to ₱200k, releases ₱100k cash).
      *
-     * @param  array{term_months: mixed, additional_amount?: mixed, purpose?: string, start_date?: string, co_maker_id?: mixed}  $data
+     * The new loan is a fresh record tagged to the original via
+     * renewed_from_loan_id; the original is settled only when the renewal is
+     * released (see ApprovalController), so a rejected renewal leaves the
+     * member's existing loan intact.
+     *
+     * @param  array{amount: mixed, term_months: mixed, purpose?: string, start_date?: string, co_maker_id?: mixed}  $data
      */
     public function renew(User $user, Loan $original, array $data): Loan
     {
-        // Refinance the outstanding PRINCIPAL, not remaining_balance — the latter
-        // still carries the old loan's scheduled interest, which would then be
-        // charged interest again on the new loan.
-        $remaining = $this->outstandingPrincipal($original);
-        $topUp = max(0, (float) ($data['additional_amount'] ?? 0));
-        $principal = round($remaining + $topUp, 2);
+        $outstanding = $this->outstandingPrincipal($original);
+        // The new loan must at least cover what is still owed on the old one;
+        // anything above that is the cash released to the member.
+        $principal = round(max((float) ($data['amount'] ?? $outstanding), $outstanding), 2);
+        $netProceeds = round($principal - $outstanding, 2);
 
         return $this->create($user, [
             'loan_type' => $original->loan_type,
             'amount' => $principal,
             'term_months' => $data['term_months'],
             'purpose' => $data['purpose']
-                ?? "Renewal of {$original->reference_no} (₱" . number_format($remaining, 2) . ' principal outstanding'
-                    . ($topUp > 0 ? ' + ₱' . number_format($topUp, 2) . ' additional' : '') . ')',
+                ?? "Renewal of {$original->reference_no} — ₱" . number_format($netProceeds, 2)
+                    . ' net proceeds (₱' . number_format($outstanding, 2) . ' principal rolled over)',
             'start_date' => $data['start_date'] ?? null,
             'co_maker_id' => $data['co_maker_id'] ?? $original->co_maker_id,
             'renewed_from_loan_id' => $original->id,
@@ -742,9 +754,15 @@ class LoanService
             return;
         }
 
+        // Not "paid" — the member did not settle it with money. It is closed by
+        // renewal: status 'renewed', balance treated as zero (see Loan model),
+        // and a remark that says so.
         Loan::where('id', $renewalLoan->renewed_from_loan_id)
             ->whereIn('status', ['approved', 'released'])
-            ->update(['status' => 'renewed']);
+            ->update([
+                'status' => 'renewed',
+                'remarks' => 'Closed via renewal — ' . $renewalLoan->reference_no,
+            ]);
     }
 
     /**

@@ -70,6 +70,12 @@ class LoanResource extends JsonResource
             // list views get these without paying for every payment row.
             'total_paid' => $this->when($this->hasPaymentTotals(), fn () => $this->total_paid),
             'remaining_balance' => $this->when($this->hasPaymentTotals(), fn () => $this->remaining_balance),
+            // Principal still owed (excludes scheduled interest) — the base a
+            // renewal rolls over; net proceeds = new amount − this.
+            'outstanding_principal' => $this->when(
+                $this->hasPaymentTotals(),
+                fn () => app(\App\Services\LoanService::class)->outstandingPrincipal($this->resource)
+            ),
             'can_renew' => $this->when(
                 $this->hasPaymentTotals(),
                 fn () => app(\App\Services\LoanService::class)->canRenew($this->resource)

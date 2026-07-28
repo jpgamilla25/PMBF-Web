@@ -64,18 +64,26 @@
     <!-- Renew modal -->
     <AppModal :show="showRenewModal" title="Renew Loan" @close="showRenewModal = false">
       <p class="small text-body-secondary">
-        Refinance the remaining balance of <strong>{{ loan?.reference_no }}</strong> into a new loan
-        with a fresh term. Your current loan stays active until the renewal is released.
+        Renew <strong>{{ loan?.reference_no }}</strong> into a new loan starting fresh at month 1.
+        The principal you still owe is rolled over; anything above it is released to you as cash.
+        Your current loan stays active until the renewal is released.
       </p>
       <div class="alert alert-info small py-2">
-        Outstanding balance to refinance:
-        <strong>&#8369;{{ Number(loan?.remaining_balance ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
+        Principal still owed (rolled over):
+        <strong>&#8369;{{ renewOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
       </div>
 
-      <label class="form-label small fw-semibold">Additional amount (optional)</label>
-      <div class="input-group input-group-sm mb-3">
+      <label class="form-label small fw-semibold">New loan amount</label>
+      <div class="input-group input-group-sm mb-1">
         <span class="input-group-text">&#8369;</span>
-        <input v-model.number="renewForm.additional_amount" type="number" min="0" step="100" class="form-control" placeholder="0.00" />
+        <input v-model.number="renewForm.amount" type="number" :min="renewOutstanding" step="1000" class="form-control" placeholder="0.00" />
+      </div>
+      <div v-if="!renewAmountValid" class="text-danger small mb-3">
+        Must be at least the &#8369;{{ renewOutstanding.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }} still owed.
+      </div>
+      <div v-else class="small text-body-secondary mb-3">
+        Net proceeds (cash to you):
+        <strong class="text-success">&#8369;{{ renewNetProceeds.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
       </div>
 
       <label class="form-label small fw-semibold">New term</label>
@@ -83,14 +91,9 @@
         <option v-for="t in renewTermOptions" :key="t" :value="t">{{ t }} months</option>
       </select>
 
-      <div class="small text-body-secondary">
-        New principal:
-        <strong>&#8369;{{ renewPrincipal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
-      </div>
-
       <template #footer>
         <button class="btn btn-secondary" :disabled="renewing" @click="showRenewModal = false">Cancel</button>
-        <button class="btn btn-success" :disabled="renewing || !renewForm.term_months" @click="submitRenew">
+        <button class="btn btn-success" :disabled="renewing || !renewForm.term_months || !renewAmountValid" @click="submitRenew">
           <span v-if="renewing" class="spinner-border spinner-border-sm me-1"></span>Submit Renewal
         </button>
       </template>
@@ -106,7 +109,12 @@
             <div class="row g-3">
               <div class="col-sm-6">
                 <div class="text-muted small">Loan Type</div>
-                <div class="fw-semibold">{{ loan.loan_type }}</div>
+                <div class="fw-semibold">
+                  {{ loan.loan_type }}
+                  <span v-if="loan.renewed_from_loan_id" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">
+                    <i class="bi bi-arrow-repeat me-1"></i>Renewal
+                  </span>
+                </div>
               </div>
               <div class="col-sm-6">
                 <div class="text-muted small">Loan Amount</div>
@@ -319,14 +327,23 @@ const cancelling = ref(false)
 // Renewal
 const showRenewModal = ref(false)
 const renewing = ref(false)
-const renewForm = ref({ term_months: 12, additional_amount: 0 })
+const renewForm = ref({ term_months: 12, amount: 0 })
 const renewTermOptions = [3, 6, 12, 18, 24, 36, 48, 60]
-const renewPrincipal = computed(() =>
-  Number(loan.value?.remaining_balance ?? 0) + Number(renewForm.value.additional_amount || 0)
+// Principal still owed on the old loan — rolled into the renewal.
+const renewOutstanding = computed(() => Number(loan.value?.outstanding_principal ?? 0))
+// Cash released to the member = new amount − outstanding principal.
+const renewNetProceeds = computed(() =>
+  Math.max(0, Number(renewForm.value.amount || 0) - renewOutstanding.value)
 )
+const renewAmountValid = computed(() => Number(renewForm.value.amount || 0) >= renewOutstanding.value)
 
 function openRenew() {
-  renewForm.value = { term_months: 12, additional_amount: 0 }
+  // Default the new amount back to the original loan amount and the term to the
+  // original term, so a plain "renew as before" needs no edits.
+  renewForm.value = {
+    term_months: Number(loan.value?.term_months) || 12,
+    amount: Number(loan.value?.amount ?? loan.value?.outstanding_principal ?? 0),
+  }
   showRenewModal.value = true
 }
 
@@ -335,7 +352,7 @@ async function submitRenew() {
   try {
     const { data } = await loansService.renewLoan(loan.value.id, {
       term_months: renewForm.value.term_months,
-      additional_amount: renewForm.value.additional_amount || 0,
+      amount: renewForm.value.amount,
     })
     const newLoan = data.data ?? data
     notify.success(data.message ?? 'Renewal submitted.')

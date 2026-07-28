@@ -168,6 +168,12 @@ class Loan extends Model
 
     public function getRemainingBalanceAttribute(): float
     {
+        // A renewed loan is closed — its balance was rolled into the renewal,
+        // not paid off — so it shows zero owing rather than the old figure.
+        if (in_array($this->status, ['renewed', 'completed'], true)) {
+            return 0.0;
+        }
+
         return $this->total_payable - $this->total_paid;
     }
 

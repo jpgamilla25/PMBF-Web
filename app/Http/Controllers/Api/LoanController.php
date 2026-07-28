@@ -271,12 +271,18 @@ class LoanController extends Controller
             );
         }
 
+        // The new loan can't be less than the principal still owed on the old
+        // one; the difference is the net proceeds released to the member.
+        $outstanding = $this->loanService->outstandingPrincipal($loan);
+
         $validated = $request->validate([
             'term_months' => 'required|numeric|min:0.5|max:' . Configuration::getValue('max_loan_term_months', 60),
-            'additional_amount' => 'nullable|numeric|min:0',
+            'amount' => 'required|numeric|min:' . $outstanding,
             'purpose' => 'nullable|string|max:500',
             'start_date' => 'nullable|date',
             'co_maker_id' => 'nullable|integer|exists:users,id',
+        ], [
+            'amount.min' => 'The renewal amount must be at least the ₱' . number_format($outstanding, 2) . ' principal still owed.',
         ]);
 
         $newLoan = $this->loanService->renew($user, $loan, $validated);

@@ -1,13 +1,13 @@
 <template>
   <AppModal
     :show="show"
-    :title="data ? `Shares — ${data.user.last_name}, ${data.user.first_name}` : 'Shares'"
+    :title="data ? `Premiums — ${data.user.last_name}, ${data.user.first_name}` : 'Premiums'"
     size="lg"
     @close="$emit('close')"
   >
     <div v-if="!data && loading" class="text-center py-4">
       <div class="spinner-border spinner-border-sm text-muted"></div>
-      <div class="small text-muted mt-2">Loading shares…</div>
+      <div class="small text-muted mt-2">Loading premiums…</div>
     </div>
 
     <template v-if="data">
@@ -135,7 +135,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useNotificationStore } from '@/stores/notification'
-import sharesService from '@/services/shares'
+import premiumsService from '@/services/premiums'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -172,16 +172,15 @@ async function fetchData() {
   if (!props.userId) return
   loading.value = true
   try {
-    const { data: payload } = await sharesService.getMemberShares(props.userId, { year: year.value })
+    const { data: payload } = await premiumsService.getMemberPremiums(props.userId, { year: year.value })
     data.value = payload.data ?? payload
   } catch (e) {
-    notify.error(e.response?.data?.message || 'Failed to load member shares.')
+    notify.error(e.response?.data?.message || 'Failed to load member premiums.')
   } finally {
     loading.value = false
   }
 }
 
-// Refetch whenever the modal opens with a (new) user
 watch(
   () => [props.show, props.userId],
   ([show, userId]) => {

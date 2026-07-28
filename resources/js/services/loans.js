@@ -15,5 +15,5 @@ export default {
   getCoMakers: (params = {}) => api.get('/loans/co-makers', { params }),
   getLoanPdfUrl: (id) => `/api/v1/loans/${id}/pdf`,
   getPendingCoMaker: () => api.get('/co-maker/pending'),
-  respondCoMaker: (id, action) => api.post(`/co-maker/${id}/respond`, { action }),
+  respondCoMaker: (id, action, remarks = null) => api.post(`/co-maker/${id}/respond`, { action, remarks }),
 }

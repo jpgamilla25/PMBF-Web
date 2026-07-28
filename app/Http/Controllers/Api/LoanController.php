@@ -342,13 +342,23 @@ class LoanController extends Controller
      */
     public function pendingCoMaker(Request $request): JsonResponse
     {
-        $loans = Loan::where('co_maker_id', $request->user()->id)
+        $me = $request->user();
+
+        $loans = Loan::where('co_maker_id', $me->id)
             ->where('status', 'co_maker_pending')
             ->with('user')
             ->latest()
             ->get();
 
+        // How exposed this co-maker already is, so they can decide with the
+        // full picture: their own active loans, plus loans they already co-make.
+        $activeStatuses = ['approved', 'released'];
+        $myActiveLoans = Loan::where('user_id', $me->id)->whereIn('status', $activeStatuses)->count();
+        $myActiveComaker = Loan::where('co_maker_id', $me->id)->whereIn('status', $activeStatuses)->count();
+
         return $this->success($loans->map(fn (Loan $l) => [
+            'my_active_loans' => $myActiveLoans,
+            'my_active_comaker_loans' => $myActiveComaker,
             'id' => $l->id,
             'loan_type' => $l->loan_type,
             'amount' => $l->amount,
@@ -372,6 +382,8 @@ class LoanController extends Controller
     {
         $request->validate([
             'action' => 'required|in:approve,decline',
+            // Reason shown to the applicant when the co-maker declines.
+            'remarks' => 'nullable|string|max:500',
         ]);
 
         if ($loan->co_maker_id !== $request->user()->id) {
@@ -410,9 +422,12 @@ class LoanController extends Controller
             'co_maker_acted_at' => now(),
             'co_maker_token' => null,
             'status' => 'co_maker_declined',
+            'remarks' => $request->input('remarks') ?: $loan->remarks,
         ]);
 
-        $this->notificationService->notifyApplicant($loan, 'co_maker_declined', 'co_maker');
+        $this->notificationService->notifyApplicant(
+            $loan, 'co_maker_declined', 'co_maker', $request->input('remarks')
+        );
 
         return $this->success(null, 'You have declined. The applicant has been notified.');
     }

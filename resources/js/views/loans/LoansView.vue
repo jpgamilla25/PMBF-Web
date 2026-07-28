@@ -46,12 +46,39 @@
             </button>
           </div>
         </div>
+        <!-- Your current exposure, so you agree with the full picture. -->
+        <div class="small mt-2 d-flex flex-wrap gap-2">
+          <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+            <i class="bi bi-cash-stack me-1"></i>Your active loans: {{ loan.my_active_loans ?? 0 }}
+          </span>
+          <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+            <i class="bi bi-people me-1"></i>Loans you already co-make: {{ loan.my_active_comaker_loans ?? 0 }}
+          </span>
+        </div>
+
         <div class="alert alert-warning small mt-2 mb-0 py-2">
           <i class="bi bi-exclamation-triangle me-1"></i>
           By agreeing, you guarantee this loan. If the borrower fails to pay, you may be held responsible.
         </div>
       </div>
     </AppCard>
+
+    <!-- Decline reason modal -->
+    <AppModal :show="showDeclineModal" title="Decline Co-Maker Request" @close="closeDecline">
+      <p class="small">Let the applicant know why you're declining (optional).</p>
+      <textarea
+        v-model="declineRemarks"
+        class="form-control"
+        rows="3"
+        placeholder="e.g. I already co-make several loans"
+      ></textarea>
+      <template #footer>
+        <button class="btn btn-secondary" :disabled="respondingId" @click="closeDecline">Cancel</button>
+        <button class="btn btn-danger" :disabled="respondingId" @click="confirmDecline">
+          <span v-if="respondingId" class="spinner-border spinner-border-sm me-1"></span>Decline
+        </button>
+      </template>
+    </AppModal>
 
     <!-- Pending Exemption Requests -->
     <AppCard v-if="pendingExemptions.length" title="Special Approval Requests" class="mb-4">
@@ -129,6 +156,7 @@ import AppCard from '@/components/ui/AppCard.vue'
 import AppTable from '@/components/ui/AppTable.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import PaymentStatementCard from '@/components/member/PaymentStatementCard.vue'
 
 const notify = useNotificationStore()
@@ -137,6 +165,9 @@ const { items, meta, loading, fetch } = usePagination(loans.getLoans)
 const pendingExemptions = ref([])
 const pendingCoMakerRequests = ref([])
 const respondingId = ref(null)
+const showDeclineModal = ref(false)
+const declineTargetId = ref(null)
+const declineRemarks = ref('')
 
 const columns = [
   { key: 'reference_no', label: 'Ref. No.' },
@@ -179,19 +210,38 @@ function formatExemptionType(type) {
   return map[type] ?? type
 }
 
-async function respondCoMaker(id, action) {
+async function respondCoMaker(id, action, remarks = null) {
+  // Declining asks for a reason first (via the modal).
+  if (action === 'decline' && !showDeclineModal.value) {
+    declineTargetId.value = id
+    declineRemarks.value = ''
+    showDeclineModal.value = true
+    return
+  }
+
   respondingId.value = id
   try {
-    const { data } = await loans.respondCoMaker(id, action)
+    const { data } = await loans.respondCoMaker(id, action, remarks)
     const msg = data.message ?? (action === 'approve' ? 'You agreed to be the co-maker.' : 'You declined.')
     notify.success(msg)
     pendingCoMakerRequests.value = pendingCoMakerRequests.value.filter(l => l.id !== id)
     authStore.coMakerPendingCount = pendingCoMakerRequests.value.length
+    closeDecline()
   } catch (e) {
     notify.error(e.response?.data?.message || 'Failed to respond.')
   } finally {
     respondingId.value = null
   }
+}
+
+function closeDecline() {
+  showDeclineModal.value = false
+  declineTargetId.value = null
+  declineRemarks.value = ''
+}
+
+function confirmDecline() {
+  respondCoMaker(declineTargetId.value, 'decline', declineRemarks.value.trim() || null)
 }
 
 onMounted(async () => {

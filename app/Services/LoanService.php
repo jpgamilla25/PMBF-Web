@@ -689,12 +689,15 @@ class LoanService
         $next = null;
 
         for ($i = 1; $i <= $term; $i++) {
-            $row = $breakdown[$i - 1] ?? ['interest' => 0.0, 'principal' => 0.0, 'total_due' => 0.0];
+            $row = $breakdown[$i - 1] ?? ['interest' => 0.0, 'principal' => 0.0, 'total_due' => 0.0, 'balance' => 0.0];
             $installment = $row['total_due'];
 
             $cumulativeBefore = $cumulative;
             $cumulative = round($cumulative + $installment, 2);
-            $balance = max(0, round($totalPayable - $cumulative, 2));
+            // Outstanding *principal* after this period — the breakdown already
+            // amortises it (subtracting only the principal portion), so use that
+            // rather than draining the full total-payable by each installment.
+            $balance = $row['balance'] ?? max(0, round($totalPayable - $cumulative, 2));
             $dueDate = $base ? $base->copy()->addMonths($i) : null;
 
             // How much of this installment the recorded payments cover.

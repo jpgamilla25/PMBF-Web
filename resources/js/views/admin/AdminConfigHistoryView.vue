@@ -21,6 +21,7 @@
               <option value="Contract of Service">Contract of Service</option>
               <option value="Permanent">Permanent</option>
               <option value="Non-Member">Non-Member</option>
+              <option value="PMBF Employee">PMBF Employee</option>
             </select>
           </div>
           <div class="col-md-2">
@@ -206,6 +207,7 @@ function typeBadge(type) {
     SC: 'bg-success',
     Permanent: 'bg-primary',
     'Non-Member': 'bg-secondary',
+    'PMBF Employee': 'bg-info',
   }
   return map[type] ?? 'bg-light text-dark'
 }

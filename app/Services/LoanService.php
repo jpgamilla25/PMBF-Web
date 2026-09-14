@@ -21,6 +21,13 @@ class LoanService
      */
     private function employmentType(User $user): string
     {
+        // A PMBF Employee has no PhilRice HRIS record at all, so asking
+        // api-center could only ever come back empty — read the local value
+        // and skip the call.
+        if (!$user->isHrisBacked()) {
+            return (string) $user->employment_type;
+        }
+
         return $this->fmisService->getEmploymentType($user->employee_id) ?? (string) $user->employment_type;
     }
 
@@ -32,6 +39,16 @@ class LoanService
     private function isPermanent(User $user): bool
     {
         return $this->employmentType($user) === 'Permanent';
+    }
+
+    /**
+     * Staff of the PMBF itself rather than of PhilRice. Lends under its own
+     * config scope ('pmbf_employee'), with no PhilRice payroll checks — see
+     * pmbfEmployeeLoanTypes() and checkEligibility().
+     */
+    private function isPmbfEmployee(User $user): bool
+    {
+        return $this->employmentType($user) === 'PMBF Employee';
     }
 
     /**
@@ -47,6 +64,12 @@ class LoanService
      */
     public function getAvailableLoanTypes(User $user): array
     {
+        // Resolved before any FMIS call — PMBF Employees have no record there
+        // to read, and their limits come entirely from config.
+        if ($this->isPmbfEmployee($user)) {
+            return $this->pmbfEmployeeLoanTypes($user);
+        }
+
         $scMax = $this->fmisService->calculateScMaxLoan($user->employee_id);
 
         if ($this->isSC($user)) {
@@ -126,6 +149,43 @@ class LoanService
     }
 
     /**
+     * Loan products offered to PMBF Employees.
+     *
+     * Which types are offered is configuration rather than code: this group is
+     * new and the business may still add or drop products. Anything not a valid
+     * Loan::TYPES value is ignored so a typo in the config cannot produce a
+     * loan type the loans table would reject. Salary Loan is excluded by
+     * default — a PMBF Employee draws no PhilRice salary to deduct from.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function pmbfEmployeeLoanTypes(User $user): array
+    {
+        $configured = collect(explode(',', (string) Configuration::getValue('pmbf_employee_loan_types', 'Multi-Purpose,Emergency')))
+            ->map(fn ($t) => trim($t))
+            ->filter()
+            ->filter(fn ($t) => in_array($t, Loan::TYPES, true))
+            ->unique()
+            ->values();
+
+        $max = Configuration::getDecimal('pmbf_employee_max_loan_amount', 30000);
+        $terms = $this->parseTerms(Configuration::getValue('pmbf_employee_available_terms', '3,6,12,18,24'));
+
+        $result = [];
+        foreach ($configured as $name) {
+            $result[$name] = [
+                'name' => $name,
+                'max_amount' => $max,
+                'available_terms' => $terms,
+                'interest_rate' => $this->getInterestRate($user, $name),
+                'interest_method' => $this->getInterestMethod($user),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * Parse comma-separated term string into sorted int array.
      */
     private function parseTerms(string $terms): array
@@ -172,9 +232,15 @@ class LoanService
 
         $typeConfig = $types[$loanType];
         $employmentType = $this->employmentType($user);
-        $contractEnd = $this->contractEnd($user);
-        $salary = $this->fmisService->getSalary($user->employee_id);
-        $payCheck = $this->fmisService->meetsMinimumPay($user->employee_id, $employmentType);
+        $isPmbfEmployee = $this->isPmbfEmployee($user);
+
+        // PMBF Employees are not on PhilRice payroll: FMIS holds no salary, no
+        // take-home pay and no contract for them, so none of these lookups
+        // would return anything. Their exposure is capped by the configured
+        // maximum instead of a pay ratio.
+        $contractEnd = $isPmbfEmployee ? null : $this->contractEnd($user);
+        $salary = $isPmbfEmployee ? null : $this->fmisService->getSalary($user->employee_id);
+        $payCheck = $isPmbfEmployee ? null : $this->fmisService->meetsMinimumPay($user->employee_id, $employmentType);
 
         // ── Check 0: Contract of Service term must fit remaining contract ──
         if ($this->isSC($user) && Configuration::getBool('sc_term_based_on_contract', true) && $contractEnd) {
@@ -213,8 +279,8 @@ class LoanService
             }
         }
 
-        // ── Check 1: Minimum pay requirement ──────────────────
-        if (!$payCheck['meets_requirement']) {
+        // ── Check 1: Minimum pay requirement (PhilRice payroll members only) ──
+        if (!$isPmbfEmployee && !$payCheck['meets_requirement']) {
             // Check for active exemption
             if ($this->exemptionService->hasActiveExemption($user, 'below_minimum_pay', $loanType)) {
                 // Exemption approved — allow to proceed
@@ -303,6 +369,7 @@ class LoanService
         [$scope, $default] = match (true) {
             $this->isSC($user) => ['sc', 1.50],
             $this->isPermanent($user) => ['permanent', 1.00],
+            $this->isPmbfEmployee($user) => ['pmbf_employee', 2.00],
             default => ['non_member', 2.00],
         };
 
@@ -347,6 +414,7 @@ class LoanService
         $scope = match (true) {
             $this->isSC($user) => 'sc',
             $this->isPermanent($user) => 'permanent',
+            $this->isPmbfEmployee($user) => 'pmbf_employee',
             default => 'non_member',
         };
 

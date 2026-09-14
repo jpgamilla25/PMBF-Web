@@ -32,7 +32,8 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $hris = $this->withHris && $this->employee_id
+        // PMBF Employees have no HRIS record to overlay — see User::isHrisBacked().
+        $hris = $this->withHris && $this->employee_id && $this->resource->isHrisBacked()
             ? app(HrisService::class)->findByEmployeeId($this->employee_id)
             : null;
 

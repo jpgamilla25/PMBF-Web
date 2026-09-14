@@ -44,24 +44,29 @@
 
       <!-- Role Summary Chips -->
       <div v-if="employees.length" class="d-flex flex-wrap gap-2 mt-3 pt-3 border-top">
-        <span
+        <!-- Filter chips are controls, so they are buttons: focusable,
+             operable by Enter/Space, and announced with their pressed state. -->
+        <button
           v-for="r in roleSummary"
           :key="r.role"
-          class="badge rounded-pill px-3 py-2"
-          :style="{ background: roleColor(r.role) + '20', color: roleColor(r.role), border: '1px solid ' + roleColor(r.role) + '40', cursor: 'pointer' }"
+          type="button"
+          class="badge rounded-pill px-3 py-2 role-chip"
+          :aria-pressed="filterRole === r.role"
+          :style="{ background: roleColor(r.role) + '20', color: roleColor(r.role), border: '1px solid ' + roleColor(r.role) + '40' }"
           @click="filterRole = filterRole === r.role ? '' : r.role"
         >
-          <i class="bi bi-circle-fill me-1" style="font-size:0.5rem;vertical-align:middle;"></i>
+          <i class="bi bi-circle-fill me-1" style="font-size:0.5rem;vertical-align:middle;" aria-hidden="true"></i>
           {{ roleLabel(r.role) }}: {{ r.count }}
-        </span>
-        <span
-          class="badge rounded-pill px-3 py-2"
-          style="background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;cursor:pointer;"
+        </button>
+        <button
+          type="button"
+          class="badge rounded-pill px-3 py-2 role-chip role-chip-plain"
+          :aria-pressed="filterRole === '__unregistered'"
           @click="filterRole = filterRole === '__unregistered' ? '' : '__unregistered'"
         >
-          <i class="bi bi-circle me-1" style="font-size:0.5rem;vertical-align:middle;"></i>
+          <i class="bi bi-circle me-1" style="font-size:0.5rem;vertical-align:middle;" aria-hidden="true"></i>
           Not Registered: {{ unregisteredCount }}
-        </span>
+        </button>
       </div>
     </AppCard>
 
@@ -161,7 +166,10 @@
             :class="{ selected: assignForm.role === r.value }"
             :style="assignForm.role === r.value ? { borderColor: r.color, background: r.color + '10' } : {}"
           >
-            <input v-model="assignForm.role" type="radio" :value="r.value" class="d-none" />
+            <!-- visually-hidden, not d-none: display:none takes the radio
+                 out of the tab order entirely, leaving the role picker
+                 unusable from a keyboard. -->
+            <input v-model="assignForm.role" type="radio" :value="r.value" name="assign-role" class="visually-hidden" />
             <div class="role-dot" :style="{ background: r.color }"></div>
             <div class="flex-grow-1">
               <div class="fw-semibold small">{{ r.label }}</div>
@@ -288,19 +296,39 @@ async function submitAssign() {
 </script>
 
 <style scoped>
+.role-chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.role-chip:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+.role-chip-plain {
+  background: var(--pmbf-surface-alt, #f1f5f9);
+  color: var(--pmbf-text-muted, #64748b);
+  border: 1px solid var(--pmbf-border, #e2e8f0);
+}
 .role-option {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--pmbf-border, #e2e8f0);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 .role-option:hover {
   border-color: #94a3b8;
-  background: #f8fafc;
+  background: var(--pmbf-surface-alt, #f8fafc);
+}
+/* The radio inside is visually hidden, so the label carries the focus ring. */
+.role-option:focus-within {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
 }
 .role-option.selected {
   font-weight: 600;

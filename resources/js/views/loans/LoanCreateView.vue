@@ -48,7 +48,21 @@
         <AppCard title="Loan Application">
           <AppLoading :loading="typesLoading" text="Loading loan types..." />
 
-          <form v-if="!typesLoading" @submit.prevent="submitApplication">
+          <!-- No products configured for this membership type. Without this
+               the form would render with an empty, unusable loan-type
+               dropdown. -->
+          <div v-if="!typesLoading && !loanTypeOptions.length" class="text-center py-4">
+            <i class="bi bi-info-circle fs-1 d-block mb-2 text-muted opacity-50"></i>
+            <p class="fw-semibold mb-1">No loan products are available for your membership type.</p>
+            <p class="text-muted small mb-3">
+              Please contact the PMBF office if you believe this is incorrect.
+            </p>
+            <router-link to="/dashboard" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </router-link>
+          </div>
+
+          <form v-if="!typesLoading && loanTypeOptions.length" @submit.prevent="submitApplication">
             <AppInput v-model="form.loan_type" label="Loan Type" type="select" :options="loanTypeOptions" :error="errors.loan_type" required @change="onTypeChange" />
 
             <div v-if="selectedTypeInfo" class="alert alert-light small mt-2 mb-3">

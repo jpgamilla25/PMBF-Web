@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StorePmbfEmployeeRequest;
+use App\Http\Requests\UpdatePmbfEmployeeRequest;
 use App\Http\Requests\StorePaymentRequest;
 use App\Http\Resources\ConfigurationResource;
 use App\Http\Resources\LoanResource;
@@ -14,6 +16,7 @@ use App\Models\Loan;
 use App\Models\Payment;
 use App\Models\ShareCapital;
 use App\Models\User;
+use App\Services\PmbfEmployeeService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,9 +58,47 @@ class AdminController extends Controller
             $query->where('department', $request->input('department'));
         }
 
-        $members = $query->latest()->paginate($request->input('per_page', 15));
+        $this->applyMemberSort($query, $request);
+
+        $members = $query->paginate($request->input('per_page', 15));
 
         return $this->paginated($members, UserResource::class);
+    }
+
+    /**
+     * Order the members list.
+     *
+     * Whitelisted rather than passed through, so a crafted `sort` parameter
+     * cannot reach a column the list was never meant to order by. Falls back to
+     * newest-first, which is what the list did before sorting existed.
+     */
+    private function applyMemberSort(\Illuminate\Database\Eloquent\Builder $query, Request $request): void
+    {
+        $sortable = [
+            'employee_id' => 'employee_id',
+            'name' => 'last_name',
+            'employment_type' => 'employment_type',
+            'department' => 'department',
+            'base_pay' => 'base_pay',
+            'status' => 'status',
+        ];
+
+        $column = $sortable[$request->input('sort')] ?? null;
+
+        if (!$column) {
+            $query->latest();
+
+            return;
+        }
+
+        $direction = strtolower((string) $request->input('direction')) === 'desc' ? 'desc' : 'asc';
+
+        $query->orderBy($column, $direction);
+
+        // Surname alone puts siblings in arbitrary order.
+        if ($column === 'last_name') {
+            $query->orderBy('first_name', $direction);
+        }
     }
 
     /**
@@ -74,6 +115,91 @@ class AdminController extends Controller
         );
 
         return $this->success($data, 'Member details retrieved.');
+    }
+
+    /**
+     * Create a member employed by PMBF itself rather than by PhilRice — a
+     * PMBF Employee.
+     *
+     * Everyone else reaches the users table through PhilRice HRIS, either by
+     * registering against their employee ID or by having a role assigned. PMBF
+     * staff have no HRIS record to look up, so this is the only way they can
+     * be added.
+     */
+    public function storeMember(
+        StorePmbfEmployeeRequest $request,
+        PmbfEmployeeService $staff
+    ): JsonResponse {
+        $user = $staff->create($request->validated());
+
+        ActivityLog::record([
+            'admin_id' => $request->user()->id,
+            'action' => 'member_created',
+            'subject' => $user->employee_id,
+            'description' => $user->full_name,
+            'old_value' => null,
+            'new_value' => $user->email,
+            'employment_type' => $user->employment_type,
+        ]);
+
+        return $this->success(
+            new UserResource($user),
+            "PMBF Employee created. Member ID: {$user->employee_id}",
+            201
+        );
+    }
+
+    /**
+     * Correct an admin-entered PMBF Employee.
+     *
+     * Restricted to members with no HRIS record. Everyone else mirrors PhilRice
+     * HRIS, where the nightly sync is authoritative — letting an admin edit
+     * those fields here would only produce changes the next sync silently
+     * reverts.
+     */
+    public function updateMember(
+        UpdatePmbfEmployeeRequest $request,
+        User $user,
+        PmbfEmployeeService $staff
+    ): JsonResponse {
+        if ($user->isHrisBacked()) {
+            return $this->error(
+                'This member\'s details come from PhilRice HRIS and cannot be edited here. '
+                . 'Update them in HRIS, then use Sync to refresh.',
+                422
+            );
+        }
+
+        $changes = $staff->update($user, $request->validated());
+
+        if ($changes) {
+            ActivityLog::record([
+                'admin_id' => $request->user()->id,
+                'action' => 'member_updated',
+                'subject' => $user->employee_id,
+                'description' => $user->full_name,
+                'old_value' => $this->describeChanges($changes, 'from'),
+                'new_value' => $this->describeChanges($changes, 'to'),
+                'employment_type' => $user->employment_type,
+            ]);
+        }
+
+        return $this->success(
+            new UserResource($user->fresh()),
+            $changes ? 'Member updated.' : 'No changes to save.'
+        );
+    }
+
+    /**
+     * Flatten a change set into one audit-trail line, e.g. "email: a@b.com".
+     *
+     * @param  array<string, array{from: mixed, to: mixed}>  $changes
+     */
+    private function describeChanges(array $changes, string $side): string
+    {
+        return collect($changes)
+            ->map(fn ($change, $field) => $field . ': ' . ($change[$side] ?? '—'))
+            ->implode(', ');
     }
 
     /**

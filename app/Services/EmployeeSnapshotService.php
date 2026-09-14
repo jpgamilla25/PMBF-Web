@@ -34,9 +34,7 @@ class EmployeeSnapshotService
      */
     public function refresh(User $user): array
     {
-        $employee = $user->employee_id
-            ? $this->hris->findByEmployeeId($user->employee_id)
-            : null;
+        $employee = $this->lookup($user);
 
         if (!$employee) {
             // Could be an outage or a genuinely unknown employee. Either way
@@ -65,13 +63,27 @@ class EmployeeSnapshotService
      */
     public function refreshPreview(User $user): array
     {
-        $employee = $user->employee_id
-            ? $this->hris->findByEmployeeId($user->employee_id)
-            : null;
+        $employee = $this->lookup($user);
 
         return $employee
             ? ['available' => true, 'changes' => $this->diff($user, $employee)]
             : ['available' => false, 'changes' => []];
+    }
+
+    /**
+     * The HRIS record behind this member, if there is one to find.
+     *
+     * PMBF Employees are created by an admin and carry a locally-issued member
+     * ID, so PhilRice HRIS has nothing to return for them — skip the call
+     * rather than pay the api-center timeout once per member per night.
+     */
+    private function lookup(User $user): ?HrisEmployee
+    {
+        if (!$user->employee_id || !$user->isHrisBacked()) {
+            return null;
+        }
+
+        return $this->hris->findByEmployeeId($user->employee_id);
     }
 
     /**

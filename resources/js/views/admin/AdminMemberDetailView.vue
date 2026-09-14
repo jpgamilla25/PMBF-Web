@@ -1,10 +1,15 @@
 <template>
   <AppLayout>
-    <div class="d-flex align-items-center mb-4">
-      <router-link to="/admin/members" class="btn btn-outline-secondary btn-sm me-3">
-        <i class="bi bi-arrow-left me-1"></i>Back
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-4">
+      <router-link to="/admin/members" class="btn btn-outline-secondary btn-sm me-2">
+        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back
       </router-link>
-      <h4 class="fw-bold mb-0">Member Details</h4>
+      <h4 class="fw-bold mb-0 me-auto">Member Details</h4>
+      <!-- Only locally-created members are editable here; PhilRice HRIS owns
+           everyone else, and the nightly sync would revert changes anyway. -->
+      <AppButton v-if="isEditable" variant="outline-primary" size="sm" @click="showEdit = true">
+        <i class="bi bi-pencil me-1" aria-hidden="true"></i>Edit
+      </AppButton>
     </div>
 
     <AppLoading :loading="loading" text="Loading member details..." />
@@ -28,10 +33,7 @@
             <ul class="list-group list-group-flush small">
               <li class="list-group-item d-flex justify-content-between px-0">
                 <span class="text-muted">Employment Type</span>
-                <AppBadge
-                  :variant="member.employment_type === 'permanent' ? 'success' : 'info'"
-                  :text="member.employment_type ?? '-'"
-                />
+                <AppBadge :variant="typeVariant" :text="member.employment_type ?? '-'" />
               </li>
               <li class="list-group-item d-flex justify-content-between px-0">
                 <span class="text-muted">Position</span>
@@ -51,11 +53,13 @@
               </li>
               <li class="list-group-item d-flex justify-content-between px-0">
                 <span class="text-muted">Base Pay</span>
-                <span class="fw-medium">&#8369;{{ Number(member.base_pay ?? 0).toLocaleString() }}</span>
+                <span v-if="!hasPayroll" class="text-muted" title="Not on PhilRice payroll">&mdash;</span>
+                <span v-else class="fw-medium">&#8369;{{ Number(member.base_pay ?? 0).toLocaleString() }}</span>
               </li>
               <li class="list-group-item d-flex justify-content-between px-0">
                 <span class="text-muted">Take-Home Pay</span>
-                <span class="fw-medium">&#8369;{{ Number(member.take_home_pay ?? 0).toLocaleString() }}</span>
+                <span v-if="!hasPayroll" class="text-muted" title="Not on PhilRice payroll">&mdash;</span>
+                <span v-else class="fw-medium">&#8369;{{ Number(member.take_home_pay ?? 0).toLocaleString() }}</span>
               </li>
             </ul>
           </AppCard>
@@ -104,12 +108,19 @@
           </AppCard>
         </div>
       </div>
+
+      <PmbfEmployeeModal
+        :show="showEdit"
+        :member="member"
+        @close="showEdit = false"
+        @saved="onSaved"
+      />
     </template>
   </AppLayout>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLoading } from '@/composables/useLoading'
 import admin from '@/services/admin'
@@ -117,13 +128,40 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppTable from '@/components/ui/AppTable.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import PmbfEmployeeModal from '@/components/admin/PmbfEmployeeModal.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 import PaymentStatementCard from '@/components/member/PaymentStatementCard.vue'
 
+const PMBF_EMPLOYEE = 'PMBF Employee'
+
 const route = useRoute()
 const { loading, withLoading } = useLoading()
 const member = ref(null)
+const showEdit = ref(false)
+
+const isEditable = computed(() => member.value?.employment_type === PMBF_EMPLOYEE)
+
+/** Only PhilRice employment types draw a PhilRice salary. */
+const hasPayroll = computed(
+  () => !!member.value?.employment_type && member.value.employment_type !== PMBF_EMPLOYEE
+)
+
+const typeVariants = {
+  Permanent: 'success',
+  'Contract of Service': 'warning',
+  'Non-Member': 'secondary',
+  [PMBF_EMPLOYEE]: 'info',
+}
+
+const typeVariant = computed(() => typeVariants[member.value?.employment_type] ?? 'secondary')
+
+function onSaved({ member: updated }) {
+  // Keep the page on the record the admin just corrected.
+  member.value = { ...member.value, ...updated }
+  showEdit.value = false
+}
 
 const loanColumns = [
   { key: 'loan_type', label: 'Type' },

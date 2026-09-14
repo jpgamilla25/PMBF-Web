@@ -17,6 +17,23 @@ export default {
     return api.get(`/admin/members/${id}`)
   },
 
+  /**
+   * Create a PMBF Employee — staff of the fund itself rather than of PhilRice.
+   * Every other member arrives via PhilRice HRIS, so this is the only manual
+   * creation path. The member ID is issued by the server.
+   */
+  createMember(data) {
+    return api.post('/admin/members', data)
+  },
+
+  /**
+   * Correct a PMBF Employee. Rejected by the server for HRIS-sourced members,
+   * whose details the nightly sync owns.
+   */
+  updateMember(id, data) {
+    return api.patch(`/admin/members/${id}`, data)
+  },
+
   getLoans(params = {}) {
     return api.get('/admin/loans', { params })
   },

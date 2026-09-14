@@ -578,6 +578,18 @@ class AuthController extends Controller
     public function syncFromHris(Request $request, EmployeeSnapshotService $snapshots): JsonResponse
     {
         $user = $request->user();
+
+        // PMBF Employees hold no PhilRice HRIS record, so a failed lookup here
+        // is expected rather than an outage — say so instead of blaming the
+        // api-center.
+        if (!$user->isHrisBacked()) {
+            return $this->error(
+                'Your membership is not linked to a PhilRice HRIS employee record, so there is nothing to '
+                . 'sync. Please contact the PMBF office to have your details updated.',
+                422
+            );
+        }
+
         $result = $snapshots->refresh($user);
 
         if (!$result['available']) {

@@ -46,8 +46,9 @@
             <span class="d-none d-lg-inline" style="font-size:0.8rem;opacity:.85;">Budget</span>
           </a>
 
-          <!-- Refresh my HRIS details (pay, position, contract dates) -->
-          <div class="me-2">
+          <!-- Refresh my HRIS details (pay, position, contract dates). PMBF
+               Employees have no PhilRice HRIS record, so nothing to sync. -->
+          <div v-if="!authStore.isPmbfEmployee" class="me-2">
             <HrisSyncButton />
           </div>
 
@@ -287,6 +288,7 @@ const memberTypeOptions = [
   { value: 'Permanent', label: 'Permanent', short: 'Perm', icon: 'bi bi-building', color: 'ctx-perm' },
   { value: 'Contract of Service', label: 'COS-Enrolled', short: 'Enrolled', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
   { value: 'Non-Member', label: 'COS-Non Enrolled', short: 'Non-Enr', icon: 'bi bi-person-dash', color: 'ctx-non' },
+  { value: 'PMBF Employee', label: 'PMBF Employee', short: 'PMBF', icon: 'bi bi-person-badge', color: 'ctx-pmbf' },
 ]
 
 // Dependents, Claims and Benefits are member benefits available only to Permanent employees.
@@ -404,6 +406,10 @@ async function handleLogout() {
 
 .pmbf-main {
   flex: 1;
+  /* A flex item defaults to min-width:auto, which refuses to shrink below its
+     content's intrinsic width — one wide child then stretches the whole admin
+     area past the viewport and the page scrolls sideways. */
+  min-width: 0;
   margin-left: var(--pmbf-sidebar-width);
   background: #f3f4f6;
   min-height: calc(100vh - var(--pmbf-navbar-height));
@@ -474,6 +480,7 @@ async function handleLogout() {
 .type-btn.active.ctx-perm { background: #059669; color: #fff; }
 .type-btn.active.ctx-sc { background: #d97706; color: #fff; }
 .type-btn.active.ctx-non { background: #6b7280; color: #fff; }
+.type-btn.active.ctx-pmbf { background: #7c3aed; color: #fff; }
 
 /* ─── Admin Context Banner ─── */
 .admin-context-bar {
@@ -536,6 +543,12 @@ async function handleLogout() {
 .context-btn.active.ctx-non {
   background: #6b7280;
   border-color: #6b7280;
+  color: #fff;
+}
+
+.context-btn.active.ctx-pmbf {
+  background: #7c3aed;
+  border-color: #7c3aed;
   color: #fff;
 }
 

@@ -8,12 +8,14 @@
       </div>
 
       <div class="row g-4 justify-content-center">
-        <div class="col-md-4" v-for="opt in options" :key="opt.value">
-          <div
-            class="type-card"
-            :class="opt.cardClass"
-            @click="selectType(opt.value)"
-          >
+        <div class="col-sm-6 col-lg-3" v-for="opt in options" :key="opt.value">
+          <!-- The card stays a div (it holds a heading and a paragraph, which
+               a <button> may not contain) and the Manage button is stretched
+               over it. That makes the whole card clickable while the control is
+               a real, focusable, Enter/Space-operable button — as plain divs
+               these could not be reached from a keyboard at all, and they gate
+               the entire admin area. -->
+          <div class="type-card" :class="opt.cardClass">
             <div class="type-icon-wrap" :class="opt.iconBg">
               <i :class="opt.icon"></i>
             </div>
@@ -25,9 +27,15 @@
               </span>
             </div>
             <div class="mt-3">
-              <span class="btn btn-sm" :class="opt.btnClass">
-                Manage <i class="bi bi-arrow-right ms-1"></i>
-              </span>
+              <button
+                type="button"
+                class="btn btn-sm stretched-link"
+                :class="opt.btnClass"
+                :aria-label="`Manage ${opt.label}`"
+                @click="selectType(opt.value)"
+              >
+                Manage <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -82,6 +90,16 @@ const options = [
     btnClass: 'btn-secondary',
     count: (s) => s?.by_type?.['Non-Member'] ?? 0,
   },
+  {
+    value: 'PMBF Employee',
+    label: 'PMBF Employee',
+    description: 'Manage staff employed by PMBF itself rather than PhilRice — added by hand, no HRIS record',
+    icon: 'bi bi-person-badge fs-1',
+    iconBg: 'icon-purple',
+    cardClass: 'card-purple',
+    btnClass: 'btn-primary',
+    count: (s) => s?.by_type?.['PMBF Employee'] ?? 0,
+  },
 ]
 
 function selectType(type) {
@@ -116,19 +134,30 @@ onMounted(async () => {
 }
 
 .select-type-container {
-  max-width: 900px;
+  max-width: 1120px;
   width: 100%;
 }
 
 .type-card {
-  background: #fff;
+  /* Token-driven so the card follows the active theme — a hardcoded #fff
+     rendered light-on-light in dark mode. */
+  background: var(--pmbf-surface, #fff);
+  color: var(--pmbf-text, inherit);
   border-radius: 16px;
-  padding: 30px 24px;
+  padding: 26px 20px;
   text-align: center;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 3px solid transparent;
   height: 100%;
+  /* Anchors the stretched Manage button to the whole card. */
+  position: relative;
+}
+
+/* The focus ring belongs on the card, since the button covers it. */
+.type-card:has(:focus-visible) {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
 }
 
 .type-card:hover {
@@ -136,9 +165,15 @@ onMounted(async () => {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .type-card { transition: none; }
+  .type-card:hover { transform: none; }
+}
+
 .type-card.card-green:hover { border-color: #059669; }
 .type-card.card-orange:hover { border-color: #d97706; }
 .type-card.card-gray:hover { border-color: #6b7280; }
+.type-card.card-purple:hover { border-color: #7c3aed; }
 
 .type-icon-wrap {
   width: 80px;
@@ -154,4 +189,5 @@ onMounted(async () => {
 .icon-green { background: linear-gradient(135deg, #059669, #10b981); }
 .icon-orange { background: linear-gradient(135deg, #d97706, #f59e0b); }
 .icon-gray { background: linear-gradient(135deg, #4b5563, #6b7280); }
+.icon-purple { background: linear-gradient(135deg, #6d28d9, #8b5cf6); }
 </style>

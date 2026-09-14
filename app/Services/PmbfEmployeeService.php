@@ -89,16 +89,23 @@ class PmbfEmployeeService
     }
 
     /**
-     * The next member ID in the current year's sequence, e.g. PE-2026-0007.
+     * The next member ID in the 00 series, e.g. 00-0004.
+     *
+     * The whole series is scanned, not just the PMBF Employees in it: seeded
+     * staff accounts already occupy 00-0001 and 00-0002, and employee_id is
+     * unique, so the sequence has to continue past whatever is already there.
      *
      * Must run inside a transaction — the row lock is what stops two
      * concurrent creates from reading the same highest number.
      */
     public function nextMemberId(): string
     {
-        $prefix = User::PMBF_EMPLOYEE_ID_PREFIX . '-' . now()->year . '-';
+        $digits = User::PMBF_EMPLOYEE_ID_DIGITS;
+        $prefix = User::PMBF_EMPLOYEE_ID_SERIES . '-';
 
-        $highest = User::where('employee_id', 'LIKE', $prefix . '%')
+        // Underscores match exactly one character each, so a malformed id in
+        // the series cannot be read as the highest number.
+        $highest = User::where('employee_id', 'LIKE', $prefix . str_repeat('_', $digits))
             ->lockForUpdate()
             ->orderByDesc('employee_id')
             ->value('employee_id');
@@ -107,6 +114,12 @@ class PmbfEmployeeService
             ? (int) Str::afterLast($highest, '-') + 1
             : 1;
 
-        return $prefix . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        if ($sequence >= 10 ** $digits) {
+            throw new \RuntimeException(
+                "The {$prefix}series is full ({$digits} digits). Widen PMBF_EMPLOYEE_ID_DIGITS before adding more."
+            );
+        }
+
+        return $prefix . str_pad((string) $sequence, $digits, '0', STR_PAD_LEFT);
     }
 }

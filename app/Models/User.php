@@ -12,13 +12,18 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
-     * Prefix for locally-issued PMBF Employee member IDs, e.g. PE-2026-0001.
+     * Series for locally-issued PMBF Employee member IDs, e.g. 00-0004.
      *
      * PMBF Employees are the one employment type that does not come from
      * PhilRice HRIS — they work for the fund itself — so an admin enters them
-     * in Member Management and the system issues the ID itself.
+     * in Member Management and the system issues the ID itself. They follow the
+     * same NN-NNNN shape as a PhilRice employee ID, under the reserved 00
+     * series, so they read consistently everywhere an employee ID is shown.
      */
-    public const PMBF_EMPLOYEE_ID_PREFIX = 'PE';
+    public const PMBF_EMPLOYEE_ID_SERIES = '00';
+
+    /** Digits after the dash, e.g. 00-0004. */
+    public const PMBF_EMPLOYEE_ID_DIGITS = 4;
 
     protected $fillable = [
         'employee_id',

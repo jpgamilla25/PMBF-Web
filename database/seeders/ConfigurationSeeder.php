@@ -10,6 +10,19 @@ class ConfigurationSeeder extends Seeder
     public function run(): void
     {
         $configs = [
+            // ── Loan Applications ─────────────────────────────
+            // The master switch for the whole fund: nothing about a member's
+            // type or eligibility overrides it, so it is deliberately not
+            // scoped to one member type.
+            [
+                'key' => 'loan_applications_open',
+                'value' => '1',
+                'type' => 'boolean',
+                'group' => 'loan_applications',
+                'description' => 'Accept new loan applications (applies to every member type)',
+                'sort_order' => 1,
+            ],
+
             // ── Interest Rates ────────────────────────────────
             [
                 'key' => 'interest_rate_sc',

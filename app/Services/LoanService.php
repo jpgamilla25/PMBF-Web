@@ -6,14 +6,33 @@ use App\Models\Configuration;
 use App\Models\Loan;
 use App\Models\ShareCapital;
 use App\Models\User;
+use Illuminate\Validation\ValidationException;
 
 class LoanService
 {
+    /**
+     * Shown wherever a closed application is refused, so the member reads the
+     * same sentence on the apply screen, on submit and on a renewal.
+     */
+    public const APPLICATIONS_CLOSED_MESSAGE =
+        'Loan applications are temporarily closed. Please contact the PMBF office for details.';
+
     public function __construct(
         private readonly FmisService $fmisService,
         private readonly ExemptionService $exemptionService,
         private readonly LoanNotificationService $notificationService,
     ) {}
+
+    /**
+     * Whether the fund is accepting new applications at all.
+     *
+     * A fund-wide switch that sits above every eligibility rule — when it is
+     * off, no member type can apply and no loan can be renewed.
+     */
+    public function applicationsOpen(): bool
+    {
+        return Configuration::getBool('loan_applications_open', true);
+    }
 
     /**
      * Effective employment type — sourced from HRIS (with local fallback) so the
@@ -218,6 +237,16 @@ class LoanService
      */
     public function checkEligibility(User $user, string $loanType, ?float $requestedAmount = null, ?int $requestedTerm = null): array
     {
+        if (!$this->applicationsOpen()) {
+            return [
+                'eligible' => false,
+                'message' => self::APPLICATIONS_CLOSED_MESSAGE,
+                'can_request_exemption' => false,
+                'exemption_type' => null,
+                'details' => ['applications_open' => false],
+            ];
+        }
+
         $types = $this->getAvailableLoanTypes($user);
 
         if (!isset($types[$loanType])) {
@@ -576,6 +605,15 @@ class LoanService
      */
     public function create(User $user, array $data): Loan
     {
+        // The last line of defence. Every path that creates a loan funnels
+        // through here — application, OTP/PIN confirmation and renewal — so the
+        // switch cannot be slipped past by calling a later endpoint directly.
+        if (!$this->applicationsOpen()) {
+            throw ValidationException::withMessages([
+                'loan_applications_open' => self::APPLICATIONS_CLOSED_MESSAGE,
+            ]);
+        }
+
         // Rate is resolved for THIS loan type, so a per-type override in config
         // is what actually gets stored on the loan. Round to the column's 4-dp
         // precision up front (a per-annum rate like 8/12 is non-terminating), so

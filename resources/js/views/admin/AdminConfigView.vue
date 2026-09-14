@@ -290,6 +290,7 @@ const groupVisibility = {
   interest_rates: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
 
   // Common groups — always visible
+  loan_applications: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
   approval_workflow: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
   dependents_coverage: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
   notifications: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
@@ -425,6 +426,7 @@ function onKeydown(e) {
 
 // ── Grouping, ordering and labels ──────────────────────────
 const groupIcons = {
+  loan_applications: 'bi bi-power',
   interest_rates: 'bi bi-percent',
   sc_loan_rules: 'bi bi-file-earmark-text',
   permanent_loan_rules: 'bi bi-building',
@@ -438,6 +440,7 @@ const groupIcons = {
 }
 
 const groupNames = {
+  loan_applications: 'Loan Applications',
   interest_rates: 'Interest Rates',
   sc_loan_rules: 'COS-Enrolled Loan Rules',
   permanent_loan_rules: 'Permanent Loan Rules',
@@ -452,6 +455,8 @@ const groupNames = {
 
 /** One line of orientation per section, so a heading is not the only context. */
 const groupBlurbs = {
+  loan_applications:
+    'Whether members can submit new applications at all. Turning this off also blocks renewals, for every member type.',
   interest_rates: 'What members are charged, and how the interest is computed.',
   permanent_loan_rules: 'Borrowing limits and terms for permanent employees.',
   sc_loan_rules: 'Borrowing limits and terms for enrolled Contract of Service employees.',
@@ -473,6 +478,7 @@ const CLUSTERS = [
   {
     name: 'Lending',
     groups: [
+      'loan_applications',
       'interest_rates',
       'permanent_loan_rules',
       'sc_loan_rules',

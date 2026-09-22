@@ -62,21 +62,26 @@ class PaymentImportController extends Controller
             $row++;
         }
 
-        $lastRow = max($row - 1, 1);
+        $lastRow = $row - 1;
 
-        // Reference columns shaded, entry columns left white, so it is obvious
-        // at a glance which cells are meant to be typed in.
         $sheet->getStyle('A1:L1')->getFont()->setBold(true);
         $sheet->getStyle('A1:L1')->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setRGB('D9E2F3');
-        $sheet->getStyle("A2:F{$lastRow}")->getFill()
-            ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()->setRGB('F2F2F2');
         $sheet->getStyle('A1:L1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle("E2:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
-        $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('yyyy-mm-dd');
         $sheet->freezePane('A2');
+
+        // With no outstanding loans there is no data range to style, and
+        // "A2:F1" would be an invalid range rather than an empty one.
+        if ($lastRow >= 2) {
+            // Reference columns shaded, entry columns left white, so it is
+            // obvious at a glance which cells are meant to be typed in.
+            $sheet->getStyle("A2:F{$lastRow}")->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('F2F2F2');
+            $sheet->getStyle("E2:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        }
 
         foreach (range('A', 'L') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);

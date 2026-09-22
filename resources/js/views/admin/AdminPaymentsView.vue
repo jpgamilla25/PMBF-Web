@@ -264,51 +264,13 @@
       @close="closeFmisModal"
     />
 
-    <!-- Import Payments Modal -->
-    <AppModal :show="showImportModal" title="Import Payments from CSV" @close="closeImportModal">
-      <div class="mb-3">
-        <p class="text-muted small">
-          Upload a CSV file with payment records. The system will match employees by ID and find their released loans.
-        </p>
-        <a href="#" class="btn btn-sm btn-outline-primary mb-3" @click.prevent="downloadTemplate">
-          <i class="bi bi-download me-1"></i>Download CSV Template
-        </a>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label fw-semibold">CSV File *</label>
-        <input
-          ref="importFileInput"
-          type="file"
-          class="form-control"
-          accept=".csv,.txt,.xlsx,.xls"
-          @change="onImportFileChange"
-        />
-      </div>
-
-      <!-- Import Results -->
-      <div v-if="importResult" class="mt-3">
-        <div v-if="importResult.imported > 0" class="alert alert-success small">
-          <i class="bi bi-check-circle me-1"></i>
-          {{ importResult.imported }} payments imported successfully.
-        </div>
-        <div v-if="importResult.failed > 0" class="alert alert-danger small">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          {{ importResult.failed }} rows failed:
-          <ul class="mb-0 mt-1">
-            <li v-for="err in importResult.errors?.slice(0, 10)" :key="err.row">
-              Row {{ err.row }} ({{ err.employee_id }}): {{ err.error }}
-            </li>
-            <li v-if="importResult.errors?.length > 10">...and {{ importResult.errors.length - 10 }} more</li>
-          </ul>
-        </div>
-      </div>
+    <!-- Bulk Payments — worklist out, preview, then post. The flow lives in
+         BulkPaymentImport so this modal and the Import Data page stay in step. -->
+    <AppModal :show="showImportModal" title="Bulk Payments" size="xl" @close="closeImportModal">
+      <BulkPaymentImport embedded @posted="fetch(1)" />
 
       <template #footer>
         <AppButton variant="secondary" @click="closeImportModal">Close</AppButton>
-        <AppButton variant="success" :loading="importing" :disabled="!importFile" @click="handleImport">
-          <i class="bi bi-upload me-1"></i>Import
-        </AppButton>
       </template>
     </AppModal>
   </AppLayout>
@@ -328,6 +290,7 @@ import AppTable from '@/components/ui/AppTable.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
+import BulkPaymentImport from '@/components/admin/BulkPaymentImport.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 import AppSearchSelect from '@/components/ui/AppSearchSelect.vue'
 import MemberPaymentsModal from '@/components/ui/MemberPaymentsModal.vue'
@@ -541,59 +504,12 @@ async function handleSubmit() {
 }
 
 // ─── Import ──────────────────────────────────────────────
+// The upload, preview and posting all live inside BulkPaymentImport; this
+// view only owns whether the modal is open.
 const showImportModal = ref(false)
-const importFile = ref(null)
-const importFileInput = ref(null)
-const importing = ref(false)
-const importResult = ref(null)
-
-function onImportFileChange(e) {
-  importFile.value = e.target.files[0] ?? null
-  importResult.value = null
-}
 
 function closeImportModal() {
   showImportModal.value = false
-  importFile.value = null
-  importResult.value = null
-  if (importFileInput.value) importFileInput.value.value = ''
-}
-
-async function downloadTemplate() {
-  try {
-    const response = await admin.downloadPaymentTemplate()
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', 'payment_import_template.csv')
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.URL.revokeObjectURL(url)
-  } catch {
-    notification.error('Failed to download template.')
-  }
-}
-
-async function handleImport() {
-  if (!importFile.value) return
-  importing.value = true
-  importResult.value = null
-  try {
-    const formData = new FormData()
-    formData.append('file', importFile.value)
-    const { data } = await admin.importPayments(formData)
-    importResult.value = data.data ?? data
-    if (importResult.value.imported > 0) {
-      fetch(1) // refresh table
-    }
-  } catch (e) {
-    const msg = e.response?.data?.message || 'Import failed.'
-    notification.error(msg)
-    importResult.value = null
-  } finally {
-    importing.value = false
-  }
 }
 
 // ─── FMIS Payroll Deductions ───────────────────────────────

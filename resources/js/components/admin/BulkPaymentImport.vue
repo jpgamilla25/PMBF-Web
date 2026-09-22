@@ -1,15 +1,16 @@
 <template>
-  <AppCard class="mb-4">
-    <template #header>
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <h5 class="mb-0 fw-semibold">
-          <i class="bi bi-cash-stack me-2 text-primary"></i>Bulk Payments
-        </h5>
-        <AppButton variant="outline-primary" size="sm" :loading="downloading" @click="downloadWorklist">
-          <i class="bi bi-download me-1"></i>Download Worklist
-        </AppButton>
-      </div>
-    </template>
+  <!-- Inside the Payments modal the card chrome and title would be doubled up,
+       so embedded mode drops to a plain wrapper. -->
+  <component :is="embedded ? 'div' : AppCard" :class="embedded ? '' : 'mb-4'">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <h5 v-if="!embedded" class="mb-0 fw-semibold">
+        <i class="bi bi-cash-stack me-2 text-primary"></i>Bulk Payments
+      </h5>
+      <span v-else></span>
+      <AppButton variant="outline-primary" size="sm" :loading="downloading" @click="downloadWorklist">
+        <i class="bi bi-download me-1"></i>Download Worklist
+      </AppButton>
+    </div>
 
     <p class="text-muted small mb-3">
       Download the worklist — every loan with a balance, one row each, already carrying its reference.
@@ -210,7 +211,7 @@
         </table>
       </div>
     </div>
-  </AppCard>
+  </component>
 </template>
 
 <script setup>
@@ -227,6 +228,14 @@ import admin from '@/services/admin'
 import { useConfirm } from '@/composables/useConfirm'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+
+defineProps({
+  /** Rendered inside the Payments page modal rather than as its own card. */
+  embedded: { type: Boolean, default: false },
+})
+
+// Tells a host view (the Payments table) that the ledger changed.
+const emit = defineEmits(['posted'])
 
 const { confirm } = useConfirm()
 
@@ -350,6 +359,7 @@ async function commit() {
     file.value = null
     forceReimport.value = false
     await loadBatches()
+    emit('posted')
   } catch (error) {
     errorMessage.value = error.response?.data?.message || 'Posting failed. Nothing was saved.'
   } finally {
@@ -381,6 +391,7 @@ async function rollback(batch) {
     const response = await admin.rollbackPaymentImport(batch.id)
     committed.value = response.data.message
     await loadBatches()
+    emit('posted')
   } catch (error) {
     errorMessage.value = error.response?.data?.message || 'Could not undo that batch.'
   }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Benefit;
-use App\Models\Loan;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -14,95 +13,6 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class ImportController extends Controller
 {
     use ApiResponse;
-
-    /**
-     * Import existing loans from CSV file.
-     */
-    public function importLoans(Request $request): JsonResponse
-    {
-        $request->validate([
-            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240',
-        ]);
-
-        $file = $request->file('file');
-        $rows = $this->parseCsv($file->getRealPath());
-
-        if (empty($rows)) {
-            return $this->error('The file is empty or could not be parsed.');
-        }
-
-        $requiredHeaders = ['employee_id', 'loan_type', 'amount', 'interest_rate', 'term_months', 'monthly_amortization'];
-        $headers = array_map(fn($h) => strtolower(trim($h)), array_keys($rows[0]));
-
-        foreach ($requiredHeaders as $header) {
-            if (!in_array($header, $headers)) {
-                return $this->error("Missing required column: {$header}. Please use the provided template.");
-            }
-        }
-
-        $successCount = 0;
-        $errors = [];
-
-        foreach ($rows as $index => $row) {
-            $rowNumber = $index + 2; // +2 because row 1 is header, data starts at row 2
-            $row = array_map('trim', $row);
-
-            $employeeId = $row['employee_id'] ?? '';
-            if (empty($employeeId)) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Employee ID is required.'];
-                continue;
-            }
-
-            $user = User::where('employee_id', $employeeId)->first();
-            if (!$user) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => "Employee not found: {$employeeId}"];
-                continue;
-            }
-
-            $amount = (float) ($row['amount'] ?? 0);
-            $interestRate = (float) ($row['interest_rate'] ?? 0);
-            $termMonths = (int) ($row['term_months'] ?? 0);
-            $monthlyAmortization = (float) ($row['monthly_amortization'] ?? 0);
-
-            if ($amount <= 0) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Amount must be greater than zero.'];
-                continue;
-            }
-
-            if ($termMonths <= 0) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Term months must be greater than zero.'];
-                continue;
-            }
-
-            if ($monthlyAmortization <= 0) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Monthly amortization must be greater than zero.'];
-                continue;
-            }
-
-            try {
-                Loan::create([
-                    'user_id' => $user->id,
-                    'loan_type' => $row['loan_type'] ?? 'Salary Loan',
-                    'amount' => $amount,
-                    'interest_rate' => $interestRate,
-                    'term_months' => $termMonths,
-                    'monthly_amortization' => $monthlyAmortization,
-                    'status' => $row['status'] ?? 'released',
-                    'applied_at' => !empty($row['applied_at']) ? $row['applied_at'] : now(),
-                    'remarks' => $row['remarks'] ?? null,
-                ]);
-                $successCount++;
-            } catch (\Exception $e) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Failed to create loan: ' . $e->getMessage()];
-            }
-        }
-
-        return $this->success([
-            'imported' => $successCount,
-            'failed' => count($errors),
-            'errors' => $errors,
-        ], "{$successCount} loans imported successfully." . (count($errors) > 0 ? " " . count($errors) . " rows failed." : ''));
-    }
 
     /**
      * Import benefits from CSV file.
@@ -169,18 +79,6 @@ class ImportController extends Controller
             'failed' => count($errors),
             'errors' => $errors,
         ], "{$successCount} benefits imported successfully." . (count($errors) > 0 ? " " . count($errors) . " rows failed." : ''));
-    }
-
-    /**
-     * Download loan import CSV template.
-     */
-    public function downloadLoanTemplate(): StreamedResponse
-    {
-        $headers = ['employee_id', 'loan_type', 'amount', 'interest_rate', 'term_months', 'monthly_amortization', 'status', 'applied_at', 'remarks'];
-
-        return $this->streamCsvTemplate('loan_import_template.csv', $headers, [
-            ['EMP-001', 'Salary Loan', '50000', '6', '24', '2250', 'released', '2025-01-15', 'Existing loan'],
-        ]);
     }
 
     /**

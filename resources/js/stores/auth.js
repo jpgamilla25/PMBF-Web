@@ -6,6 +6,7 @@ import authService from '../services/auth'
 import approvalsService from '../services/approvals'
 import loansService from '../services/loans'
 import exemptionsService from '../services/exemptions'
+import adminService from '../services/admin'
 
 const PIN_HINT_KEY = 'pmbf_pin_hint'
 
@@ -26,6 +27,7 @@ export const useAuthStore = defineStore('auth', {
     releaseCount: 0,
     coMakerPendingCount: 0,
     specialApprovalCount: 0,
+    openTicketCount: 0,
     // Who last signed in on this browser, so the PIN screen can greet them
     // before any network call. Contains no secret — ID and first name only.
     pinHint: readPinHint(),
@@ -109,6 +111,20 @@ export const useAuthStore = defineStore('auth', {
         const { data } = await exemptionsService.getAll({ status: 'pending', per_page: 1 })
         const result = data.data ?? data
         this.specialApprovalCount = result.counts?.pending ?? (Array.isArray(result.requests ?? result) ? (result.requests ?? result).length : 0)
+      } catch {
+        // ignore
+      }
+    },
+
+    /**
+     * Open support tickets — drives the red badge on the sidebar so an admin
+     * sees unanswered member concerns without opening the page.
+     */
+    async fetchOpenTicketCount() {
+      if (!this.isAdmin) return
+      try {
+        const { data } = await adminService.getTickets({ status: 'open', per_page: 1 })
+        this.openTicketCount = data.data?.counts?.open ?? 0
       } catch {
         // ignore
       }

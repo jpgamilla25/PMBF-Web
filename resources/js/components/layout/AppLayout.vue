@@ -208,6 +208,14 @@
               >
                 <i :class="item.icon" class="me-2"></i>{{ item.label }}
                 <span
+                  v-if="item.to === '/admin/tickets' && authStore.openTicketCount > 0"
+                  class="badge rounded-pill bg-danger ms-auto"
+                  style="font-size: 0.65rem;"
+                  title="Open support tickets"
+                >
+                  {{ authStore.openTicketCount }}
+                </span>
+                <span
                   v-if="item.to === '/admin/exemptions' && authStore.specialApprovalCount > 0"
                   class="badge rounded-pill bg-danger ms-auto"
                   style="font-size: 0.65rem;"

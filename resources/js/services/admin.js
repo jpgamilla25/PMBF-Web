@@ -90,20 +90,34 @@ export default {
     return api.get(`/admin/reports/${type}/csv`, { params, responseType: 'blob' })
   },
 
-  importLoans(formData) {
-    return api.post('/admin/import/loans', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-  },
-
   importBenefits(formData) {
     return api.post('/admin/import/benefits', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
 
+  // Bulk loans: template out, preview, then proceed. Nothing is created until
+  // commitLoans() — previewLoans() only reports what would happen.
   downloadLoanTemplate() {
-    return api.get('/admin/import/template/loans', { responseType: 'blob' })
+    return api.get('/admin/import/loans/template', { responseType: 'blob' })
+  },
+
+  previewLoans(formData) {
+    return api.post('/admin/import/loans/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  commitLoans(token, force = false) {
+    return api.post('/admin/import/loans/commit', { token, force })
+  },
+
+  getLoanImportBatches(params = {}) {
+    return api.get('/admin/import/loans/batches', { params })
+  },
+
+  rollbackLoanImport(batchId) {
+    return api.post(`/admin/import/loans/batches/${batchId}/rollback`)
   },
 
   downloadBenefitTemplate() {

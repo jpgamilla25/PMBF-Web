@@ -194,6 +194,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import admin from '@/services/admin'
 import { useNotificationStore } from '@/stores/notification'
+import { useAuthStore } from '@/stores/auth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -201,6 +202,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppPagination from '@/components/ui/AppPagination.vue'
 
 const notification = useNotificationStore()
+const authStore = useAuthStore()
 
 const tickets = ref([])
 const counts = ref({ open: 0, resolved: 0 })
@@ -237,6 +239,8 @@ async function load(page = 1) {
       last_page: data.data.tickets.last_page ?? 1,
     }
     counts.value = data.data.counts ?? { open: 0, resolved: 0 }
+    // Keep the sidebar badge honest without a second request.
+    authStore.openTicketCount = counts.value.open
     // Drop selections that are no longer on screen, so a bulk resolve can
     // never hit a ticket the admin can't see.
     selected.value = selected.value.filter((id) => selectableIds.value.includes(id))

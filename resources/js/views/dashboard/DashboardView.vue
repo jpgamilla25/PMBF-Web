@@ -632,6 +632,7 @@ onMounted(() => {
   // Keep the Action Required counts fresh without adding endpoints.
   authStore.fetchCoMakerPendingCount()
   authStore.fetchPendingApprovalCount()
+  authStore.fetchOpenTicketCount()
 })
 </script>
 

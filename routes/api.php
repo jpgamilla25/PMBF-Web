@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\ExemptionController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LoanController;
+use App\Http\Controllers\Api\LoanImportController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\PaymentImportController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -343,10 +344,17 @@ Route::prefix('v1')->group(function () {
             Route::post('tickets/{ticket}/reopen', [SupportTicketController::class, 'reopen']);
 
             // Import
-            Route::post('import/loans', [ImportController::class, 'importLoans']);
             Route::post('import/benefits', [ImportController::class, 'importBenefits']);
-            Route::get('import/template/loans', [ImportController::class, 'downloadLoanTemplate']);
             Route::get('import/template/benefits', [ImportController::class, 'downloadBenefitTemplate']);
+
+            // Bulk loans — template out, preview, then proceed. Replaces the
+            // old single-shot import/loans, which created rows with no review
+            // and no duplicate guard.
+            Route::get('import/loans/template', [LoanImportController::class, 'downloadTemplate']);
+            Route::post('import/loans/preview', [LoanImportController::class, 'preview']);
+            Route::post('import/loans/commit', [LoanImportController::class, 'commit']);
+            Route::get('import/loans/batches', [LoanImportController::class, 'batches']);
+            Route::post('import/loans/batches/{batch}/rollback', [LoanImportController::class, 'rollback']);
 
             // Bulk payments — worklist out, preview, then commit. Replaces the
             // old single-shot import/payments endpoint, which had no duplicate

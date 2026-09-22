@@ -138,7 +138,7 @@ class LoanImportService
 
         $rows = $this->parse(Storage::path($path), $meta['extension']);
         $analysis = $this->analyse($rows);
-        $creatable = array_filter($analysis['rows'], fn ($r) => in_array($r['status'], ['ok', 'warning'], true));
+        $creatable = array_filter($analysis['rows'], fn ($r) => in_array($r['status_verdict'], ['ok', 'warning'], true));
 
         if (empty($creatable)) {
             return ['error' => 'No importable rows in this file — every row was a duplicate or an error.'];
@@ -196,8 +196,8 @@ class LoanImportService
 
             $batch->update([
                 'rows_imported' => $imported,
-                'rows_skipped' => $skipped + count(array_filter($analysis['rows'], fn ($r) => $r['status'] === 'duplicate')),
-                'rows_failed' => count(array_filter($analysis['rows'], fn ($r) => $r['status'] === 'error')),
+                'rows_skipped' => $skipped + count(array_filter($analysis['rows'], fn ($r) => $r['status_verdict'] === 'duplicate')),
+                'rows_failed' => count(array_filter($analysis['rows'], fn ($r) => $r['status_verdict'] === 'error')),
                 'amount_total' => $amountTotal,
             ]);
 

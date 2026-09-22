@@ -91,6 +91,7 @@ class ChatbotService
             'SC Members' => Configuration::getValue('interest_rate_sc', '1.50'),
             'Permanent Members' => Configuration::getValue('interest_rate_permanent', '1.00'),
             'Non-Members' => Configuration::getValue('interest_rate_non_member', '2.00'),
+            'PMBF Employees' => Configuration::getValue('interest_rate_pmbf_employee', '2.00'),
         ];
 
         $context = "**Current Interest Rates (Monthly, Flat):**\n";
@@ -103,6 +104,7 @@ class ChatbotService
             $key = match ($userType) {
                 'Contract of Service' => 'interest_rate_sc',
                 'Permanent' => 'interest_rate_permanent',
+                'PMBF Employee' => 'interest_rate_pmbf_employee',
                 default => 'interest_rate_non_member',
             };
             $userRate = Configuration::getValue($key, '1.00');
@@ -141,6 +143,12 @@ class ChatbotService
             ];
         }
 
+        if (!$user || $user->employment_type === 'PMBF Employee') {
+            $limits['PMBF Employee'] = [
+                'All Types' => Configuration::getValue('pmbf_employee_max_loan_amount', '30000'),
+            ];
+        }
+
         $context = "**Current Loan Limits:**\n";
         foreach ($limits as $type => $types) {
             $context .= "\n__{$type}:__\n";
@@ -163,6 +171,7 @@ class ChatbotService
             'Contract of Service' => Configuration::getValue('sc_available_terms', '3,6,12'),
             'Permanent' => Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'),
             'Non-Member' => Configuration::getValue('non_member_available_terms', '3,6,12,18,24'),
+            'PMBF Employee' => Configuration::getValue('pmbf_employee_available_terms', '3,6,12,18,24'),
         ];
         $maxTerm = Configuration::getValue('max_loan_term_months', '60');
 
@@ -325,6 +334,7 @@ class ChatbotService
                 $rateKey = match ($user->employment_type) {
                     'Contract of Service' => 'interest_rate_sc',
                     'Non-Member' => 'interest_rate_non_member',
+                    'PMBF Employee' => 'interest_rate_pmbf_employee',
                     default => 'interest_rate_permanent',
                 };
                 $rateLabel = $user->employment_type;
@@ -364,6 +374,14 @@ class ChatbotService
         }
         if (!$user || $user->employment_type === 'Non-Member') {
             $types['Non-Member'] = ['Salary Loan', 'Multi-Purpose', 'Emergency'];
+        }
+        if (!$user || $user->employment_type === 'PMBF Employee') {
+            // Configurable per installation — see pmbf_employee_loan_types.
+            $types['PMBF Employee'] = collect(explode(',', (string) Configuration::getValue('pmbf_employee_loan_types', 'Multi-Purpose,Emergency')))
+                ->map(fn ($t) => trim($t))
+                ->filter()
+                ->values()
+                ->all();
         }
 
         $context = "**Available Loan Types:**\n";

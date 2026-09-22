@@ -10,6 +10,19 @@ class ConfigurationSeeder extends Seeder
     public function run(): void
     {
         $configs = [
+            // ── Loan Applications ─────────────────────────────
+            // The master switch for the whole fund: nothing about a member's
+            // type or eligibility overrides it, so it is deliberately not
+            // scoped to one member type.
+            [
+                'key' => 'loan_applications_open',
+                'value' => '1',
+                'type' => 'boolean',
+                'group' => 'loan_applications',
+                'description' => 'Accept new loan applications (applies to every member type)',
+                'sort_order' => 1,
+            ],
+
             // ── Interest Rates ────────────────────────────────
             [
                 'key' => 'interest_rate_sc',
@@ -116,6 +129,42 @@ class ConfigurationSeeder extends Seeder
                     ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
                 ]),
                 'sort_order' => 9,
+            ],
+
+            // PMBF Employees are not on PhilRice payroll, so their rate is set
+            // independently of the three HRIS-sourced groups.
+            [
+                'key' => 'interest_rate_pmbf_employee',
+                'value' => '2.00',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'PMBF Employees — Interest Rate',
+                'suffix' => '%',
+                'sort_order' => 10,
+            ],
+            [
+                'key' => 'interest_method_pmbf_employee',
+                'value' => 'flat',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'PMBF Employees — Interest Method',
+                'options' => json_encode([
+                    ['value' => 'flat', 'label' => 'Flat (interest on full principal)'],
+                    ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
+                ]),
+                'sort_order' => 11,
+            ],
+            [
+                'key' => 'interest_period_pmbf_employee',
+                'value' => 'per_month',
+                'type' => 'select',
+                'group' => 'interest_rates',
+                'description' => 'PMBF Employees — Rate Period',
+                'options' => json_encode([
+                    ['value' => 'per_month', 'label' => 'Per month'],
+                    ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
+                ]),
+                'sort_order' => 12,
             ],
 
             // Per-loan-type overrides. Seeded blank on purpose: an empty value
@@ -329,6 +378,38 @@ class ConfigurationSeeder extends Seeder
                 'description' => 'Available loan terms for Non-Members (comma-separated, in months)',
                 'suffix' => 'months',
                 'sort_order' => 2,
+            ],
+
+            // ── PMBF Employee Rules ───────────────────────────
+            // PMBF Employees work for the fund, not for PhilRice: no PhilRice
+            // payroll deduction secures the loan and no FMIS take-home-pay
+            // figure exists to check, so exposure is bounded by the maximum
+            // amount below.
+            [
+                'key' => 'pmbf_employee_loan_types',
+                'value' => 'Multi-Purpose,Emergency',
+                'type' => 'text',
+                'group' => 'pmbf_employee_rules',
+                'description' => 'Loan types offered to PMBF Employees (comma-separated). Salary Loan is not offered — PMBF Employees draw no PhilRice salary.',
+                'sort_order' => 1,
+            ],
+            [
+                'key' => 'pmbf_employee_max_loan_amount',
+                'value' => '30000.00',
+                'type' => 'decimal',
+                'group' => 'pmbf_employee_rules',
+                'description' => 'Maximum Loan Amount for PMBF Employees (per loan type)',
+                'suffix' => 'PHP',
+                'sort_order' => 2,
+            ],
+            [
+                'key' => 'pmbf_employee_available_terms',
+                'value' => '3,6,12,18,24',
+                'type' => 'text',
+                'group' => 'pmbf_employee_rules',
+                'description' => 'Available loan terms for PMBF Employees (comma-separated, in months)',
+                'suffix' => 'months',
+                'sort_order' => 3,
             ],
 
             // ── Approval Workflow ─────────────────────────────

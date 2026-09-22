@@ -26,7 +26,11 @@ class SyncEmployeesFromHris extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
 
-        $query = User::query()->whereNotNull('employee_id');
+        // PMBF Employees carry a locally-issued member ID that PhilRice HRIS has
+        // never heard of, so there is nothing to refresh for them.
+        $query = User::query()
+            ->whereNotNull('employee_id')
+            ->where('employment_type', '!=', 'PMBF Employee');
 
         if ($employeeId = $this->option('employee')) {
             $query->where('employee_id', $employeeId);

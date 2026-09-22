@@ -218,7 +218,12 @@ Route::prefix('v1')->group(function () {
         Route::middleware('role:admin')->prefix('admin')->group(function () {
             Route::get('dashboard', [AdminController::class, 'dashboard']);
             Route::get('members', [AdminController::class, 'members']);
+            // Manual creation — PMBF Employees only; everyone else comes from HRIS.
+            Route::post('members', [AdminController::class, 'storeMember']);
             Route::get('members/{user}', [AdminController::class, 'showMember']);
+            // Corrections — PMBF Employees only; HRIS-sourced records are
+            // read-only here because the nightly sync owns them.
+            Route::patch('members/{user}', [AdminController::class, 'updateMember']);
             Route::get('loans', [AdminController::class, 'loans']);
             Route::get('payments', [AdminController::class, 'payments']);
             Route::post('payments', [AdminController::class, 'storePayment']);

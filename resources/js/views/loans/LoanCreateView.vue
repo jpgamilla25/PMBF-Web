@@ -44,11 +44,38 @@
 
     <!-- ─── Loan Application Form (form + live summary side-by-side) ───── -->
     <div v-if="currentStep === 'form'" class="row g-3">
-      <div class="col-lg-7">
+      <div :class="applicationsOpen ? 'col-lg-7' : 'col-12'">
         <AppCard title="Loan Application">
           <AppLoading :loading="typesLoading" text="Loading loan types..." />
 
-          <form v-if="!typesLoading" @submit.prevent="submitApplication">
+          <!-- Applications closed fund-wide. Shown ahead of everything else:
+               no membership detail matters while the switch is off, and a form
+               that would only be refused on submit is worse than an
+               explanation. -->
+          <div v-if="!typesLoading && !applicationsOpen" class="text-center py-4">
+            <i class="bi bi-lock-fill fs-1 d-block mb-2 text-secondary opacity-75" aria-hidden="true"></i>
+            <p class="fw-semibold mb-1">Loan applications are closed</p>
+            <p class="text-muted small mb-3">{{ applicationsClosedMessage }}</p>
+            <router-link to="/loans" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>View My Loans
+            </router-link>
+          </div>
+
+          <!-- No products configured for this membership type. Without this
+               the form would render with an empty, unusable loan-type
+               dropdown. -->
+          <div v-else-if="!typesLoading && !loanTypeOptions.length" class="text-center py-4">
+            <i class="bi bi-info-circle fs-1 d-block mb-2 text-muted opacity-50"></i>
+            <p class="fw-semibold mb-1">No loan products are available for your membership type.</p>
+            <p class="text-muted small mb-3">
+              Please contact the PMBF office if you believe this is incorrect.
+            </p>
+            <router-link to="/dashboard" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </router-link>
+          </div>
+
+          <form v-if="!typesLoading && applicationsOpen && loanTypeOptions.length" @submit.prevent="submitApplication">
             <AppInput v-model="form.loan_type" label="Loan Type" type="select" :options="loanTypeOptions" :error="errors.loan_type" required @change="onTypeChange" />
 
             <div v-if="selectedTypeInfo" class="alert alert-light small mt-2 mb-3">
@@ -174,7 +201,8 @@
         </AppCard>
       </div>
 
-      <div class="col-lg-5">
+      <!-- Nothing to summarise while there is no form to fill in. -->
+      <div v-if="applicationsOpen" class="col-lg-5">
         <AppCard title="Application Summary" class="summary-card">
           <div v-if="!form.loan_type" class="text-center text-muted py-4">
             <i class="bi bi-clipboard-data fs-1"></i>
@@ -446,6 +474,10 @@ const notify = useNotificationStore()
 // ─── State ────────────────────────────────────────────────
 const currentStep = ref('loading') // 'loading' | 'blocked' | 'form' | 'review' | 'otp' | 'ineligible' | 'exemption_sent'
 const blockedMessage = ref('')
+const applicationsOpen = ref(true)
+const applicationsClosedMessage = ref(
+  'Loan applications are temporarily closed. Please contact the PMBF office for details.'
+)
 const loanTypes = ref({}) // raw types from API (keyed object)
 const loanTypeOptions = ref([])
 const minLoanAmount = ref(1000)
@@ -826,6 +858,12 @@ async function loadLoanTypes() {
     }))
     if (result.min_loan_amount) minLoanAmount.value = Number(result.min_loan_amount)
     if (result.max_term_months) maxTermMonths.value = Number(result.max_term_months)
+    // Absent on an older API response — default to open rather than locking
+    // members out because a field is missing.
+    applicationsOpen.value = result.applications_open !== false
+    if (result.applications_closed_message) {
+      applicationsClosedMessage.value = result.applications_closed_message
+    }
   })
 }
 

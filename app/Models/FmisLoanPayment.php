@@ -14,6 +14,7 @@ class FmisLoanPayment extends Model
         'dv_number',
         'dv_date',
         'fund',
+        'line_no',
         'voided',
         'fmis_updated_at',
     ];
@@ -23,6 +24,7 @@ class FmisLoanPayment extends Model
         return [
             'amount' => 'decimal:2',
             'voided' => 'boolean',
+            'line_no' => 'integer',
             'dv_date' => 'date',
             'fmis_updated_at' => 'datetime',
         ];

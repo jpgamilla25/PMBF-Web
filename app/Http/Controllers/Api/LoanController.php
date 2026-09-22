@@ -264,6 +264,10 @@ class LoanController extends Controller
             return $this->error('Unauthorized.', 403);
         }
 
+        if (!$this->loanService->applicationsOpen()) {
+            return $this->error(\App\Services\LoanService::APPLICATIONS_CLOSED_MESSAGE, 422);
+        }
+
         if (!$this->loanService->canRenew($loan)) {
             return $this->error(
                 'This loan cannot be renewed. It must be an active loan with a remaining balance and no pending renewal.',
@@ -381,6 +385,10 @@ class LoanController extends Controller
         return $this->success([
             'types'           => $this->loanService->getAvailableLoanTypes($request->user()),
             'otp_required'    => $this->loanService->isOtpRequired(),
+            // Lets the apply screen explain itself rather than presenting a
+            // form that would only be refused on submit.
+            'applications_open'   => $this->loanService->applicationsOpen(),
+            'applications_closed_message' => \App\Services\LoanService::APPLICATIONS_CLOSED_MESSAGE,
             'min_loan_amount' => Configuration::getDecimal('min_loan_amount', 1000),
             'max_term_months' => (int) Configuration::getValue('max_loan_term_months', 60),
         ], 'Available loan types retrieved.');

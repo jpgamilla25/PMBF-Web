@@ -11,6 +11,20 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    /**
+     * Series for locally-issued PMBF Employee member IDs, e.g. 00-0004.
+     *
+     * PMBF Employees are the one employment type that does not come from
+     * PhilRice HRIS — they work for the fund itself — so an admin enters them
+     * in Member Management and the system issues the ID itself. They follow the
+     * same NN-NNNN shape as a PhilRice employee ID, under the reserved 00
+     * series, so they read consistently everywhere an employee ID is shown.
+     */
+    public const PMBF_EMPLOYEE_ID_SERIES = '00';
+
+    /** Digits after the dash, e.g. 00-0004. */
+    public const PMBF_EMPLOYEE_ID_DIGITS = 4;
+
     protected $fillable = [
         'employee_id',
         'first_name',
@@ -111,6 +125,25 @@ class User extends Authenticatable
     public function isNonMember(): bool
     {
         return $this->employment_type === 'Non-Member';
+    }
+
+    /**
+     * Staff of the PMBF itself rather than of PhilRice.
+     */
+    public function isPmbfEmployee(): bool
+    {
+        return $this->employment_type === 'PMBF Employee';
+    }
+
+    /**
+     * Whether this user's employment details come from PhilRice HRIS.
+     *
+     * PMBF Employees have no HRIS record, so looking them up only burns an
+     * api-center call that can never return anything.
+     */
+    public function isHrisBacked(): bool
+    {
+        return !$this->isPmbfEmployee();
     }
 
     public function isAdmin(): bool

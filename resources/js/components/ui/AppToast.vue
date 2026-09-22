@@ -7,18 +7,25 @@
           :key="notification.id"
           class="toast show mb-2"
           :class="`border-${notification.type}`"
-          role="alert"
+          :role="notification.politeness === 'assertive' ? 'alert' : 'status'"
+          :aria-live="notification.politeness"
+          @mouseenter="store.pause(notification.id)"
+          @mouseleave="store.resume(notification.id)"
+          @focusin="store.pause(notification.id)"
+          @focusout="store.resume(notification.id)"
         >
           <div class="toast-header">
             <span
               class="rounded-circle me-2 d-inline-block"
               :class="`bg-${notification.type}`"
               style="width: 12px; height: 12px;"
+              aria-hidden="true"
             ></span>
             <strong class="me-auto">{{ typeLabel(notification.type) }}</strong>
             <button
               type="button"
               class="btn-close btn-close-sm"
+              aria-label="Dismiss notification"
               @click="store.remove(notification.id)"
             ></button>
           </div>
@@ -62,21 +69,26 @@ function typeLabel(type) {
   min-width: 300px;
 }
 
-.toast-enter-active {
-  transition: all 0.3s ease;
-}
-
+.toast-enter-active,
 .toast-leave-active {
   transition: all 0.3s ease;
 }
 
-.toast-enter-from {
+.toast-enter-from,
+.toast-leave-to {
   opacity: 0;
   transform: translateX(100%);
 }
 
-.toast-leave-to {
-  opacity: 0;
-  transform: translateX(100%);
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active,
+  .toast-leave-active {
+    transition: none;
+  }
+
+  .toast-enter-from,
+  .toast-leave-to {
+    transform: none;
+  }
 }
 </style>

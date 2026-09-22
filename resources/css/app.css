@@ -194,6 +194,51 @@ body,
   color: var(--pmbf-text) !important;
 }
 
+/* Bootstrap's dark-mode outline-secondary paints its label #6c757d, which is
+   only 3.86:1 on the dark canvas — under the 4.5:1 AA minimum for text. Lift
+   the label and keep the border, which passes the 3:1 needed for a boundary. */
+[data-bs-theme='dark'] .btn-outline-secondary {
+  --bs-btn-color: #adb5bd;
+  --bs-btn-border-color: #6c757d;
+  --bs-btn-hover-color: #16181b;
+  --bs-btn-hover-bg: #adb5bd;
+  --bs-btn-hover-border-color: #adb5bd;
+  --bs-btn-active-color: #16181b;
+  --bs-btn-active-bg: #adb5bd;
+  --bs-btn-active-border-color: #adb5bd;
+  --bs-btn-disabled-color: #6c757d;
+  --bs-btn-disabled-border-color: #495057;
+}
+
+/* ── Fixed bottom bars ──────────────────────────────────────
+   A page with a fixed bar at the bottom (the Configuration screen's
+   unsaved-changes bar) publishes its height here, so floating UI lifts above
+   it instead of covering its controls. Body-prefixed to outrank the scoped
+   rules in ChatWidget and AppToast without resorting to !important. */
+:root {
+  --pmbf-bottom-bar: 0px;
+}
+
+/* The class is repeated deliberately: these elements are positioned by scoped
+   component styles (`.chat-fab[data-v-...]`), which outrank a single class.
+   Repeating it raises specificity above them without reaching for !important. */
+body .chat-fab.chat-fab {
+  bottom: calc(24px + var(--pmbf-bottom-bar));
+  transition: bottom 0.15s ease;
+}
+
+body .pmbf-toast-container.pmbf-toast-container {
+  bottom: calc(16px + var(--pmbf-bottom-bar));
+  transition: bottom 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body .chat-fab.chat-fab,
+  body .pmbf-toast-container.pmbf-toast-container {
+    transition: none;
+  }
+}
+
 /* Print: always render light so PDFs and paper output stay legible. */
 @media print {
   [data-bs-theme='dark'] {

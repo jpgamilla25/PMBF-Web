@@ -37,12 +37,13 @@ class StoreLoanRequest extends FormRequest
         ];
 
         // SC members: co-maker required if config says so.
-        // Employment type comes from HRIS (with local fallback) to match the loan flow.
-        $employeeId = $this->user()?->employee_id;
-        $employmentType = $employeeId
-            ? app(\App\Services\FmisService::class)->getEmploymentType($employeeId)
+        // Employment type comes from HRIS (with local fallback) to match the loan
+        // flow — except for PMBF Employees, who have no HRIS record to consult.
+        $user = $this->user();
+        $employmentType = $user?->employee_id && $user->isHrisBacked()
+            ? app(\App\Services\FmisService::class)->getEmploymentType($user->employee_id)
             : null;
-        $isSC = ($employmentType ?? $this->user()?->employment_type) === 'Contract of Service';
+        $isSC = ($employmentType ?? $user?->employment_type) === 'Contract of Service';
 
         if ($isSC && Configuration::getBool('sc_requires_co_maker', true)) {
             $rules['co_maker_ids'] = ['required', 'array', 'min:1', 'max:2'];

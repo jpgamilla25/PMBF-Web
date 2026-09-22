@@ -37,6 +37,9 @@ export const useAuthStore = defineStore('auth', {
     isStaff: (state) =>
       ['admin', 'receiver', 'loan_committee', 'chairperson'].includes(state.user?.role),
     isPermanent: (state) => state.user?.employment_type === 'Permanent',
+    // Staff of the PMBF itself rather than of PhilRice — added by an admin in
+    // Member Management. No PhilRice HRIS record to sync against.
+    isPmbfEmployee: (state) => state.user?.employment_type === 'PMBF Employee',
     isReceiver: (state) => state.user?.role === 'receiver',
     isLoanCommittee: (state) => state.user?.role === 'loan_committee',
     isChairperson: (state) => state.user?.role === 'chairperson',

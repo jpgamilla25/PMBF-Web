@@ -16,6 +16,7 @@ export const useAdminContextStore = defineStore('adminContext', {
         Permanent: 'Permanent',
         'Contract of Service': 'Contract of Service',
         'Non-Member': 'Non-Members',
+        'PMBF Employee': 'PMBF Employees',
       }
       return labels[state.memberType] || 'All Members'
     },
@@ -26,6 +27,7 @@ export const useAdminContextStore = defineStore('adminContext', {
         Permanent: 'success',
         'Contract of Service': 'warning',
         'Non-Member': 'secondary',
+        'PMBF Employee': 'info',
       }
       return colors[state.memberType] || 'primary'
     },

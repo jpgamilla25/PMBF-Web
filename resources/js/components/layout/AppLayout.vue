@@ -326,6 +326,7 @@ const allAdminMenuItems = [
   { to: '/admin/premiums', label: 'Premiums', icon: 'bi bi-shield-check', onlyFor: ['all', 'Contract of Service'] },
   { to: '/admin/schedule', label: 'Schedule Monitor', icon: 'bi bi-clock-history' },
   { to: '/admin/exemptions', label: 'Special Approvals', icon: 'bi bi-envelope-paper' },
+  { to: '/admin/tickets', label: 'Support Tickets', icon: 'bi bi-life-preserver' },
   { to: '/admin/activity-logs', label: 'Audit Trail', icon: 'bi bi-journal-text' },
   { to: '/admin/import', label: 'Import Data', icon: 'bi bi-upload' },
   { to: '/admin/mobile-settings', label: 'Mobile App', icon: 'bi bi-phone' },

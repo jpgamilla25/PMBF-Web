@@ -110,6 +110,21 @@ export default {
     return api.get('/admin/import/template/benefits', { responseType: 'blob' })
   },
 
+  // Support tickets
+  getTickets(params = {}) {
+    return api.get('/admin/tickets', { params })
+  },
+
+  // One id or many — the backend treats both the same way so the resolution
+  // notes and the member email never differ between single and bulk.
+  resolveTickets(ids, notes = '') {
+    return api.post('/admin/tickets/resolve', { ids, notes })
+  },
+
+  reopenTicket(id) {
+    return api.post(`/admin/tickets/${id}/reopen`)
+  },
+
   // Bulk payments: worklist out, preview, then commit. Nothing posts until
   // commitPayments() — previewPayments() only reports what would happen.
   downloadPaymentWorklist() {

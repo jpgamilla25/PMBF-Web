@@ -85,6 +85,46 @@
         </div>
       </div>
 
+      <!-- File a ticket — the assistant answers questions, but some things
+           need a person. This hands the concern to the PMBF office. -->
+      <div v-if="ticketOpen" class="chat-ticket">
+        <div class="chat-ticket-head">
+          <strong>File a ticket</strong>
+          <button type="button" class="chat-ticket-close" @click="closeTicket">&times;</button>
+        </div>
+
+        <div v-if="ticketNumber" class="chat-ticket-done">
+          <div class="chat-ticket-number">{{ ticketNumber }}</div>
+          <p class="mb-1">Your ticket has been filed.</p>
+          <p class="chat-ticket-hint">
+            A copy was emailed to {{ ticketForm.email }}. We will email you again once it is resolved.
+          </p>
+          <button type="button" class="chat-ticket-submit" @click="closeTicket">Done</button>
+        </div>
+
+        <form v-else class="chat-ticket-form" @submit.prevent="submitTicket">
+          <label class="chat-ticket-label">Employee ID</label>
+          <input v-model.trim="ticketForm.employee_id" class="chat-ticket-input" maxlength="50" required />
+
+          <label class="chat-ticket-label">Email</label>
+          <input v-model.trim="ticketForm.email" type="email" class="chat-ticket-input" maxlength="255" required />
+
+          <label class="chat-ticket-label">Subject</label>
+          <input v-model.trim="ticketForm.subject" class="chat-ticket-input" maxlength="150" required
+                 placeholder="e.g. Wrong loan balance" />
+
+          <label class="chat-ticket-label">What is the issue?</label>
+          <textarea v-model.trim="ticketForm.message" class="chat-ticket-input" rows="4" maxlength="2000" required
+                    placeholder="Tell us what happened, with dates or amounts if you have them."></textarea>
+
+          <div v-if="ticketError" class="chat-ticket-error">{{ ticketError }}</div>
+
+          <button type="submit" class="chat-ticket-submit" :disabled="ticketSending">
+            {{ ticketSending ? 'Sending...' : 'Submit ticket' }}
+          </button>
+        </form>
+      </div>
+
       <!-- Suggestions -->
       <div v-if="suggestions.length > 0 && !isLoading" class="chat-suggestions">
         <div class="chat-suggestions-label">Suggested questions</div>
@@ -123,7 +163,12 @@
             </svg>
           </button>
         </form>
-        <div class="chat-powered-by">Powered by AI — answers may not always be accurate</div>
+        <div class="chat-input-footer">
+          <button type="button" class="chat-ticket-link" @click="openTicket">
+            <i class="bi bi-life-preserver me-1"></i>File a ticket
+          </button>
+          <span class="chat-powered-by">Powered by AI — answers may not always be accurate</span>
+        </div>
       </div>
     </div>
   </Transition>
@@ -133,9 +178,62 @@
 import { ref, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import chatbotService from '../../services/chatbot'
+import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
+const auth = useAuthStore()
 const isOpen = ref(false)
+
+// ── Ticket filing ──────────────────────────────────────────
+const ticketOpen = ref(false)
+const ticketSending = ref(false)
+const ticketError = ref('')
+const ticketNumber = ref('')
+const ticketForm = ref({ employee_id: '', email: '', subject: '', message: '' })
+
+/** Prefill from the session when there is one; guests type their own. */
+function openTicket() {
+  ticketError.value = ''
+  ticketNumber.value = ''
+  ticketForm.value = {
+    employee_id: auth.user?.employee_id ?? '',
+    email: auth.user?.email ?? '',
+    subject: '',
+    message: '',
+  }
+  ticketOpen.value = true
+}
+
+function closeTicket() {
+  ticketOpen.value = false
+  ticketNumber.value = ''
+  ticketError.value = ''
+}
+
+async function submitTicket() {
+  ticketSending.value = true
+  ticketError.value = ''
+
+  try {
+    const { data } = await chatbotService.fileTicket(ticketForm.value)
+    ticketNumber.value = data.data.ticket_number
+
+    // Leave a trace in the conversation so the reference number survives
+    // closing the form.
+    messages.value.push({
+      role: 'model',
+      content: `Your ticket **${ticketNumber.value}** has been filed. We emailed a copy to ${ticketForm.value.email} and will email you again once it is resolved.`,
+    })
+    scrollToBottom()
+  } catch (error) {
+    ticketError.value =
+      error.response?.data?.message ||
+      Object.values(error.response?.data?.errors ?? {})[0]?.[0] ||
+      'Could not file the ticket. Please try again.'
+  } finally {
+    ticketSending.value = false
+  }
+}
 
 /** Follow a call-to-action the assistant offered, then get out of the way. */
 function runAction(action) {
@@ -585,6 +683,118 @@ function renderMarkdown(text) {
   color: #9ca3af;
   text-align: center;
   margin-top: 6px;
+}
+
+/* ─── Ticket Filing ───────────────────────────────────── */
+.chat-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.chat-input-footer .chat-powered-by {
+  margin-top: 0;
+  flex: 1;
+  text-align: right;
+}
+.chat-ticket-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chat-ticket-link:hover {
+  text-decoration: underline;
+}
+.chat-ticket {
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+  padding: 12px 14px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.chat-ticket-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.chat-ticket-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #9ca3af;
+  cursor: pointer;
+}
+.chat-ticket-form {
+  display: flex;
+  flex-direction: column;
+}
+.chat-ticket-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+.chat-ticket-input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  font-family: inherit;
+  resize: vertical;
+}
+.chat-ticket-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+.chat-ticket-submit {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.chat-ticket-submit:disabled {
+  background: #d1d5db;
+  cursor: not-allowed;
+}
+.chat-ticket-error {
+  font-size: 11px;
+  color: #b91c1c;
+  margin-bottom: 8px;
+}
+.chat-ticket-done {
+  text-align: center;
+  font-size: 12px;
+  color: #374151;
+}
+.chat-ticket-number {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #166534;
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+.chat-ticket-hint {
+  font-size: 11px;
+  color: #6b7280;
+  margin-bottom: 10px;
 }
 
 /* ─── Markdown Content ────────────────────────────────── */

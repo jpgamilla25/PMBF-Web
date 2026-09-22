@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\MemberController;
 use App\Http\Controllers\Api\PaymentImportController;
+use App\Http\Controllers\Api\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -107,6 +108,11 @@ Route::prefix('v1')->group(function () {
     // ── Chatbot (works both authenticated and guest) ────────
     Route::post('chatbot/message', [ChatbotController::class, 'message']);
     Route::get('chatbot/suggestions', [ChatbotController::class, 'suggestions']);
+
+    // Filing a support ticket from the assistant. Open to guests — the widget
+    // is on the login page — so the employee id and email come off the form.
+    Route::middleware('throttle:ticket-file')
+        ->post('chatbot/tickets', [SupportTicketController::class, 'store']);
 
     // Chatbot with auth context (optional — returns personalized data)
     Route::middleware('auth:sanctum')->group(function () {
@@ -329,6 +335,12 @@ Route::prefix('v1')->group(function () {
             Route::get('activity-logs',       [AdminController::class, 'activityLogs']);
             Route::get('user-types',          [AdminController::class, 'userTypes']);
             Route::post('user-types/assign', [AdminController::class, 'assignRole']);
+
+            // Support tickets — resolve covers both one ticket and a bulk
+            // selection, so notes and the email never diverge between them.
+            Route::get('tickets', [SupportTicketController::class, 'index']);
+            Route::post('tickets/resolve', [SupportTicketController::class, 'resolve']);
+            Route::post('tickets/{ticket}/reopen', [SupportTicketController::class, 'reopen']);
 
             // Import
             Route::post('import/loans', [ImportController::class, 'importLoans']);

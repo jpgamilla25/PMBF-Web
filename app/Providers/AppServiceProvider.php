@@ -50,7 +50,7 @@ class AppServiceProvider extends ServiceProvider
         $enabled = (bool) env('AUTH_THROTTLE', $this->app->isProduction());
 
         if (!$enabled) {
-            foreach (['otp-send', 'otp-verify', 'pin-attempt', 'pin-status'] as $name) {
+            foreach (['otp-send', 'otp-verify', 'pin-attempt', 'pin-status', 'ticket-file'] as $name) {
                 RateLimiter::for($name, fn () => Limit::none());
             }
 
@@ -61,6 +61,13 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('otp-send', fn (Request $request) => [
             Limit::perMinutes(5, 10)->by('id:' . $request->input('employee_id', $request->input('email', 'none'))),
             Limit::perMinutes(5, 30)->by('ip:' . $request->ip()),
+        ]);
+
+        // Filing a support ticket — open to signed-out users and it sends an
+        // email, so it is rate limited the same way the OTP send is.
+        RateLimiter::for('ticket-file', fn (Request $request) => [
+            Limit::perMinutes(10, 5)->by('id:' . $request->input('employee_id', 'none')),
+            Limit::perMinutes(10, 20)->by('ip:' . $request->ip()),
         ]);
 
         // Submitting an OTP code — 6 digits, so guessing must be expensive.

@@ -10,6 +10,7 @@ class Payment extends Model
         'loan_id',
         'recorded_by',
         'import_batch_id',
+        'loan_import_batch_id',
         'amount',
         'or_number',
         'payment_method',

@@ -12,8 +12,10 @@
 
     <p class="text-muted small mb-3">
       For loans that pre-date the system. Fill in the template — employee ID, loan type, principal, term,
-      monthly amortization and the original application date — then upload it. You will see every row and
-      what it will owe before anything is created, and the same loan can never be imported twice.
+      monthly amortization and the original application date — then upload it. For a loan that is part-paid,
+      add <code>amount_paid</code> or <code>months_paid</code>: it is recorded as a real payment, so it shows
+      on the Payments page and the balance is right from day one. You will see every row before anything is
+      created, and the same loan can never be imported twice.
     </p>
 
     <!-- Step 1: upload -->
@@ -94,6 +96,9 @@
           {{ preview.summary.error }} errors
         </div>
         <div class="result-badge result-total">₱{{ formatAmount(preview.summary.amount) }} principal</div>
+        <div v-if="preview.summary.paid > 0" class="result-badge result-paid">
+          ₱{{ formatAmount(preview.summary.paid) }} already paid
+        </div>
       </div>
 
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -115,6 +120,8 @@
               <th class="text-end" style="width: 110px">Principal</th>
               <th class="text-end" style="width: 110px">Monthly</th>
               <th class="text-end" style="width: 120px">Total payable</th>
+              <th class="text-end" style="width: 120px">Already paid</th>
+              <th class="text-end" style="width: 110px">Balance</th>
               <th>Notes</th>
             </tr>
           </thead>
@@ -141,12 +148,19 @@
               <td class="text-end">{{ formatAmount(row.amount) }}</td>
               <td class="text-end">{{ formatAmount(row.monthly_amortization) }}</td>
               <td class="text-end">{{ formatAmount(row.total_payable) }}</td>
+              <td class="text-end">
+                <span :class="row.amount_paid > 0 ? 'text-success fw-semibold' : 'text-muted'">
+                  {{ formatAmount(row.amount_paid) }}
+                </span>
+                <div v-if="row.months_paid > 0" class="text-muted small">{{ row.months_paid }} mo</div>
+              </td>
+              <td class="text-end">{{ formatAmount(row.balance) }}</td>
               <td class="small" :class="row.status_verdict === 'error' ? 'text-danger' : 'text-muted'">
                 {{ row.message }}
               </td>
             </tr>
             <tr v-if="visibleRows.length === 0">
-              <td colspan="8" class="text-center text-muted small py-3">
+              <td colspan="10" class="text-center text-muted small py-3">
                 No rows to show. Completely blank rows are skipped.
               </td>
             </tr>
@@ -485,6 +499,11 @@ function formatFileSize(bytes) {
 .result-total {
   background: #dbeafe;
   color: #1e40af;
+}
+
+.result-paid {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .preview-table {

@@ -38,18 +38,19 @@ class LoanImportController extends Controller
 
         $sheet->fromArray(LoanImportService::COLUMNS, null, 'A1');
         $sheet->fromArray([
-            ['15-0313', 'Salary Loan', 50000, 1, 'flat', 24, 2250, 54000, 'released', '2025-01-15', 'Existing loan', ''],
+            ['15-0313', 'Salary Loan', 50000, 1, 'flat', 24, 2250, 54000, 'released', '2025-01-15', 13500, 6, '2025-07-15', 'Existing loan', ''],
         ], null, 'A2');
 
-        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:L1')->getFill()
+        $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:O1')->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setRGB('D9E2F3');
-        $sheet->getStyle('A1:L1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('A1:O1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getStyle('C2:H2')->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->getStyle('K2')->getNumberFormat()->setFormatCode('#,##0.00');
         $sheet->freezePane('A2');
 
-        foreach (range('A', 'L') as $column) {
+        foreach (range('A', 'O') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -62,6 +63,12 @@ class LoanImportController extends Controller
             ['2.', 'employee_id must match a member already in the system.'],
             ['3.', 'applied_at is required (YYYY-MM-DD). It is the loan\'s original application date, and part of how a duplicate is recognised.'],
             ['4.', 'total_payable may be left blank — it is then taken as monthly_amortization × term_months, which is what a legacy loan actually owes.'],
+            [''],
+            ['Already paid', 'amount_paid is how much has been collected on the loan so far; months_paid is how many months were deducted.'],
+            ['', 'Give either one. With only months_paid, the amount is taken as months_paid × monthly_amortization.'],
+            ['', 'It is imported as a real payment against the loan, so it shows in the payments list, the ledger and the member statement, and the balance is the loan less what was paid.'],
+            ['', 'paid_as_of is the date that payment is recorded under (the month paid up to). Left blank, the application date is used.'],
+            ['', 'A loan whose payments cover the whole amount is imported as completed.'],
             [''],
             ['loan_type', implode(', ', $this->service->allowed('loan_type'))],
             ['status', implode(', ', $this->service->allowed('status')) . '  (use "released" for a live legacy loan)'],
@@ -125,7 +132,12 @@ class LoanImportController extends Controller
 
         return $this->success(
             $result,
-            "{$result['imported']} loans imported (batch #{$result['batch_id']}), totalling " . number_format($result['amount_total'], 2) . '.'
+            "{$result['imported']} loans imported (batch #{$result['batch_id']}), totalling "
+            . number_format($result['amount_total'], 2) . '.'
+            . ($result['opening_payments'] > 0
+                ? " {$result['opening_payments']} of them opened with payments already made, totalling "
+                  . number_format($result['opening_paid_total'], 2) . '.'
+                : '')
         );
     }
 

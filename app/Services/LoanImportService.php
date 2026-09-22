@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Loan;
+use App\Models\Payment;
 use App\Models\LoanImportBatch;
 use App\Models\User;
 use App\Services\Concerns\ParsesSpreadsheets;
@@ -40,6 +41,9 @@ class LoanImportService
         'total_payable',
         'status',
         'applied_at',
+        'amount_paid',
+        'months_paid',
+        'paid_as_of',
         'remarks',
         'allow_duplicate',
     ];
@@ -147,8 +151,10 @@ class LoanImportService
         $imported = 0;
         $skipped = 0;
         $amountTotal = 0.0;
+        $paidTotal = 0.0;
+        $paidCount = 0;
 
-        $batch = DB::transaction(function () use ($meta, $user, $path, $analysis, $creatable, &$imported, &$skipped, &$amountTotal) {
+        $batch = DB::transaction(function () use ($meta, $user, $path, $analysis, $creatable, &$imported, &$skipped, &$amountTotal, &$paidTotal, &$paidCount) {
             $batch = LoanImportBatch::create([
                 'file_name' => $meta['file_name'],
                 'file_hash' => $meta['file_hash'],
@@ -163,7 +169,7 @@ class LoanImportService
                     : $row['dedupe_hash'];
 
                 try {
-                    Loan::create([
+                    $loan = Loan::create([
                         'user_id' => $row['user_id'],
                         'import_batch_id' => $batch->id,
                         'loan_type' => $row['loan_type'],
@@ -176,11 +182,42 @@ class LoanImportService
                         // to the flat formula, which is not what a legacy loan
                         // actually owes.
                         'total_payable' => $row['total_payable'],
-                        'status' => $row['status'],
+                        // Anything already collected closes the loan out, so
+                        // it should not sit in the system as still running.
+                        'status' => $row['amount_paid'] > 0 && $row['balance'] <= 0.01
+                            ? 'completed'
+                            : $row['status'],
                         'applied_at' => $row['applied_at'],
                         'remarks' => $row['remarks'] ?: "Imported (batch #{$batch->id})",
                         'dedupe_hash' => $hash,
                     ]);
+
+                    // What was already paid becomes a real payment row rather
+                    // than a field on the loan, so it shows up in the payments
+                    // list, the ledger and the member's statement, and the
+                    // balance falls out of the same sum as every other loan.
+                    if ($row['amount_paid'] > 0) {
+                        $months = $row['months_paid'] > 0 ? " ({$row['months_paid']} months)" : '';
+
+                        Payment::create([
+                            'loan_id' => $loan->id,
+                            'recorded_by' => $user->id,
+                            'loan_import_batch_id' => $batch->id,
+                            'amount' => $row['amount_paid'],
+                            'payment_method' => 'payroll_deduction',
+                            'payment_date' => $row['paid_as_of'],
+                            'remarks' => "Opening balance — paid before the system{$months}. Batch #{$batch->id}.",
+                            'dedupe_hash' => Payment::dedupeHash(
+                                $loan->id,
+                                $row['paid_as_of'],
+                                $row['amount_paid'],
+                                'OPENING'
+                            ),
+                        ]);
+
+                        $paidTotal += $row['amount_paid'];
+                        $paidCount++;
+                    }
 
                     $imported++;
                     $amountTotal += $row['amount'];
@@ -210,6 +247,8 @@ class LoanImportService
             'skipped' => $batch->rows_skipped,
             'failed' => $batch->rows_failed,
             'amount_total' => round($amountTotal, 2),
+            'opening_payments' => $paidCount,
+            'opening_paid_total' => round($paidTotal, 2),
         ];
     }
 
@@ -224,8 +263,17 @@ class LoanImportService
         }
 
         $result = DB::transaction(function () use ($batch, $user) {
-            $withPayments = $batch->loans()->has('payments')->pluck('id');
-            $deleted = $batch->loans()->doesntHave('payments')->delete();
+            // The importer's own opening payments don't count as "someone has
+            // been paying this since" — only payments posted after the import
+            // should hold a loan back. Loans that go are deleted with their
+            // payments, which cascade.
+            $postedSince = fn ($query) => $query->where(function ($q) use ($batch) {
+                $q->whereNull('loan_import_batch_id')
+                    ->orWhere('loan_import_batch_id', '!=', $batch->id);
+            });
+
+            $withPayments = $batch->loans()->whereHas('payments', $postedSince)->pluck('id');
+            $deleted = $batch->loans()->whereDoesntHave('payments', $postedSince)->delete();
 
             $batch->update([
                 'status' => 'rolled_back',
@@ -269,6 +317,10 @@ class LoanImportService
                 'total_payable' => 0.0,
                 'status' => strtolower((string) ($row['status'] ?? '')) ?: 'released',
                 'applied_at' => '',
+                'amount_paid' => 0.0,
+                'months_paid' => 0,
+                'paid_as_of' => '',
+                'balance' => 0.0,
                 'remarks' => (string) ($row['remarks'] ?? ''),
                 'allow_duplicate' => $this->isTruthy($row['allow_duplicate'] ?? ''),
                 'dedupe_hash' => null,
@@ -351,6 +403,40 @@ class LoanImportService
             $computed = round($monthly * $entry['term_months'], 2);
             $entry['total_payable'] = $stated !== null && $stated > 0 ? $stated : $computed;
 
+            // How much of the loan was already collected before the system.
+            // Either figure alone is enough: an amount, or a count of months
+            // at the stated amortization.
+            $paid = $this->toAmount($row['amount_paid'] ?? '');
+            $months = (int) ($row['months_paid'] ?? 0);
+
+            if ($months < 0) {
+                $out[] = $this->fail($entry, 'Months paid cannot be negative.');
+                continue;
+            }
+
+            if ($paid === null && $months > 0) {
+                $paid = round($months * $monthly, 2);
+            }
+
+            $paid = max($paid ?? 0.0, 0.0);
+
+            if ($paid > $entry['total_payable'] + 0.01) {
+                $out[] = $this->fail(
+                    $entry,
+                    'Amount paid (' . number_format($paid, 2) . ') is more than the total payable ('
+                    . number_format($entry['total_payable'], 2) . ').'
+                );
+                continue;
+            }
+
+            $entry['amount_paid'] = $paid;
+            $entry['months_paid'] = $months;
+            $entry['balance'] = round($entry['total_payable'] - $paid, 2);
+
+            // The opening payment is dated the day the member had paid up to,
+            // so a statement reads sensibly; without one, the application date.
+            $entry['paid_as_of'] = $this->toDate($row['paid_as_of'] ?? '') ?: $applied;
+
             $entry['dedupe_hash'] = hash('sha256', implode('|', [
                 $member->id,
                 $entry['loan_type'],
@@ -376,13 +462,38 @@ class LoanImportService
 
             $seenInFile[$entry['dedupe_hash']] = $rowNumber;
 
+            $notes = [];
+
             if ($stated !== null && $stated > 0 && abs($stated - $computed) > 1) {
                 $entry['status_verdict'] = 'warning';
-                $entry['message'] = 'Total payable (' . number_format($stated, 2) . ') does not match monthly × term ('
+                $notes[] = 'Total payable (' . number_format($stated, 2) . ') does not match monthly × term ('
                     . number_format($computed, 2) . '). The stated figure will be used.';
-            } elseif ($entry['allow_duplicate']) {
-                $entry['message'] = 'Marked as an intentional duplicate.';
             }
+
+            // Both figures given but disagreeing is worth flagging — one of
+            // them is wrong, and the amount is what gets posted.
+            if ($paid > 0 && $months > 0 && abs($paid - round($months * $monthly, 2)) > 1) {
+                $entry['status_verdict'] = 'warning';
+                $notes[] = 'Amount paid (' . number_format($paid, 2) . ') does not match ' . $months
+                    . ' × ' . number_format($monthly, 2) . ' (' . number_format($months * $monthly, 2)
+                    . '). The amount will be used.';
+            }
+
+            if ($paid > 0) {
+                $notes[] = 'Opens with ' . number_format($paid, 2) . ' already paid'
+                    . ($months > 0 ? " ({$months} months)" : '')
+                    . ', leaving ' . number_format($entry['balance'], 2) . '.';
+            }
+
+            if ($paid > 0 && $entry['balance'] <= 0.01) {
+                $notes[] = 'Fully paid — the loan will be imported as completed.';
+            }
+
+            if ($entry['allow_duplicate']) {
+                $notes[] = 'Marked as an intentional duplicate.';
+            }
+
+            $entry['message'] = implode(' ', $notes);
 
             $out[] = $entry;
         }
@@ -397,6 +508,10 @@ class LoanImportService
                 'error' => count(array_filter($out, fn ($r) => $r['status_verdict'] === 'error')),
                 'amount' => round(array_sum(array_map(
                     fn ($r) => in_array($r['status_verdict'], ['ok', 'warning'], true) ? $r['amount'] : 0,
+                    $out
+                )), 2),
+                'paid' => round(array_sum(array_map(
+                    fn ($r) => in_array($r['status_verdict'], ['ok', 'warning'], true) ? $r['amount_paid'] : 0,
                     $out
                 )), 2),
             ],

@@ -30,6 +30,7 @@ class Loan extends Model
 
     protected $fillable = [
         'user_id',
+        'import_batch_id',
         'loan_type',
         'amount',
         'purpose',
@@ -54,6 +55,7 @@ class Loan extends Model
         'applied_at',
         'approved_at',
         'released_at',
+        'dedupe_hash',
     ];
 
     protected function casts(): array

@@ -29,6 +29,9 @@
           </div>
         </div>
         <div class="chat-header-actions">
+          <button v-if="!ticketOpen" @click="openTicket" class="chat-header-ticket" title="File a ticket">
+            <i class="bi bi-life-preserver"></i>File a ticket
+          </button>
           <button @click="clearChat" class="chat-header-btn" title="Clear chat">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182" />
@@ -43,7 +46,7 @@
       </div>
 
       <!-- Messages -->
-      <div ref="messagesContainer" class="chat-messages">
+      <div v-show="!ticketOpen" ref="messagesContainer" class="chat-messages">
         <!-- Welcome -->
         <div v-if="messages.length === 0" class="chat-welcome">
           <div class="chat-welcome-icon">
@@ -126,7 +129,7 @@
       </div>
 
       <!-- Suggestions -->
-      <div v-if="suggestions.length > 0 && !isLoading" class="chat-suggestions">
+      <div v-if="suggestions.length > 0 && !isLoading && !ticketOpen" class="chat-suggestions">
         <div class="chat-suggestions-label">Suggested questions</div>
         <div class="chat-suggestions-list">
           <button
@@ -141,7 +144,7 @@
       </div>
 
       <!-- Input -->
-      <div class="chat-input-area">
+      <div v-if="!ticketOpen" class="chat-input-area">
         <form @submit.prevent="sendMessage" class="chat-input-form">
           <input
             ref="inputRef"
@@ -163,12 +166,7 @@
             </svg>
           </button>
         </form>
-        <div class="chat-input-footer">
-          <button type="button" class="chat-ticket-link" @click="openTicket">
-            <i class="bi bi-life-preserver me-1"></i>File a ticket
-          </button>
-          <span class="chat-powered-by">Powered by AI — answers may not always be accurate</span>
-        </div>
+        <div class="chat-powered-by">Powered by AI — answers may not always be accurate</div>
       </div>
     </div>
   </Transition>
@@ -686,36 +684,33 @@ function renderMarkdown(text) {
 }
 
 /* ─── Ticket Filing ───────────────────────────────────── */
-.chat-input-footer {
-  display: flex;
+/* Sits in the header so it is visible without scrolling the conversation. */
+.chat-header-ticket {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 6px;
-}
-.chat-input-footer .chat-powered-by {
-  margin-top: 0;
-  flex: 1;
-  text-align: right;
-}
-.chat-ticket-link {
-  background: none;
-  border: none;
-  padding: 0;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
   font-size: 11px;
   font-weight: 600;
-  color: #2563eb;
+  padding: 4px 9px;
+  border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
+  margin-right: 4px;
 }
-.chat-ticket-link:hover {
-  text-decoration: underline;
+.chat-header-ticket:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
+
+/* Filing takes over the panel: the conversation, suggestions and input are
+   hidden while the form is open, so nothing competes with it. */
 .chat-ticket {
-  border-top: 1px solid #e5e7eb;
+  flex: 1;
+  min-height: 0;
   background: #f9fafb;
-  padding: 12px 14px;
-  max-height: 320px;
+  padding: 14px 16px;
   overflow-y: auto;
 }
 .chat-ticket-head {

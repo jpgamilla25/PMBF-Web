@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ExemptionController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LoanController;
 use App\Http\Controllers\Api\MemberController;
+use App\Http\Controllers\Api\PaymentImportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -332,10 +333,17 @@ Route::prefix('v1')->group(function () {
             // Import
             Route::post('import/loans', [ImportController::class, 'importLoans']);
             Route::post('import/benefits', [ImportController::class, 'importBenefits']);
-            Route::post('import/payments', [ImportController::class, 'importPayments']);
             Route::get('import/template/loans', [ImportController::class, 'downloadLoanTemplate']);
             Route::get('import/template/benefits', [ImportController::class, 'downloadBenefitTemplate']);
-            Route::get('import/template/payments', [ImportController::class, 'downloadPaymentTemplate']);
+
+            // Bulk payments — worklist out, preview, then commit. Replaces the
+            // old single-shot import/payments endpoint, which had no duplicate
+            // guard and picked arbitrarily between same-type loans.
+            Route::get('import/payments/worklist', [PaymentImportController::class, 'downloadWorklist']);
+            Route::post('import/payments/preview', [PaymentImportController::class, 'preview']);
+            Route::post('import/payments/commit', [PaymentImportController::class, 'commit']);
+            Route::get('import/payments/batches', [PaymentImportController::class, 'batches']);
+            Route::post('import/payments/batches/{batch}/rollback', [PaymentImportController::class, 'rollback']);
         });
     });
 });

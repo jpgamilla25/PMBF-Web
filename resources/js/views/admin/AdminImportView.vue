@@ -4,6 +4,9 @@
       <h4 class="fw-bold mb-0">Import Data</h4>
     </div>
 
+    <!-- Bulk Payments — worklist out, preview, then post -->
+    <BulkPaymentImport />
+
     <!-- Import Existing Loans -->
     <AppCard class="mb-4">
       <template #header>
@@ -218,6 +221,7 @@ import admin from '@/services/admin'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import BulkPaymentImport from '@/components/admin/BulkPaymentImport.vue'
 
 // Loans state
 const loansFile = ref(null)

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Benefit;
 use App\Models\Loan;
-use App\Models\Payment;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -170,117 +169,6 @@ class ImportController extends Controller
             'failed' => count($errors),
             'errors' => $errors,
         ], "{$successCount} benefits imported successfully." . (count($errors) > 0 ? " " . count($errors) . " rows failed." : ''));
-    }
-
-    /**
-     * Import payments from CSV file.
-     */
-    public function importPayments(Request $request): JsonResponse
-    {
-        $request->validate([
-            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240',
-        ]);
-
-        $file = $request->file('file');
-        $rows = $this->parseCsv($file->getRealPath());
-
-        if (empty($rows)) {
-            return $this->error('The file is empty or could not be parsed.');
-        }
-
-        $requiredHeaders = ['employee_id', 'loan_type', 'amount', 'payment_date', 'payment_method'];
-        $headers = array_map(fn($h) => strtolower(trim($h)), array_keys($rows[0]));
-
-        foreach ($requiredHeaders as $header) {
-            if (!in_array($header, $headers)) {
-                return $this->error("Missing required column: {$header}. Please use the provided template.");
-            }
-        }
-
-        $successCount = 0;
-        $errors = [];
-
-        foreach ($rows as $index => $row) {
-            $rowNumber = $index + 2;
-            $row = array_map('trim', $row);
-
-            $employeeId = $row['employee_id'] ?? '';
-            if (empty($employeeId)) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Employee ID is required.'];
-                continue;
-            }
-
-            $user = User::where('employee_id', $employeeId)->first();
-            if (!$user) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => "Employee not found: {$employeeId}"];
-                continue;
-            }
-
-            $loanType = $row['loan_type'] ?? '';
-            $loan = $user->loans()
-                ->where('loan_type', $loanType)
-                ->whereIn('status', ['released', 'chairperson_approved'])
-                ->first();
-
-            if (!$loan) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => "No active released '{$loanType}' loan found for this employee."];
-                continue;
-            }
-
-            $amount = (float) ($row['amount'] ?? 0);
-            if ($amount <= 0) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Amount must be greater than zero.'];
-                continue;
-            }
-
-            $paymentMethod = $row['payment_method'] ?? 'cash';
-            if (!in_array($paymentMethod, ['cash', 'payroll_deduction', 'bank_transfer', 'check'])) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => "Invalid payment method: {$paymentMethod}"];
-                continue;
-            }
-
-            try {
-                Payment::create([
-                    'loan_id' => $loan->id,
-                    'recorded_by' => $request->user()->id,
-                    'amount' => $amount,
-                    'or_number' => $row['or_number'] ?? null,
-                    'payment_method' => $paymentMethod,
-                    'payment_date' => !empty($row['payment_date']) ? $row['payment_date'] : now()->toDateString(),
-                    'remarks' => $row['remarks'] ?? 'Imported via CSV',
-                ]);
-
-                // Check if loan is fully paid
-                $totalPaid = $loan->payments()->sum('amount');
-                $totalPayable = $loan->total_payable;
-                if ($totalPaid >= $totalPayable) {
-                    $loan->update(['status' => 'completed']);
-                }
-
-                $successCount++;
-            } catch (\Exception $e) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Failed to create payment: ' . $e->getMessage()];
-            }
-        }
-
-        return $this->success([
-            'imported' => $successCount,
-            'failed' => count($errors),
-            'errors' => $errors,
-        ], "{$successCount} payments imported successfully." . (count($errors) > 0 ? " " . count($errors) . " rows failed." : ''));
-    }
-
-    /**
-     * Download payment import CSV template.
-     */
-    public function downloadPaymentTemplate(): StreamedResponse
-    {
-        $headers = ['employee_id', 'loan_type', 'amount', 'or_number', 'payment_method', 'payment_date', 'remarks'];
-
-        return $this->streamCsvTemplate('payment_import_template.csv', $headers, [
-            ['15-0313', 'Hospitalization', '5000', 'OR-2026-001', 'cash', '2026-03-15', 'March payment'],
-            ['15-0313', 'Hospitalization', '5000', 'OR-2026-002', 'payroll_deduction', '2026-04-15', 'April payment'],
-        ]);
     }
 
     /**

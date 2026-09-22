@@ -110,14 +110,28 @@ export default {
     return api.get('/admin/import/template/benefits', { responseType: 'blob' })
   },
 
-  importPayments(formData) {
-    return api.post('/admin/import/payments', formData, {
+  // Bulk payments: worklist out, preview, then commit. Nothing posts until
+  // commitPayments() — previewPayments() only reports what would happen.
+  downloadPaymentWorklist() {
+    return api.get('/admin/import/payments/worklist', { responseType: 'blob' })
+  },
+
+  previewPayments(formData) {
+    return api.post('/admin/import/payments/preview', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
 
-  downloadPaymentTemplate() {
-    return api.get('/admin/import/template/payments', { responseType: 'blob' })
+  commitPayments(token, force = false) {
+    return api.post('/admin/import/payments/commit', { token, force })
+  },
+
+  getPaymentImportBatches(params = {}) {
+    return api.get('/admin/import/payments/batches', { params })
+  },
+
+  rollbackPaymentImport(batchId) {
+    return api.post(`/admin/import/payments/batches/${batchId}/rollback`)
   },
 
   // User Type Management

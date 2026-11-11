@@ -154,7 +154,7 @@
 
       <div class="row">
         <div class="col-md-4">
-          <AppInput v-model="addForm.amount" type="number" label="Monthly Share (₱)" placeholder="0.00" required />
+          <AppInput v-model="addForm.amount" type="number" label="Members Contribution (₱)" placeholder="0.00" required />
         </div>
         <div class="col-md-4">
           <AppInput v-model="addForm.counterpart" type="number" label="PhilRice Counterpart (₱)" placeholder="Leave blank to keep" />
@@ -166,7 +166,7 @@
 
       <div class="alert alert-info small mt-2">
         <i class="bi bi-info-circle me-1"></i>
-        This will set the share (and PhilRice counterpart, if entered) for <strong>{{ addForm.month ? monthNames[addForm.month - 1] : '...' }}</strong> through <strong>December {{ filterYear }}</strong>.
+        This will set the members contribution (and PhilRice counterpart, if entered) for <strong>{{ addForm.month ? monthNames[addForm.month - 1] : '...' }}</strong> through <strong>December {{ filterYear }}</strong>.
       </div>
 
       <AppInput v-model="addForm.remarks" type="textarea" label="Remarks" placeholder="Optional..." />

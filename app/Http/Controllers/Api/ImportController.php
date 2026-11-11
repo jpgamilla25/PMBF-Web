@@ -19,8 +19,9 @@ class ImportController extends Controller
 
     /**
      * Import monthly shares from CSV, one row per member per month. Each row
-     * sets that member's share (what they see on their Shares page) and,
-     * optionally, PhilRice's counterpart for the same month. Re-importing a
+     * sets that member's Members Contribution (shown on their Shares page)
+     * and, optionally, PhilRice's counterpart for the same month; the two
+     * together are the member's Total Equity. Re-importing a
      * month overwrites it rather than adding to it.
      */
     public function importShares(Request $request): JsonResponse
@@ -35,8 +36,14 @@ class ImportController extends Controller
             return $this->error('The file is empty or could not be parsed.');
         }
 
+        // "share_amount" was the column name before it became Members
+        // Contribution; older downloaded templates still import.
+        if (!array_key_exists('members_contribution', $rows[0]) && array_key_exists('share_amount', $rows[0])) {
+            $rows = array_map(fn ($r) => $r + ['members_contribution' => $r['share_amount']], $rows);
+        }
+
         $headers = array_keys($rows[0]);
-        foreach (['employee_id', 'year', 'month', 'share_amount'] as $header) {
+        foreach (['employee_id', 'year', 'month', 'members_contribution'] as $header) {
             if (!in_array($header, $headers, true)) {
                 return $this->error("Missing required column: {$header}. Please use the provided template.");
             }
@@ -73,8 +80,8 @@ class ImportController extends Controller
             $month = $this->parseMonth($row['month'] ?? '');
             if (!$month) { $fail('Month must be 1-12 or a month name (e.g. Jan).'); continue; }
 
-            $share = $this->parseAmount($row['share_amount'] ?? '');
-            if ($share === null) { $fail('Share amount must be a number of 0 or more.'); continue; }
+            $share = $this->parseAmount($row['members_contribution'] ?? '');
+            if ($share === null) { $fail('Members contribution must be a number of 0 or more.'); continue; }
 
             $counterpartRaw = $row['philrice_counterpart'] ?? '';
             $counterpart = $counterpartRaw === '' ? null : $this->parseAmount($counterpartRaw);
@@ -121,7 +128,7 @@ class ImportController extends Controller
      */
     public function downloadShareTemplate(): StreamedResponse
     {
-        $headers = ['employee_id', 'year', 'month', 'share_amount', 'philrice_counterpart'];
+        $headers = ['employee_id', 'year', 'month', 'members_contribution', 'philrice_counterpart'];
         $year = now()->year;
 
         return $this->streamCsvTemplate('share_import_template.csv', $headers, [

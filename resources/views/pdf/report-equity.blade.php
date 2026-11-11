@@ -42,7 +42,7 @@
         <tr>
             <th rowspan="2" style="width:18px;"></th>
             <th rowspan="2">NAME</th>
-            <th rowspan="2">PERSONAL CONTRIBUTION</th>
+            <th rowspan="2">MEMBERS CONTRIBUTION</th>
             <th>PHILRICE</th>
             <th rowspan="2">TOTAL EQUITY</th>
             <th colspan="{{ count($loanCols) + 1 }}">LOANS</th>

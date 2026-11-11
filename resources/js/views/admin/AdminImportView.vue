@@ -23,8 +23,8 @@
       </template>
 
       <p class="text-muted small mb-3">
-        Upload a CSV with one row per Permanent member per month. Required columns: employee_id, year, month, share_amount.
-        Optional: philrice_counterpart. Imported shares show on each member's Shares page; re-importing a month replaces it.
+        Upload a CSV with one row per Permanent member per month. Required columns: employee_id, year, month, members_contribution.
+        Optional: philrice_counterpart (members contribution + counterpart = Total Equity). Shows on each member's Shares page; re-importing a month replaces it.
       </p>
 
       <!-- Dropzone -->

@@ -61,7 +61,7 @@
                 <tr>
                   <th rowspan="2" class="text-center">#</th>
                   <th rowspan="2">Name</th>
-                  <th rowspan="2" class="text-end">Personal Contribution</th>
+                  <th rowspan="2" class="text-end">Members Contribution</th>
                   <th rowspan="2" class="text-end">PhilRice Counterpart</th>
                   <th rowspan="2" class="text-end">Total Equity</th>
                   <th :colspan="loanKeys.length + 1" class="text-center">Loans</th>

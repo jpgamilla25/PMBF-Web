@@ -7,27 +7,32 @@
     <template v-if="!loading">
       <!-- Summary Cards -->
       <div class="row g-3 mb-4">
-        <div class="col-sm-6 col-lg-4">
-          <AppStatCard :title="`Current Monthly ${term === 'Medical Premium' ? 'Premium' : 'Share'}`" :value="data.current_monthly ?? 0" icon="bi bi-calendar-check" color="primary" prefix="₱" />
+        <div :class="cardCol">
+          <AppStatCard :title="isShare ? 'Current Monthly Contribution' : 'Current Monthly Premium'" :value="data.current_monthly ?? 0" icon="bi bi-calendar-check" color="primary" prefix="₱" />
         </div>
-        <div class="col-sm-6 col-lg-4">
-          <AppStatCard :title="`Total ${term === 'Medical Premium' ? 'Premium' : 'Shares'}`" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />
+        <div :class="cardCol">
+          <AppStatCard :title="isShare ? 'Members Contribution' : 'Total Premium'" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />
         </div>
-        <div v-if="showCounterpart" class="col-sm-6 col-lg-4">
-          <AppStatCard title="PhilRice Counterpart" :value="data.total_counterpart ?? 0" icon="bi bi-building" color="info" prefix="₱" />
-        </div>
-        <div class="col-sm-6 col-lg-4">
-          <div class="card shadow-sm border-0 h-100">
-            <div class="card-body d-flex align-items-center justify-content-between">
-              <div>
-                <div class="text-muted small text-uppercase fw-semibold">Update Share Amount</div>
-                <div class="small text-muted">Changes reflect next month</div>
-              </div>
-              <button class="btn btn-sm btn-outline-primary" :disabled="!!data.pending_request" @click="showRequestModal = true">
-                <i class="bi bi-pencil me-1"></i>{{ data.pending_request ? 'Pending...' : 'Request Update' }}
-              </button>
-            </div>
+        <template v-if="isShare">
+          <div :class="cardCol">
+            <AppStatCard title="PhilRice Counterpart" :value="data.total_counterpart ?? 0" icon="bi bi-building" color="info" prefix="₱" />
           </div>
+          <!-- Members contribution + PhilRice counterpart -->
+          <div :class="cardCol">
+            <AppStatCard title="Total Equity" :value="totalEquity" icon="bi bi-safe" color="primary" prefix="₱" />
+          </div>
+        </template>
+      </div>
+
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body d-flex align-items-center justify-content-between">
+          <div>
+            <div class="text-muted small text-uppercase fw-semibold">Update {{ isShare ? 'Members Contribution' : 'Premium Amount' }}</div>
+            <div class="small text-muted">Changes reflect next month</div>
+          </div>
+          <button class="btn btn-sm btn-outline-primary" :disabled="!!data.pending_request" @click="showRequestModal = true">
+            <i class="bi bi-pencil me-1"></i>{{ data.pending_request ? 'Pending...' : 'Request Update' }}
+          </button>
         </div>
       </div>
 
@@ -35,7 +40,7 @@
       <div v-if="data.pending_request" class="alert alert-warning small mb-4">
         <i class="bi bi-hourglass-split me-2"></i>
         <strong>Pending Update Request:</strong>
-        You requested to change your monthly share from
+        You requested to change your monthly {{ isShare ? 'contribution' : 'premium' }} from
         <strong>&#8369;{{ Number(data.pending_request.current_amount).toLocaleString() }}</strong>
         to <strong>&#8369;{{ Number(data.pending_request.requested_amount).toLocaleString() }}</strong>.
         Waiting for admin approval.
@@ -50,13 +55,15 @@
       </div>
 
       <!-- Monthly History -->
-      <AppCard title="Monthly Share History">
+      <AppCard :title="isShare ? 'Monthly Contribution History' : 'Monthly Premium History'">
+        <div class="table-responsive">
         <table class="table table-sm mb-0">
           <thead>
             <tr>
               <th>Month</th>
-              <th>Amount</th>
-              <th v-if="showCounterpart">PhilRice Counterpart</th>
+              <th>{{ isShare ? 'Members Contribution' : 'Amount' }}</th>
+              <th v-if="isShare">PhilRice Counterpart</th>
+              <th v-if="isShare">Total Equity</th>
               <th>Remarks</th>
             </tr>
           </thead>
@@ -64,11 +71,15 @@
             <tr v-for="m in 12" :key="m">
               <td>{{ monthNames[m - 1] }} {{ selectedYear }}</td>
               <td>
-                <strong v-if="getMonthData(m)">&#8369;{{ Number(getMonthData(m).amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
+                <strong v-if="getMonthData(m)">&#8369;{{ peso(getMonthData(m).amount) }}</strong>
                 <span v-else class="text-muted">-</span>
               </td>
-              <td v-if="showCounterpart">
-                <span v-if="Number(data.counterparts?.[m] ?? 0)">&#8369;{{ Number(data.counterparts[m]).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</span>
+              <td v-if="isShare">
+                <span v-if="counterpartFor(m)">&#8369;{{ peso(counterpartFor(m)) }}</span>
+                <span v-else class="text-muted">-</span>
+              </td>
+              <td v-if="isShare">
+                <strong v-if="equityFor(m)">&#8369;{{ peso(equityFor(m)) }}</strong>
                 <span v-else class="text-muted">-</span>
               </td>
               <td class="text-muted small">{{ getMonthData(m)?.remarks ?? '' }}</td>
@@ -77,12 +88,14 @@
           <tfoot>
             <tr class="fw-bold">
               <td>Total</td>
-              <td>&#8369;{{ yearTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
-              <td v-if="showCounterpart">&#8369;{{ counterpartYearTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
+              <td>&#8369;{{ peso(yearTotal) }}</td>
+              <td v-if="isShare">&#8369;{{ peso(counterpartYearTotal) }}</td>
+              <td v-if="isShare">&#8369;{{ peso(yearTotal + counterpartYearTotal) }}</td>
               <td></td>
             </tr>
           </tfoot>
         </table>
+        </div>
       </AppCard>
     </template>
 
@@ -93,7 +106,7 @@
         Changes will take effect <strong>next month</strong> after admin approval.
       </div>
       <AppInput v-model="requestForm.requested_amount" type="number" label="New Monthly Amount (₱)" placeholder="0.00" required />
-      <AppInput v-model="requestForm.reason" type="textarea" label="Reason (optional)" placeholder="Why do you want to change your share amount?" />
+      <AppInput v-model="requestForm.reason" type="textarea" label="Reason (optional)" :placeholder="`Why do you want to change your ${isShare ? 'members contribution' : 'premium'}?`" />
 
       <template #footer>
         <AppButton variant="secondary" @click="showRequestModal = false">Cancel</AppButton>
@@ -140,9 +153,22 @@ const yearTotal = computed(() => {
   return (data.value.history ?? []).reduce((sum, h) => sum + Number(h.amount ?? 0), 0)
 })
 
-// PhilRice counterpart only applies to shares (not COS premiums), and only
-// once the admin has recorded some.
-const showCounterpart = computed(() => term.value !== 'Medical Premium' && Number(data.value.total_counterpart ?? 0) > 0)
+// Share Capital (Permanent) shows Members Contribution + PhilRice Counterpart
+// = Total Equity. COS "Medical Premium" has no counterpart.
+const isShare = computed(() => term.value !== 'Medical Premium')
+const cardCol = computed(() => (isShare.value ? 'col-sm-6 col-lg-3' : 'col-sm-6 col-lg-6'))
+const totalEquity = computed(() => Number(data.value.total_shares ?? 0) + Number(data.value.total_counterpart ?? 0))
+
+function peso(v) {
+  return Number(v ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function counterpartFor(m) {
+  return Number(data.value.counterparts?.[m] ?? 0)
+}
+function equityFor(m) {
+  return Number(getMonthData(m)?.amount ?? 0) + counterpartFor(m)
+}
+
 const counterpartYearTotal = computed(() =>
   Object.values(data.value.counterparts ?? {}).reduce((sum, v) => sum + Number(v ?? 0), 0)
 )

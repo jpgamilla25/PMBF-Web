@@ -58,7 +58,7 @@ class EquityReportExcel
         $L = fn (int $i) => Coordinate::stringFromColumnIndex($i);
 
         $ws->setCellValue('B5', 'NAME');
-        $ws->setCellValue('C5', 'PERSONAL CONTRIBUTION');
+        $ws->setCellValue('C5', 'MEMBERS CONTRIBUTION');
         $ws->setCellValue('D5', 'PHILRICE');
         $ws->setCellValue('D6', 'COUNTERPART');
         $ws->setCellValue('E5', 'TOTAL EQUITY');

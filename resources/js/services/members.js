@@ -5,6 +5,10 @@ export default {
     return api.get('/member/profile')
   },
 
+  updatePersonal(data) {
+    return api.patch('/member/profile/personal', data)
+  },
+
   getDependents() {
     return api.get('/member/dependents')
   },

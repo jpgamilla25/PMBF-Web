@@ -132,6 +132,7 @@ class LoanService
                 'Multi-Purpose' => ['permanent_max_loan_multipurpose', 100000],
                 'Emergency' => ['permanent_max_loan_emergency', 30000],
                 'Hospitalization' => ['permanent_max_loan_hospitalization', 50000],
+                'Palay Production' => ['permanent_max_loan_palay_production', 50000],
             ];
 
             $result = [];

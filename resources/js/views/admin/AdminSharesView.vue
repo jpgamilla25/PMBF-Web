@@ -153,17 +153,20 @@
       </div>
 
       <div class="row">
-        <div class="col-md-6">
-          <AppInput v-model="addForm.amount" type="number" label="Monthly Amount (₱)" placeholder="0.00" required />
+        <div class="col-md-4">
+          <AppInput v-model="addForm.amount" type="number" label="Monthly Share (₱)" placeholder="0.00" required />
         </div>
-        <div class="col-md-6">
+        <div class="col-md-4">
+          <AppInput v-model="addForm.counterpart" type="number" label="PhilRice Counterpart (₱)" placeholder="Leave blank to keep" />
+        </div>
+        <div class="col-md-4">
           <AppInput v-model="addForm.month" type="select" label="From Month" :options="monthOptions" required />
         </div>
       </div>
 
       <div class="alert alert-info small mt-2">
         <i class="bi bi-info-circle me-1"></i>
-        This will set the share amount for <strong>{{ addForm.month ? monthNames[addForm.month - 1] : '...' }}</strong> through <strong>December {{ filterYear }}</strong>.
+        This will set the share (and PhilRice counterpart, if entered) for <strong>{{ addForm.month ? monthNames[addForm.month - 1] : '...' }}</strong> through <strong>December {{ filterYear }}</strong>.
       </div>
 
       <AppInput v-model="addForm.remarks" type="textarea" label="Remarks" placeholder="Optional..." />
@@ -223,7 +226,7 @@ const monthOptions = monthNames.map((n, i) => ({ value: i + 1, label: n }))
 const showAddModal = ref(false)
 const editingUser = ref(null)
 const saving = ref(false)
-const addForm = ref({ user_id: '', amount: '', month: new Date().getMonth() + 1, remarks: '' })
+const addForm = ref({ user_id: '', amount: '', counterpart: '', month: new Date().getMonth() + 1, remarks: '' })
 const memberOptions = ref([])
 
 // Reject
@@ -308,13 +311,13 @@ async function searchMembers(query) {
 
 function openAddModal() {
   editingUser.value = null
-  addForm.value = { user_id: '', amount: '', month: new Date().getMonth() + 1, remarks: '' }
+  addForm.value = { user_id: '', amount: '', counterpart: '', month: new Date().getMonth() + 1, remarks: '' }
   showAddModal.value = true
 }
 
 function openEditModal(m) {
   editingUser.value = m.user
-  addForm.value = { user_id: m.user_id, amount: m.latest_amount, month: new Date().getMonth() + 1, remarks: '' }
+  addForm.value = { user_id: m.user_id, amount: m.latest_amount, counterpart: '', month: new Date().getMonth() + 1, remarks: '' }
   showAddModal.value = true
 }
 
@@ -330,6 +333,7 @@ async function handleSave() {
       amount: addForm.value.amount,
       year: filterYear.value,
       from_month: addForm.value.month,
+      counterpart: addForm.value.counterpart === '' ? null : addForm.value.counterpart,
     })
     notify.success('Share capital updated.')
     showAddModal.value = false

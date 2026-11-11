@@ -35,6 +35,16 @@ class Dependent extends Model
         return $this->hasMany(DependentAttachment::class);
     }
 
+    public function premiums()
+    {
+        return $this->hasMany(DependentPremium::class);
+    }
+
+    public function premiumPayments()
+    {
+        return $this->hasMany(DependentPremiumPayment::class);
+    }
+
     public function claims()
     {
         return $this->hasMany(Claim::class);

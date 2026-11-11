@@ -9,12 +9,12 @@
 
     <BulkLoanImport />
 
-    <!-- Import Benefits -->
+    <!-- Import Shares -->
     <AppCard>
       <template #header>
         <div class="d-flex align-items-center justify-content-between">
           <h5 class="mb-0 fw-semibold">
-            <i class="bi bi-gift me-2 text-primary"></i>Import Benefits
+            <i class="bi bi-pie-chart me-2 text-primary"></i>Import Shares
           </h5>
           <AppButton variant="outline-primary" size="sm" @click="downloadTemplate" :loading="downloadingBenefits">
             <i class="bi bi-download me-1"></i>Download Template
@@ -23,8 +23,8 @@
       </template>
 
       <p class="text-muted small mb-3">
-        Upload a CSV file with benefit records. Required columns: employee_id, benefit_type, amount.
-        Optional: description, share_capital.
+        Upload a CSV with one row per Permanent member per month. Required columns: employee_id, year, month, share_amount.
+        Optional: philrice_counterpart. Imported shares show on each member's Shares page; re-importing a month replaces it.
       </p>
 
       <!-- Dropzone -->
@@ -39,14 +39,14 @@
         <input
           ref="benefitsFileInput"
           type="file"
-          accept=".csv,.xlsx,.xls"
+          accept=".csv"
           class="d-none"
           @change="handleFileSelect"
         />
         <div v-if="!benefitsFile" class="text-center">
           <i class="bi bi-cloud-arrow-up fs-1 text-muted"></i>
           <p class="mb-0 mt-2 text-muted">Drag and drop your CSV file here, or click to browse</p>
-          <p class="mb-0 small text-muted">Accepted formats: .csv, .xlsx, .xls (max 10MB)</p>
+          <p class="mb-0 small text-muted">Accepted format: .csv (max 10MB)</p>
         </div>
         <div v-else class="text-center">
           <i class="bi bi-file-earmark-check fs-1 text-success"></i>
@@ -74,7 +74,7 @@
         :disabled="!benefitsFile || benefitsUploading"
         @click="importFile"
       >
-        <i class="bi bi-upload me-1"></i>Import Benefits
+        <i class="bi bi-upload me-1"></i>Import Shares
       </AppButton>
 
       <!-- Results -->
@@ -123,7 +123,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import BulkPaymentImport from '@/components/admin/BulkPaymentImport.vue'
 import BulkLoanImport from '@/components/admin/BulkLoanImport.vue'
 
-// Benefits state — loans and payments each live in their own component now.
+// Shares state — loans and payments each live in their own component now.
 const benefitsFile = ref(null)
 const benefitsDragOver = ref(false)
 const benefitsUploading = ref(false)
@@ -150,7 +150,7 @@ function isValidFile(file) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
   ]
-  const validExtensions = ['.csv', '.xlsx', '.xls']
+  const validExtensions = ['.csv']
   const hasValidExtension = validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
   const hasValidType = validTypes.includes(file.type) || file.type === ''
   return (hasValidType || hasValidExtension) && file.size <= 10 * 1024 * 1024
@@ -174,7 +174,7 @@ async function importFile() {
 
   try {
     benefitsProgress.value = 60
-    const response = await admin.importBenefits(formData)
+    const response = await admin.importShares(formData)
     benefitsProgress.value = 100
     benefitsResult.value = response.data.data
     benefitsFile.value = null
@@ -189,8 +189,8 @@ async function importFile() {
 async function downloadTemplate() {
   downloadingBenefits.value = true
   try {
-    const response = await admin.downloadBenefitTemplate()
-    triggerDownload(response.data, 'benefit_import_template.csv')
+    const response = await admin.downloadShareTemplate()
+    triggerDownload(response.data, 'share_import_template.csv')
   } catch (error) {
     console.error('Template download failed:', error)
   } finally {

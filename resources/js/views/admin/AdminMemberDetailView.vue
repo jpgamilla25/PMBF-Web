@@ -63,6 +63,13 @@
               </li>
             </ul>
           </AppCard>
+
+          <PersonalDetailsCard
+            :birth-date="member.birth_date"
+            :address="member.address"
+            :submit="(payload) => admin.updateMemberPersonal(member.id, payload)"
+            @saved="(u) => (member = { ...member, birth_date: u.birth_date, address: u.address })"
+          />
         </div>
 
         <!-- Right Column -->
@@ -133,6 +140,7 @@ import PmbfEmployeeModal from '@/components/admin/PmbfEmployeeModal.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
 import PaymentStatementCard from '@/components/member/PaymentStatementCard.vue'
+import PersonalDetailsCard from '@/components/member/PersonalDetailsCard.vue'
 
 const PMBF_EMPLOYEE = 'PMBF Employee'
 

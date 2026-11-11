@@ -21,6 +21,14 @@
                   <i class="bi bi-printer me-1"></i>Print
                 </span>
               </template>
+              <template v-else-if="r.key === 'equity'">
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-filetype-pdf me-1"></i>PDF
+                </span>
+                <span class="badge" :style="{ background: r.bg, color: r.color }">
+                  <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                </span>
+              </template>
               <template v-else-if="r.key === 'notice-of-deduction'">
                 <span class="badge" :style="{ background: r.bg, color: r.color }">
                   <i class="bi bi-filetype-pdf me-1"></i>PDF
@@ -87,6 +95,16 @@ const reportTypes = [
     route: '/admin/reports/shares',
     color: '#92400e',
     bg: '#fef3c7',
+    onlyFor: ['all', 'Permanent'],
+  },
+  {
+    key: 'equity',
+    title: 'Year-End Equity Report',
+    desc: 'Members equity & loans, dependents’ medical premiums, and declared dependents & beneficiaries — as one Excel workbook or PDF.',
+    icon: 'bi bi-journal-bookmark-fill fs-4',
+    route: '/admin/reports/equity',
+    color: '#166534',
+    bg: '#dcfce7',
     onlyFor: ['all', 'Permanent'],
   },
   {

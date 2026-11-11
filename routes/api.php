@@ -183,6 +183,7 @@ Route::prefix('v1')->group(function () {
         // Member
         Route::prefix('member')->group(function () {
             Route::get('profile', [MemberController::class, 'profile']);
+            Route::patch('profile/personal', [\App\Http\Controllers\Api\PersonalInfoController::class, 'updateSelf']);
             Route::get('dependents', [MemberController::class, 'dependents']);
             Route::post('dependents', [MemberController::class, 'storeDependent']);
             Route::delete('dependents/{dependent}', [MemberController::class, 'destroyDependent']);
@@ -232,6 +233,8 @@ Route::prefix('v1')->group(function () {
             // Corrections — PMBF Employees only; HRIS-sourced records are
             // read-only here because the nightly sync owns them.
             Route::patch('members/{user}', [AdminController::class, 'updateMember']);
+            // Birthday / address — local-only, editable for every member type.
+            Route::patch('members/{user}/personal', [\App\Http\Controllers\Api\PersonalInfoController::class, 'updateMember']);
             Route::get('loans', [AdminController::class, 'loans']);
             Route::get('payments', [AdminController::class, 'payments']);
             Route::post('payments', [AdminController::class, 'storePayment']);
@@ -253,6 +256,13 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/ledger/csv',        [\App\Http\Controllers\Api\ReportController::class, 'ledgerCsv']);
             Route::get('reports/notice-of-deduction',[\App\Http\Controllers\Api\ReportController::class, 'noticeOfDeduction']);
             Route::get('reports/divisions',         [\App\Http\Controllers\Api\ReportController::class, 'divisions']);
+            // Year-end report (Permanent): equity & loans, dependents' medical, dependents & beneficiaries
+            Route::get('reports/equity',            [\App\Http\Controllers\Api\EquityReportController::class, 'show']);
+            Route::get('reports/equity/excel',      [\App\Http\Controllers\Api\EquityReportController::class, 'excel']);
+            Route::get('reports/equity/pdf',        [\App\Http\Controllers\Api\EquityReportController::class, 'pdf']);
+            Route::put('reports/equity/premium',    [\App\Http\Controllers\Api\EquityReportController::class, 'savePremium']);
+            Route::put('reports/equity/premium-payment', [\App\Http\Controllers\Api\EquityReportController::class, 'savePremiumPayment']);
+            Route::post('reports/equity/post-month',[\App\Http\Controllers\Api\EquityReportController::class, 'postMonth']);
             // Legacy summary report
             Route::get('reports', [AdminController::class, 'reports']);
 
@@ -344,8 +354,8 @@ Route::prefix('v1')->group(function () {
             Route::post('tickets/{ticket}/reopen', [SupportTicketController::class, 'reopen']);
 
             // Import
-            Route::post('import/benefits', [ImportController::class, 'importBenefits']);
-            Route::get('import/template/benefits', [ImportController::class, 'downloadBenefitTemplate']);
+            Route::post('import/shares', [ImportController::class, 'importShares']);
+            Route::get('import/template/shares', [ImportController::class, 'downloadShareTemplate']);
 
             // Bulk loans — template out, preview, then proceed. Replaces the
             // old single-shot import/loans, which created rows with no review

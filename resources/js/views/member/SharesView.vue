@@ -13,6 +13,9 @@
         <div class="col-sm-6 col-lg-4">
           <AppStatCard :title="`Total ${term === 'Medical Premium' ? 'Premium' : 'Shares'}`" :value="data.total_shares ?? 0" icon="bi bi-pie-chart" color="success" prefix="₱" />
         </div>
+        <div v-if="showCounterpart" class="col-sm-6 col-lg-4">
+          <AppStatCard title="PhilRice Counterpart" :value="data.total_counterpart ?? 0" icon="bi bi-building" color="info" prefix="₱" />
+        </div>
         <div class="col-sm-6 col-lg-4">
           <div class="card shadow-sm border-0 h-100">
             <div class="card-body d-flex align-items-center justify-content-between">
@@ -53,6 +56,7 @@
             <tr>
               <th>Month</th>
               <th>Amount</th>
+              <th v-if="showCounterpart">PhilRice Counterpart</th>
               <th>Remarks</th>
             </tr>
           </thead>
@@ -63,6 +67,10 @@
                 <strong v-if="getMonthData(m)">&#8369;{{ Number(getMonthData(m).amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</strong>
                 <span v-else class="text-muted">-</span>
               </td>
+              <td v-if="showCounterpart">
+                <span v-if="Number(data.counterparts?.[m] ?? 0)">&#8369;{{ Number(data.counterparts[m]).toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</span>
+                <span v-else class="text-muted">-</span>
+              </td>
               <td class="text-muted small">{{ getMonthData(m)?.remarks ?? '' }}</td>
             </tr>
           </tbody>
@@ -70,6 +78,7 @@
             <tr class="fw-bold">
               <td>Total</td>
               <td>&#8369;{{ yearTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
+              <td v-if="showCounterpart">&#8369;{{ counterpartYearTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 }) }}</td>
               <td></td>
             </tr>
           </tfoot>
@@ -130,6 +139,13 @@ function getMonthData(month) {
 const yearTotal = computed(() => {
   return (data.value.history ?? []).reduce((sum, h) => sum + Number(h.amount ?? 0), 0)
 })
+
+// PhilRice counterpart only applies to shares (not COS premiums), and only
+// once the admin has recorded some.
+const showCounterpart = computed(() => term.value !== 'Medical Premium' && Number(data.value.total_counterpart ?? 0) > 0)
+const counterpartYearTotal = computed(() =>
+  Object.values(data.value.counterparts ?? {}).reduce((sum, v) => sum + Number(v ?? 0), 0)
+)
 
 async function fetchData() {
   loading.value = true

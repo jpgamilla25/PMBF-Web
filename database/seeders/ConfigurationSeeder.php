@@ -216,6 +216,15 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 14,
             ],
             [
+                'key' => 'interest_rate_permanent_palay_production',
+                'value' => '',
+                'type' => 'decimal',
+                'group' => 'interest_rates',
+                'description' => 'Permanent — Palay Production Rate (blank = use Permanent rate)',
+                'suffix' => '%',
+                'sort_order' => 15,
+            ],
+            [
                 'key' => 'interest_rate_sc_salary_loan',
                 'value' => '',
                 'type' => 'decimal',
@@ -343,6 +352,15 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 5,
             ],
             [
+                'key' => 'permanent_max_loan_palay_production',
+                'value' => '50000.00',
+                'type' => 'decimal',
+                'group' => 'permanent_loan_rules',
+                'description' => 'Maximum Amount — Palay Production Loan',
+                'suffix' => 'PHP',
+                'sort_order' => 5,
+            ],
+            [
                 'key' => 'permanent_requires_purpose',
                 'value' => '1',
                 'type' => 'boolean',
@@ -453,6 +471,24 @@ class ConfigurationSeeder extends Seeder
                 'group' => 'dependents_coverage',
                 'description' => 'Available coverage options (comma-separated)',
                 'sort_order' => 1,
+            ],
+            [
+                'key' => 'dependent_premium_amount',
+                'value' => '2500.00',
+                'type' => 'decimal',
+                'group' => 'dependents_coverage',
+                'description' => 'Health & Medical Assistance premium per dependent (per year)',
+                'suffix' => 'PHP',
+                'sort_order' => 2,
+            ],
+            [
+                'key' => 'dependent_premium_installments',
+                'value' => '10',
+                'type' => 'number',
+                'group' => 'dependents_coverage',
+                'description' => 'Monthly deductions the dependent premium is spread over',
+                'suffix' => 'months',
+                'sort_order' => 3,
             ],
 
             // ── Loan General Rules ────────────────────────────

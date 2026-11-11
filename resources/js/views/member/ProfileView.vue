@@ -60,6 +60,13 @@
               </li>
             </ul>
           </AppCard>
+
+          <PersonalDetailsCard
+            :birth-date="profile.birth_date"
+            :address="profile.address"
+            :submit="members.updatePersonal"
+            @saved="(u) => (profile = { ...profile, birth_date: u.birth_date, address: u.address })"
+          />
         </div>
 
         <!-- Right Column -->
@@ -211,6 +218,7 @@ import AppCard from '@/components/ui/AppCard.vue'
 import AppBadge from '@/components/ui/AppBadge.vue'
 import AppStatusBadge from '@/components/ui/AppStatusBadge.vue'
 import AppLoading from '@/components/ui/AppLoading.vue'
+import PersonalDetailsCard from '@/components/member/PersonalDetailsCard.vue'
 
 const { loading, withLoading } = useLoading()
 const authStore = useAuthStore()

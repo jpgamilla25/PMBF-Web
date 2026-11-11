@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Benefit;
+use App\Models\ActivityLog;
+use App\Models\MemberCounterpart;
+use App\Models\ShareCapital;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ImportController extends Controller
@@ -15,29 +18,34 @@ class ImportController extends Controller
     use ApiResponse;
 
     /**
-     * Import benefits from CSV file.
+     * Import monthly shares from CSV, one row per member per month. Each row
+     * sets that member's share (what they see on their Shares page) and,
+     * optionally, PhilRice's counterpart for the same month. Re-importing a
+     * month overwrites it rather than adding to it.
      */
-    public function importBenefits(Request $request): JsonResponse
+    public function importShares(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt,xlsx,xls|max:10240',
+            'file' => 'required|file|mimes:csv,txt|max:10240',
         ]);
 
-        $file = $request->file('file');
-        $rows = $this->parseCsv($file->getRealPath());
+        $rows = $this->parseCsv($request->file('file')->getRealPath());
 
         if (empty($rows)) {
             return $this->error('The file is empty or could not be parsed.');
         }
 
-        $requiredHeaders = ['employee_id', 'benefit_type', 'amount'];
-        $headers = array_map(fn($h) => strtolower(trim($h)), array_keys($rows[0]));
-
-        foreach ($requiredHeaders as $header) {
-            if (!in_array($header, $headers)) {
+        $headers = array_keys($rows[0]);
+        foreach (['employee_id', 'year', 'month', 'share_amount'] as $header) {
+            if (!in_array($header, $headers, true)) {
                 return $this->error("Missing required column: {$header}. Please use the provided template.");
             }
         }
+
+        $adminId = $request->user()->id;
+        $users = User::whereIn('employee_id', array_filter(array_map(fn ($r) => trim($r['employee_id'] ?? ''), $rows)))
+            ->get()
+            ->keyBy('employee_id');
 
         $successCount = 0;
         $errors = [];
@@ -45,52 +53,107 @@ class ImportController extends Controller
         foreach ($rows as $index => $row) {
             $rowNumber = $index + 2;
             $row = array_map('trim', $row);
-
             $employeeId = $row['employee_id'] ?? '';
-            if (empty($employeeId)) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Employee ID is required.'];
+            $fail = function (string $message) use (&$errors, $rowNumber, $employeeId) {
+                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => $message];
+            };
+
+            if ($employeeId === '') { $fail('Employee ID is required.'); continue; }
+
+            $user = $users->get($employeeId);
+            if (!$user) { $fail("Employee not found: {$employeeId}"); continue; }
+            if ($user->employment_type !== 'Permanent') {
+                $fail("Shares apply to Permanent members only ({$user->employment_type}).");
                 continue;
             }
 
-            $user = User::where('employee_id', $employeeId)->first();
-            if (!$user) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => "Employee not found: {$employeeId}"];
+            $year = filter_var($row['year'] ?? '', FILTER_VALIDATE_INT);
+            if ($year === false || $year < 2000 || $year > 2100) { $fail('Year must be a 4-digit year.'); continue; }
+
+            $month = $this->parseMonth($row['month'] ?? '');
+            if (!$month) { $fail('Month must be 1-12 or a month name (e.g. Jan).'); continue; }
+
+            $share = $this->parseAmount($row['share_amount'] ?? '');
+            if ($share === null) { $fail('Share amount must be a number of 0 or more.'); continue; }
+
+            $counterpartRaw = $row['philrice_counterpart'] ?? '';
+            $counterpart = $counterpartRaw === '' ? null : $this->parseAmount($counterpartRaw);
+            if ($counterpartRaw !== '' && $counterpart === null) {
+                $fail('PhilRice counterpart must be a number of 0 or more.');
                 continue;
             }
 
-            $amount = (float) ($row['amount'] ?? 0);
+            DB::transaction(function () use ($user, $year, $month, $share, $counterpart, $adminId) {
+                ShareCapital::updateOrCreate(
+                    ['user_id' => $user->id, 'year' => $year, 'month' => $month],
+                    ['amount' => $share, 'type' => 'share', 'remarks' => 'Imported', 'updated_by' => $adminId]
+                );
 
-            try {
-                Benefit::create([
-                    'user_id' => $user->id,
-                    'benefit_type' => $row['benefit_type'] ?? '',
-                    'description' => $row['description'] ?? null,
-                    'amount' => $amount,
-                    'share_capital' => (float) ($row['share_capital'] ?? 0),
-                ]);
-                $successCount++;
-            } catch (\Exception $e) {
-                $errors[] = ['row' => $rowNumber, 'employee_id' => $employeeId, 'error' => 'Failed to create benefit: ' . $e->getMessage()];
-            }
+                if ($counterpart !== null) {
+                    MemberCounterpart::updateOrCreate(
+                        ['user_id' => $user->id, 'year' => $year, 'month' => $month],
+                        ['amount' => $counterpart, 'updated_by' => $adminId]
+                    );
+                }
+            });
+            $successCount++;
+        }
+
+        if ($successCount > 0) {
+            ActivityLog::record([
+                'admin_id'        => $adminId,
+                'action'          => 'shares_imported',
+                'subject'         => $request->file('file')->getClientOriginalName(),
+                'description'     => "Imported {$successCount} share row(s)" . (count($errors) ? ', ' . count($errors) . ' failed' : ''),
+                'employment_type' => 'Permanent',
+            ]);
         }
 
         return $this->success([
             'imported' => $successCount,
             'failed' => count($errors),
             'errors' => $errors,
-        ], "{$successCount} benefits imported successfully." . (count($errors) > 0 ? " " . count($errors) . " rows failed." : ''));
+        ], "{$successCount} share rows imported successfully." . (count($errors) > 0 ? ' ' . count($errors) . ' rows failed.' : ''));
     }
 
     /**
-     * Download benefit import CSV template.
+     * Download share import CSV template.
      */
-    public function downloadBenefitTemplate(): StreamedResponse
+    public function downloadShareTemplate(): StreamedResponse
     {
-        $headers = ['employee_id', 'benefit_type', 'description', 'amount', 'share_capital'];
+        $headers = ['employee_id', 'year', 'month', 'share_amount', 'philrice_counterpart'];
+        $year = now()->year;
 
-        return $this->streamCsvTemplate('benefit_import_template.csv', $headers, [
-            ['EMP-001', 'Dividend', 'Annual dividend 2025', '5000', '10000'],
+        return $this->streamCsvTemplate('share_import_template.csv', $headers, [
+            ['EMP-001', $year, '1', '500', '500'],
+            ['EMP-001', $year, '2', '500', '500'],
         ]);
+    }
+
+    private function parseMonth(string $value): ?int
+    {
+        if ($value === '') {
+            return null;
+        }
+        if (ctype_digit($value)) {
+            $m = (int) $value;
+            return ($m >= 1 && $m <= 12) ? $m : null;
+        }
+
+        $months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        $i = array_search(strtolower(substr($value, 0, 3)), $months, true);
+
+        return $i === false ? null : $i + 1;
+    }
+
+    private function parseAmount(string $value): ?float
+    {
+        $clean = str_replace([',', '₱', ' '], '', $value);
+        if ($clean === '' || !is_numeric($clean) || (float) $clean < 0) {
+            return null;
+        }
+
+        return round((float) $clean, 2);
     }
 
     /**

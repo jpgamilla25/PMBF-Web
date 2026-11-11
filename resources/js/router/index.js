@@ -184,6 +184,12 @@ const routes = [
     meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Contract of Service'] },
   },
   {
+    path: '/admin/reports/equity',
+    name: 'admin-report-equity',
+    component: () => import('../views/admin/AdminReportEquityView.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true, adminContextIn: ['all', 'Permanent'] },
+  },
+  {
     path: '/admin/reports/ledger',
     name: 'admin-report-ledger',
     component: () => import('../views/admin/AdminReportLedgerView.vue'),

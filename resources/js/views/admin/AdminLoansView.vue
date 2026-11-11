@@ -217,6 +217,7 @@ const typeOptions = [
   { value: 'Multi-Purpose', label: 'Multi-Purpose' },
   { value: 'Emergency', label: 'Emergency' },
   { value: 'Hospitalization', label: 'Hospitalization' },
+  { value: 'Palay Production', label: 'Palay Production' },
 ]
 
 const columns = [

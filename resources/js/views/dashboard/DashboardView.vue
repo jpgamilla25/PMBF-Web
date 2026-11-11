@@ -101,10 +101,10 @@
         <!-- Shares row for admin -->
         <div class="row g-3 mb-4">
           <div class="col-sm-6 col-xl-3">
-            <AppStatCard title="Total Share Capital" :value="adminData.shares?.total_this_year ?? 0" icon="bi bi-pie-chart" color="primary" prefix="₱" />
+            <AppStatCard :title="adminIsCos ? 'Total Premium Contributions' : 'Total Share Capital'" :value="adminData.shares?.total_this_year ?? 0" icon="bi bi-pie-chart" color="primary" prefix="₱" />
           </div>
           <div class="col-sm-6 col-xl-3">
-            <AppStatCard title="Members with Shares" :value="adminData.shares?.members_with_shares ?? 0" icon="bi bi-person-check" color="success" />
+            <AppStatCard :title="adminIsCos ? 'Members with Premium Contributions' : 'Members with Shares'" :value="adminData.shares?.members_with_shares ?? 0" icon="bi bi-person-check" color="success" />
           </div>
         </div>
 
@@ -418,6 +418,10 @@ const notify = useNotificationStore()
 const { loading, withLoading } = useLoading()
 
 const currentYear = new Date().getFullYear()
+
+// COS-Enrolled / COS-Non Enrolled admin contexts call shares "Premium Contributions".
+const COS_TYPES = ['Contract of Service', 'Non-Member']
+const adminIsCos = computed(() => COS_TYPES.includes(adminContext.memberType))
 
 // ── Member / Staff data ──
 const stats = ref({})

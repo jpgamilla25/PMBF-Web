@@ -86,12 +86,31 @@ export default {
   getDivisions() {
     return api.get('/admin/reports/divisions')
   },
+  // Year-end report (Permanent): equity & loans, dependents' medical, dependents & beneficiaries
+  getReportEquity(params = {}) {
+    return api.get('/admin/reports/equity', { params })
+  },
+  downloadReportEquity(format, params = {}) {
+    return api.get(`/admin/reports/equity/${format}`, { params, responseType: 'blob' })
+  },
+  saveDependentPremium(data) {
+    return api.put('/admin/reports/equity/premium', data)
+  },
+  saveDependentPremiumPayment(data) {
+    return api.put('/admin/reports/equity/premium-payment', data)
+  },
+  postDependentPremiumMonth(data) {
+    return api.post('/admin/reports/equity/post-month', data)
+  },
+  updateMemberPersonal(id, data) {
+    return api.patch(`/admin/members/${id}/personal`, data)
+  },
   downloadReportCsv(type, params = {}) {
     return api.get(`/admin/reports/${type}/csv`, { params, responseType: 'blob' })
   },
 
-  importBenefits(formData) {
-    return api.post('/admin/import/benefits', formData, {
+  importShares(formData) {
+    return api.post('/admin/import/shares', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
@@ -120,8 +139,8 @@ export default {
     return api.post(`/admin/import/loans/batches/${batchId}/rollback`)
   },
 
-  downloadBenefitTemplate() {
-    return api.get('/admin/import/template/benefits', { responseType: 'blob' })
+  downloadShareTemplate() {
+    return api.get('/admin/import/template/shares', { responseType: 'blob' })
   },
 
   // Support tickets

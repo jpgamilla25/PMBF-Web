@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\FmisShareContribution;
+use App\Models\MemberCounterpart;
 use App\Models\ScheduleRun;
 use App\Models\ShareCapital;
 use App\Models\ShareUpdateRequest;
@@ -44,11 +45,18 @@ class ShareController extends Controller
             ->where('type', 'share')
             ->sum('amount');
 
+        // PhilRice's matching counterpart, entered by the admin with the shares.
+        $counterparts = MemberCounterpart::where('user_id', $user->id)
+            ->where('year', $year)
+            ->pluck('amount', 'month');
+
         return $this->success([
             'current_monthly' => $currentShare?->amount ?? 0,
             'total_shares' => $total,
+            'total_counterpart' => (float) MemberCounterpart::where('user_id', $user->id)->sum('amount'),
             'year' => (int) $year,
             'history' => $shares,
+            'counterparts' => $counterparts,
             'pending_request' => ShareUpdateRequest::where('user_id', $user->id)
                 ->where('status', 'pending')
                 ->first(),
@@ -201,18 +209,27 @@ class ShareController extends Controller
             'amount' => 'required|numeric|min:0',
             'year' => 'required|integer',
             'from_month' => 'required|integer|min:1|max:12',
+            'counterpart' => 'nullable|numeric|min:0',
         ]);
 
         $userId = $request->input('user_id');
         $amount = $request->input('amount');
         $year = $request->input('year');
         $fromMonth = $request->input('from_month');
+        // Blank leaves any existing PhilRice counterpart untouched.
+        $counterpart = $request->filled('counterpart') ? $request->input('counterpart') : null;
 
         for ($m = $fromMonth; $m <= 12; $m++) {
             ShareCapital::updateOrCreate(
                 ['user_id' => $userId, 'year' => $year, 'month' => $m],
                 ['amount' => $amount, 'type' => 'share', 'updated_by' => $request->user()->id]
             );
+            if ($counterpart !== null) {
+                MemberCounterpart::updateOrCreate(
+                    ['user_id' => $userId, 'year' => $year, 'month' => $m],
+                    ['amount' => $counterpart, 'updated_by' => $request->user()->id]
+                );
+            }
         }
 
         return $this->success(null, 'Share capital updated for months ' . $fromMonth . '-12.');

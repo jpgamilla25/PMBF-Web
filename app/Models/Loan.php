@@ -13,7 +13,7 @@ class Loan extends Model
      * Every value the loan_type column accepts.
      *
      * Single source of truth — keep in step with the enum in
-     * database/migrations/2026_07_21_000002_add_regular_loan_type.php.
+     * database/migrations/2026_11_11_000004_add_palay_production_loan_type.php.
      * Which of these a given member may actually apply for is decided by
      * LoanService::getAvailableLoanTypes(), not by this list.
      */
@@ -25,6 +25,7 @@ class Loan extends Model
         'Multi-Purpose',
         'Emergency',
         'Hospitalization',
+        'Palay Production',
         'Temporary',
     ];
 

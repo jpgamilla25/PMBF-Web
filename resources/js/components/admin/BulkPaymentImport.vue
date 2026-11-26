@@ -261,7 +261,7 @@ const { confirm } = useConfirm()
 const adminContext = useAdminContextStore()
 
 // COS employees are paid and deducted twice a month.
-const QUINCENA_TYPES = ['Contract of Service', 'Non-Member']
+const QUINCENA_TYPES = ['Contract of Service']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const usesQuincena = computed(() => {
   const t = adminContext.memberType || 'all'

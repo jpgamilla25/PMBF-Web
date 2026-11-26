@@ -90,7 +90,6 @@ class ChatbotService
         $rates = [
             'SC Members' => Configuration::getValue('interest_rate_sc', '1.50'),
             'Permanent Members' => Configuration::getValue('interest_rate_permanent', '1.00'),
-            'Non-Members' => Configuration::getValue('interest_rate_non_member', '2.00'),
             'PMBF Employees' => Configuration::getValue('interest_rate_pmbf_employee', '2.00'),
         ];
 
@@ -105,7 +104,7 @@ class ChatbotService
                 'Contract of Service' => 'interest_rate_sc',
                 'Permanent' => 'interest_rate_permanent',
                 'PMBF Employee' => 'interest_rate_pmbf_employee',
-                default => 'interest_rate_non_member',
+                default => 'interest_rate_sc',
             };
             $userRate = Configuration::getValue($key, '1.00');
             $context .= "\n👤 As a **{$userType}** member, your rate is **{$userRate}% per month**.";
@@ -137,12 +136,6 @@ class ChatbotService
             ];
         }
 
-        if (!$user || $user->employment_type === 'Non-Member') {
-            $limits['Non-Member'] = [
-                'All Types' => Configuration::getValue('non_member_max_loan_amount', '30000'),
-            ];
-        }
-
         if (!$user || $user->employment_type === 'PMBF Employee') {
             $limits['PMBF Employee'] = [
                 'All Types' => Configuration::getValue('pmbf_employee_max_loan_amount', '30000'),
@@ -170,7 +163,6 @@ class ChatbotService
         $terms = [
             'Contract of Service' => Configuration::getValue('sc_available_terms', '3,6,12'),
             'Permanent' => Configuration::getValue('permanent_available_terms', '3,6,12,18,24,36,48,60'),
-            'Non-Member' => Configuration::getValue('non_member_available_terms', '3,6,12,18,24'),
             'PMBF Employee' => Configuration::getValue('pmbf_employee_available_terms', '3,6,12,18,24'),
         ];
         $maxTerm = Configuration::getValue('max_loan_term_months', '60');
@@ -333,7 +325,6 @@ class ChatbotService
             if ($user) {
                 $rateKey = match ($user->employment_type) {
                     'Contract of Service' => 'interest_rate_sc',
-                    'Non-Member' => 'interest_rate_non_member',
                     'PMBF Employee' => 'interest_rate_pmbf_employee',
                     default => 'interest_rate_permanent',
                 };
@@ -371,9 +362,6 @@ class ChatbotService
         }
         if (!$user || $user->employment_type === 'Permanent') {
             $types['Permanent'] = ['Consolidated', 'Multi-Purpose', 'Emergency', 'Hospitalization'];
-        }
-        if (!$user || $user->employment_type === 'Non-Member') {
-            $types['Non-Member'] = ['Salary Loan', 'Multi-Purpose', 'Emergency'];
         }
         if (!$user || $user->employment_type === 'PMBF Employee') {
             // Configurable per installation — see pmbf_employee_loan_types.

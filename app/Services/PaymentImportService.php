@@ -44,7 +44,7 @@ class PaymentImportService
      * COS employees are paid — and deducted — per quincena (twice a month),
      * so their worklist rows are cut per payroll half-month.
      */
-    public const QUINCENA_TYPES = ['Contract of Service', 'Non-Member'];
+    public const QUINCENA_TYPES = ['Contract of Service'];
 
     public const COLUMNS = [
         'loan_ref',

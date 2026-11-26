@@ -42,15 +42,6 @@ class ConfigurationSeeder extends Seeder
                 'suffix' => '%',
                 'sort_order' => 2,
             ],
-            [
-                'key' => 'interest_rate_non_member',
-                'value' => '2.00',
-                'type' => 'decimal',
-                'group' => 'interest_rates',
-                'description' => 'Non-Members — Interest Rate',
-                'suffix' => '%',
-                'sort_order' => 3,
-            ],
 
             // Interest computation method per member type.
             [
@@ -76,18 +67,6 @@ class ConfigurationSeeder extends Seeder
                     ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
                 ]),
                 'sort_order' => 5,
-            ],
-            [
-                'key' => 'interest_method_non_member',
-                'value' => 'flat',
-                'type' => 'select',
-                'group' => 'interest_rates',
-                'description' => 'Non-Members — Interest Method',
-                'options' => json_encode([
-                    ['value' => 'flat', 'label' => 'Flat (interest on full principal)'],
-                    ['value' => 'diminishing', 'label' => 'Diminishing (interest on reducing balance)'],
-                ]),
-                'sort_order' => 6,
             ],
 
             // How the rates above are expressed. "Per year" divides by 12 to get
@@ -117,18 +96,6 @@ class ConfigurationSeeder extends Seeder
                     ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
                 ]),
                 'sort_order' => 8,
-            ],
-            [
-                'key' => 'interest_period_non_member',
-                'value' => 'per_month',
-                'type' => 'select',
-                'group' => 'interest_rates',
-                'description' => 'Non-Members — Rate Period',
-                'options' => json_encode([
-                    ['value' => 'per_month', 'label' => 'Per month'],
-                    ['value' => 'per_annum', 'label' => 'Per year (÷12 for monthly)'],
-                ]),
-                'sort_order' => 9,
             ],
 
             // PMBF Employees are not on PhilRice payroll, so their rate is set
@@ -378,25 +345,6 @@ class ConfigurationSeeder extends Seeder
                 'sort_order' => 7,
             ],
 
-            // ── Non-Member Rules ──────────────────────────────
-            [
-                'key' => 'non_member_max_loan_amount',
-                'value' => '30000.00',
-                'type' => 'decimal',
-                'group' => 'non_member_rules',
-                'description' => 'Maximum Loan Amount for Non-Members',
-                'suffix' => 'PHP',
-                'sort_order' => 1,
-            ],
-            [
-                'key' => 'non_member_available_terms',
-                'value' => '3,6,12,18,24',
-                'type' => 'text',
-                'group' => 'non_member_rules',
-                'description' => 'Available loan terms for Non-Members (comma-separated, in months)',
-                'suffix' => 'months',
-                'sort_order' => 2,
-            ],
 
             // ── PMBF Employee Rules ───────────────────────────
             // PMBF Employees work for the fund, not for PhilRice: no PhilRice

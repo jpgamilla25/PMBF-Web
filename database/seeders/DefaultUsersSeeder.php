@@ -84,7 +84,7 @@ class DefaultUsersSeeder extends Seeder
             default => trim((string) $type),
         };
 
-        return in_array($type, ['Contract of Service', 'Permanent', 'Non-Member'], true)
+        return in_array($type, ['Contract of Service', 'Permanent'], true)
             ? $type
             : 'Permanent';
     }
@@ -130,20 +130,6 @@ class DefaultUsersSeeder extends Seeder
                 'employee_id' => '26-0121',
                 'role' => 'member',
                 'fallback' => $this->profile('Mark', 'Gonzales', 'SC', 12000, 4500),
-            ],
-
-            // Non-Members (pre-registered for testing)
-            [
-                // Luis Tan — Non-Member, 25k
-                'employee_id' => '25-0901',
-                'role' => 'member',
-                'fallback' => $this->profile('Luis', 'Tan', 'Non-Member', 25000, 18000),
-            ],
-            [
-                // Grace Lim — Non-Member, 10k
-                'employee_id' => '25-0932',
-                'role' => 'member',
-                'fallback' => $this->profile('Grace', 'Lim', 'Non-Member', 10000, 7000),
             ],
         ];
     }

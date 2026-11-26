@@ -69,7 +69,6 @@
             <option value="">All types</option>
             <option value="Permanent">Permanent</option>
             <option value="Contract of Service">Contract of Service</option>
-            <option value="Non-Member">Non-Member</option>
             <option value="PMBF Employee">PMBF Employee</option>
           </select>
         </div>

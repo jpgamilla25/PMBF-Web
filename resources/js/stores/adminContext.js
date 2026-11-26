@@ -3,8 +3,8 @@ import { useAuthStore } from './auth'
 
 export const useAdminContextStore = defineStore('adminContext', {
   state: () => {
-    // COS-Non Enrolled is no longer an admin view; a session still holding
-    // it goes back to the type picker.
+    // COS-Non Enrolled was removed; a session still holding it goes back to
+    // the type picker.
     const saved = sessionStorage.getItem('pmbf_admin_type')
     if (saved === 'Non-Member') sessionStorage.removeItem('pmbf_admin_type')
     return { memberType: saved && saved !== 'Non-Member' ? saved : null }
@@ -19,7 +19,6 @@ export const useAdminContextStore = defineStore('adminContext', {
         all: 'All Members',
         Permanent: 'Permanent',
         'Contract of Service': 'Contract of Service',
-        'Non-Member': 'Non-Members',
         'PMBF Employee': 'PMBF Employees',
       }
       return labels[state.memberType] || 'All Members'
@@ -30,7 +29,6 @@ export const useAdminContextStore = defineStore('adminContext', {
         all: 'primary',
         Permanent: 'success',
         'Contract of Service': 'warning',
-        'Non-Member': 'secondary',
         'PMBF Employee': 'info',
       }
       return colors[state.memberType] || 'primary'

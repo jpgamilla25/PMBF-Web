@@ -282,19 +282,18 @@ const groupVisibility = {
   // Type-specific groups
   sc_loan_rules: ['Contract of Service', 'all'],
   permanent_loan_rules: ['Permanent', 'all'],
-  non_member_rules: ['Non-Member', 'all'],
   pmbf_employee_rules: ['PMBF Employee', 'all'],
   share_capital: ['Permanent', 'all'],
 
   // Only show the relevant interest rate keys per type (handled in filterConfigs)
-  interest_rates: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
+  interest_rates: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
 
   // Common groups — always visible
-  loan_applications: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
-  approval_workflow: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
-  dependents_coverage: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
-  notifications: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
-  security: ['Permanent', 'Contract of Service', 'Non-Member', 'PMBF Employee', 'all'],
+  loan_applications: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
+  approval_workflow: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
+  dependents_coverage: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
+  notifications: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
+  security: ['Permanent', 'Contract of Service', 'PMBF Employee', 'all'],
 }
 
 /**
@@ -310,12 +309,11 @@ const groupVisibility = {
 const interestRateScopes = {
   Permanent: ['interest_rate_permanent', 'interest_method_permanent', 'interest_period_permanent'],
   'Contract of Service': ['interest_rate_sc', 'interest_method_sc', 'interest_period_sc'],
-  'Non-Member': ['interest_rate_non_member', 'interest_method_non_member', 'interest_period_non_member'],
   'PMBF Employee': ['interest_rate_pmbf_employee', 'interest_method_pmbf_employee', 'interest_period_pmbf_employee'],
   all: [
-    'interest_rate_sc', 'interest_rate_permanent', 'interest_rate_non_member', 'interest_rate_pmbf_employee',
-    'interest_method_sc', 'interest_method_permanent', 'interest_method_non_member', 'interest_method_pmbf_employee',
-    'interest_period_sc', 'interest_period_permanent', 'interest_period_non_member', 'interest_period_pmbf_employee',
+    'interest_rate_sc', 'interest_rate_permanent', 'interest_rate_pmbf_employee',
+    'interest_method_sc', 'interest_method_permanent', 'interest_method_pmbf_employee',
+    'interest_period_sc', 'interest_period_permanent', 'interest_period_pmbf_employee',
   ],
 }
 
@@ -430,7 +428,6 @@ const groupIcons = {
   interest_rates: 'bi bi-percent',
   sc_loan_rules: 'bi bi-file-earmark-text',
   permanent_loan_rules: 'bi bi-building',
-  non_member_rules: 'bi bi-person-x',
   pmbf_employee_rules: 'bi bi-person-badge',
   approval_workflow: 'bi bi-diagram-3',
   share_capital: 'bi bi-piggy-bank',
@@ -444,7 +441,6 @@ const groupNames = {
   interest_rates: 'Interest Rates',
   sc_loan_rules: 'COS-Enrolled Loan Rules',
   permanent_loan_rules: 'Permanent Loan Rules',
-  non_member_rules: 'COS-Non Enrolled Rules',
   pmbf_employee_rules: 'PMBF Employee Loan Rules',
   approval_workflow: 'Approval Workflow',
   share_capital: 'Share Capital Visibility',
@@ -460,7 +456,6 @@ const groupBlurbs = {
   interest_rates: 'What members are charged, and how the interest is computed.',
   permanent_loan_rules: 'Borrowing limits and terms for permanent employees.',
   sc_loan_rules: 'Borrowing limits and terms for enrolled Contract of Service employees.',
-  non_member_rules: 'Borrowing limits and terms for non-enrolled Contract of Service employees.',
   pmbf_employee_rules: 'Borrowing limits and terms for staff employed by PMBF itself.',
   approval_workflow: 'Who signs off on an application, and in what order.',
   share_capital: 'What members can see and request about their share capital.',
@@ -482,7 +477,6 @@ const CLUSTERS = [
       'interest_rates',
       'permanent_loan_rules',
       'sc_loan_rules',
-      'non_member_rules',
       'pmbf_employee_rules',
       'approval_workflow',
     ],
@@ -551,7 +545,6 @@ function switchFields(group) {
 const RATE_SCOPES = [
   { key: 'permanent', label: 'Permanent' },
   { key: 'sc', label: 'Contract of Service' },
-  { key: 'non_member', label: 'Non-Members' },
   { key: 'pmbf_employee', label: 'PMBF Employees' },
 ]
 

@@ -11,7 +11,6 @@
  *   3. Loans (General)
  *   4. Loans (SC Members)
  *   5. Loans (Permanent Members)
- *   6. Loans (Non-Members)
  *   7. Loan Application Process
  *   8. Loan Approval Workflow
  *   9. Co-Maker
@@ -53,8 +52,8 @@ export const FAQ_ITEMS = [
     id: 2,
     category: 'General',
     question: 'Who can be a member of PMBF?',
-    answer: 'PMBF serves three types of members:\n• **Permanent employees** — full access to all loan types and benefits\n• **SC (Service Contract) employees** — eligible for Salary Loans with terms based on contract duration\n• **Non-Members** — limited loan access (Salary Loan, Multi-Purpose, Emergency) with a maximum of ₱30,000',
-    keywords: ['member', 'join', 'eligible', 'who', 'types', 'permanent', 'sc', 'contract', 'non-member'],
+    answer: 'PMBF serves two types of members:\n• **Permanent employees** — full access to all loan types and benefits\n• **SC (Service Contract) employees** — eligible for Salary Loans with terms based on contract duration',
+    keywords: ['member', 'join', 'eligible', 'who', 'types', 'permanent', 'sc', 'contract'],
   },
   {
     id: 3,
@@ -120,21 +119,21 @@ export const FAQ_ITEMS = [
     id: 11,
     category: 'Loans',
     question: 'What types of loans does PMBF offer?',
-    answer: 'PMBF offers the following loan types:\n\n**For Permanent Members:**\n• Consolidated — up to ₱200,000\n• Multi-Purpose — up to ₱100,000\n• Emergency — up to ₱30,000\n• Hospitalization — up to ₱50,000\n\n**For SC Members:**\n• Salary Loan — based on monthly salary × contract months\n\n**For Non-Members:**\n• Salary Loan, Multi-Purpose, Emergency — up to ₱30,000 each',
+    answer: 'PMBF offers the following loan types:\n\n**For Permanent Members:**\n• Consolidated — up to ₱200,000\n• Multi-Purpose — up to ₱100,000\n• Emergency — up to ₱30,000\n• Hospitalization — up to ₱50,000\n\n**For SC Members:**\n• Salary Loan — based on monthly salary × contract months',
     keywords: ['loan types', 'kinds', 'available', 'consolidated', 'multi-purpose', 'emergency', 'hospitalization', 'salary loan'],
   },
   {
     id: 12,
     category: 'Loans',
     question: 'What are the interest rates?',
-    answer: 'PMBF uses **flat interest rates** (not diminishing balance):\n\n| Member Type | Monthly Rate |\n|---|---|\n| SC Members | 1.50% per month |\n| Permanent Members | 1.00% per month |\n| Non-Members | 2.00% per month |\n\n**Example:** A ₱10,000 loan at 1% for 12 months:\n• Total Interest = ₱10,000 × 1% × 12 = ₱1,200\n• Monthly Amortization = (₱10,000 + ₱1,200) ÷ 12 = ₱933.33',
+    answer: 'PMBF uses **flat interest rates** (not diminishing balance):\n\n| Member Type | Monthly Rate |\n|---|---|\n| SC Members | 1.50% per month |\n| Permanent Members | 1.00% per month |\n\n**Example:** A ₱10,000 loan at 1% for 12 months:\n• Total Interest = ₱10,000 × 1% × 12 = ₱1,200\n• Monthly Amortization = (₱10,000 + ₱1,200) ÷ 12 = ₱933.33',
     keywords: ['interest', 'rate', 'percent', 'monthly', 'flat', 'how much', 'computation', 'calculate'],
   },
   {
     id: 13,
     category: 'Loans',
     question: 'What loan terms are available?',
-    answer: 'Available repayment terms depend on your member type:\n\n• **Permanent Members:** 3, 6, 12, 18, 24, 36, 48, or 60 months\n• **SC Members:** 3, 6, or 12 months (limited by remaining contract duration)\n• **Non-Members:** 3, 6, 12, 18, or 24 months\n\nThe maximum term across all types is **60 months (5 years)**.',
+    answer: 'Available repayment terms depend on your member type:\n\n• **Permanent Members:** 3, 6, 12, 18, 24, 36, 48, or 60 months\n• **SC Members:** 3, 6, or 12 months (limited by remaining contract duration)\n\nThe maximum term across all types is **60 months (5 years)**.',
     keywords: ['term', 'months', 'duration', 'how long', 'repayment', 'period', 'years'],
   },
   {
@@ -189,15 +188,6 @@ export const FAQ_ITEMS = [
     question: 'What are the loan limits for Permanent members?',
     answer: 'Permanent members can apply for the following loan types with these maximum amounts:\n\n| Loan Type | Maximum Amount |\n|---|---|\n| Consolidated | ₱200,000 |\n| Multi-Purpose | ₱100,000 |\n| Emergency | ₱30,000 |\n| Hospitalization | ₱50,000 |\n\n**Note:** The actual maximum is the **lesser of** the configured limit or your **net take-home pay** from FMIS. If you need more than the limit, you can apply for an exemption.',
     keywords: ['permanent', 'limit', 'maximum', 'consolidated', 'multi-purpose', 'emergency', 'hospitalization', 'cap'],
-  },
-
-  // ─── 6. LOANS (NON-MEMBERS) ───────────────────────────────────
-  {
-    id: 21,
-    category: 'Loans',
-    question: 'What loans are available for Non-Members?',
-    answer: 'Non-Members can apply for:\n• **Salary Loan**\n• **Multi-Purpose Loan**\n• **Emergency Loan**\n\nAll non-member loans have a maximum amount of **₱30,000** and available terms of **3, 6, 12, 18, or 24 months** at an interest rate of **2% per month**.',
-    keywords: ['non-member', 'non member', 'available', 'loan', 'limit', '30000'],
   },
 
   // ─── 7. LOAN APPLICATION PROCESS ──────────────────────────────
@@ -265,7 +255,7 @@ export const FAQ_ITEMS = [
     id: 30,
     category: 'Co-Maker',
     question: 'Who can be a co-maker?',
-    answer: 'To be eligible as a co-maker, a person must:\n• Be a **Permanent employee** (not SC or Non-Member)\n• Have an **active** status in the system\n• **Not** be the loan applicant themselves\n\nYou can search for available co-makers by name or Employee ID when applying for a loan.',
+    answer: 'To be eligible as a co-maker, a person must:\n• Be a **Permanent employee** (not SC)\n• Have an **active** status in the system\n• **Not** be the loan applicant themselves\n\nYou can search for available co-makers by name or Employee ID when applying for a loan.',
     keywords: ['co-maker', 'eligible', 'who can', 'requirements', 'permanent', 'qualifications'],
   },
   {
@@ -461,28 +451,25 @@ PMBF stands for PhilRice Mutual Benefit Fund, a cooperative-style financial syst
 ## Member Types
 1. Permanent Employees — full access to all loan types (Consolidated, Multi-Purpose, Emergency, Hospitalization)
 2. SC (Service Contract) — Salary Loan only, terms limited by contract duration, co-maker required
-3. Non-Members — limited access (Salary Loan, Multi-Purpose, Emergency), max ₱30,000
 
 ## Loan Types & Limits
 - Consolidated (Permanent only): up to ₱200,000
-- Multi-Purpose (Permanent & Non-Member): up to ₱100,000 / ₱30,000
-- Emergency (Permanent & Non-Member): up to ₱30,000
+- Multi-Purpose (Permanent only): up to ₱100,000
+- Emergency (Permanent only): up to ₱30,000
 - Hospitalization (Permanent only): up to ₱50,000
-- Salary Loan (SC & Non-Member): SC max = monthly salary × contract months, max ₱50,000; Non-Member max = ₱30,000
+- Salary Loan (SC only): max = monthly salary × contract months, max ₱50,000
 - Permanent loan limits are also capped by net take-home pay (whichever is lower)
 - Minimum loan amount: ₱1,000
 
 ## Interest Rates (Flat, Monthly)
 - SC Members: 1.50% per month
 - Permanent Members: 1.00% per month
-- Non-Members: 2.00% per month
 - Formula: Total Interest = Principal × Monthly Rate × Term Months
 - Monthly Amortization = (Principal + Total Interest) ÷ Term Months
 
 ## Loan Terms
 - Permanent: 3, 6, 12, 18, 24, 36, 48, 60 months
 - SC: 3, 6, 12 months (limited by remaining contract)
-- Non-Member: 3, 6, 12, 18, 24 months
 - Maximum: 60 months
 
 ## Eligibility Requirements

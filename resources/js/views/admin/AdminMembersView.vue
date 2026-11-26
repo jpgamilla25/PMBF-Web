@@ -206,14 +206,12 @@ const employmentOptions = [
   { value: '', label: 'All Types' },
   { value: 'Contract of Service', label: 'Contract of Service' },
   { value: 'Permanent', label: 'Permanent' },
-  { value: 'Non-Member', label: 'Non-Member' },
   { value: PMBF_EMPLOYEE, label: PMBF_EMPLOYEE },
 ]
 
 const typeVariants = {
   Permanent: 'success',
   'Contract of Service': 'warning',
-  'Non-Member': 'secondary',
   [PMBF_EMPLOYEE]: 'info',
 }
 

@@ -125,10 +125,6 @@ class User extends Authenticatable
         return $this->employment_type === 'Permanent';
     }
 
-    public function isNonMember(): bool
-    {
-        return $this->employment_type === 'Non-Member';
-    }
 
     /**
      * Staff of the PMBF itself rather than of PhilRice.

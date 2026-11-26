@@ -150,22 +150,9 @@ class LoanService
             return $result;
         }
 
-        // Non-Member
-        $nonMax = Configuration::getDecimal('non_member_max_loan_amount', 30000);
-        $terms = $this->parseTerms(Configuration::getValue('non_member_available_terms', '3,6,12,18,24'));
-
-        $result = [];
-        foreach (['Salary Loan', 'Multi-Purpose', 'Emergency'] as $name) {
-            $result[$name] = [
-                'name' => $name,
-                'max_amount' => $nonMax,
-                'available_terms' => $terms,
-                'interest_rate' => $this->getInterestRate($user, $name),
-                'interest_method' => $this->getInterestMethod($user),
-            ];
-        }
-
-        return $result;
+        // Any other employment type (the former COS-Non Enrolled included)
+        // has no loan products.
+        return [];
     }
 
     /**
@@ -400,7 +387,7 @@ class LoanService
             $this->isSC($user) => ['sc', 1.50],
             $this->isPermanent($user) => ['permanent', 1.00],
             $this->isPmbfEmployee($user) => ['pmbf_employee', 2.00],
-            default => ['non_member', 2.00],
+            default => ['sc', 1.50],
         };
 
         $rate = null;
@@ -445,7 +432,7 @@ class LoanService
             $this->isSC($user) => 'sc',
             $this->isPermanent($user) => 'permanent',
             $this->isPmbfEmployee($user) => 'pmbf_employee',
-            default => 'non_member',
+            default => 'sc',
         };
 
         $default = $scope === 'permanent' ? 'diminishing' : 'flat';

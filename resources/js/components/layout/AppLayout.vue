@@ -487,7 +487,6 @@ async function handleLogout() {
 .type-btn.active.ctx-all { background: #1e40af; color: #fff; }
 .type-btn.active.ctx-perm { background: #059669; color: #fff; }
 .type-btn.active.ctx-sc { background: #d97706; color: #fff; }
-.type-btn.active.ctx-non { background: #6b7280; color: #fff; }
 .type-btn.active.ctx-pmbf { background: #7c3aed; color: #fff; }
 
 /* ─── Admin Context Banner ─── */
@@ -548,11 +547,6 @@ async function handleLogout() {
   color: #fff;
 }
 
-.context-btn.active.ctx-non {
-  background: #6b7280;
-  border-color: #6b7280;
-  color: #fff;
-}
 
 .context-btn.active.ctx-pmbf {
   background: #7c3aed;

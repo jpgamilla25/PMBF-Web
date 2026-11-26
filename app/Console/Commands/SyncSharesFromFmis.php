@@ -202,7 +202,7 @@ class SyncSharesFromFmis extends Command
                 $type = match ($user['employment_type']) {
                     'Permanent' => 'share',
                     'Contract of Service' => 'premium',
-                    default => null, // Non-Member — raw FMIS only, no member ledger
+                    default => null, // any other type — raw FMIS only, no member ledger
                 };
                 if ($type !== null) $fallbackCount++;
             }

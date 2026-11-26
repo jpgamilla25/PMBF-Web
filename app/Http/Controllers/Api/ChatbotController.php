@@ -220,7 +220,6 @@ class ChatbotController extends Controller
             ['id' => 18, 'category' => 'Loans', 'question' => 'Why is my loan term limited as an SC member?', 'keywords' => ['sc', 'term', 'limited', 'contract', 'remaining']],
             ['id' => 19, 'category' => 'Loans', 'question' => 'Do SC members need a co-maker?', 'keywords' => ['sc', 'co-maker', 'required', 'guarantor']],
             ['id' => 20, 'category' => 'Loans', 'question' => 'What are the loan limits for Permanent members?', 'keywords' => ['permanent', 'limit', 'maximum', 'cap']],
-            ['id' => 21, 'category' => 'Loans', 'question' => 'What loans are available for Non-Members?', 'keywords' => ['non-member', 'available', 'loan', 'limit']],
             ['id' => 22, 'category' => 'Loan Application', 'question' => 'How do I apply for a loan?', 'keywords' => ['apply', 'application', 'process', 'steps', 'new loan']],
             ['id' => 23, 'category' => 'Loan Application', 'question' => 'Is OTP required when applying for a loan?', 'keywords' => ['otp', 'loan', 'required', 'verification']],
             ['id' => 24, 'category' => 'Loan Application', 'question' => 'What are the eligibility requirements?', 'keywords' => ['eligibility', 'requirements', 'qualify', 'eligible', 'minimum pay']],
@@ -315,16 +314,16 @@ class ChatbotController extends Controller
     {
         return [
             ['question' => 'What is PMBF?', 'answer' => "PMBF stands for **PhilRice Mutual Benefit Fund**. It is a cooperative-style financial management system for PhilRice employees that provides loan services, share capital management, and member benefits including dental and hospitalization coverage.", 'keywords' => ['pmbf', 'about', 'provident', 'mutual', 'benefit', 'fund', 'philrice']],
-            ['question' => 'Who can be a member?', 'answer' => "PMBF serves three types of members:\n• **Permanent employees** — full access to all loan types and benefits\n• **SC (Service Contract) employees** — eligible for Salary Loans with terms based on contract duration\n• **Non-Members** — limited loan access (Salary Loan, Multi-Purpose, Emergency) with a maximum of ₱30,000", 'keywords' => ['member', 'join', 'eligible', 'types', 'permanent', 'sc', 'non-member']],
+            ['question' => 'Who can be a member?', 'answer' => "PMBF serves two types of members:\n• **Permanent employees** — full access to all loan types and benefits\n• **SC (Service Contract) employees** — eligible for Salary Loans with terms based on contract duration", 'keywords' => ['member', 'join', 'eligible', 'types', 'permanent', 'sc']],
             ['question' => 'What services does PMBF offer?', 'answer' => "PMBF offers:\n• **Loan facilities** — multiple loan types with competitive interest rates\n• **Share capital** — monthly savings/investment\n• **Benefits** — dental and hospitalization coverage\n• **Claims** — file claims for covered expenses", 'keywords' => ['services', 'offer', 'features']],
             ['question' => 'How to contact support?', 'answer' => "You can reach PMBF support at **pmbf.philrice@gmail.com**. You can also visit the PMBF office during business hours.", 'keywords' => ['contact', 'support', 'help', 'email', 'phone']],
             ['question' => 'How to register?', 'answer' => "To register:\n1. Enter your **Employee ID**\n2. The system verifies against HRIS\n3. An **OTP** is sent to your email\n4. Enter the OTP to complete registration\n\nNo password needed — PMBF uses passwordless authentication.", 'keywords' => ['register', 'sign up', 'create account', 'employee id']],
             ['question' => 'How to log in?', 'answer' => "PMBF uses **passwordless OTP login**:\n1. Enter your **Employee ID**\n2. An OTP is sent to your email\n3. Enter the OTP to log in\n\nIf your device is **trusted**, you skip the OTP step.", 'keywords' => ['login', 'sign in', 'log in', 'otp', 'password', 'access']],
             ['question' => 'What is a trusted device?', 'answer' => "A trusted device is remembered for **30 days** so you can log in without an OTP. You can view and revoke trusted devices from your profile.", 'keywords' => ['trusted', 'device', 'remember', 'skip otp']],
             ['question' => 'OTP not arriving?', 'answer' => "If your OTP isn't arriving:\n• Check your **spam/junk folder**\n• Make sure your email is correct in HRIS\n• Use the **\"Resend OTP\"** button\n• OTPs expire after **10 minutes**\n• After **5 failed attempts**, you're locked out for **15 minutes**", 'keywords' => ['otp', 'not arriving', 'email', 'spam', 'resend', 'expired', 'locked']],
-            ['question' => 'What loan types are available?', 'answer' => "**Permanent Members:**\n• Consolidated — up to ₱200,000\n• Multi-Purpose — up to ₱100,000\n• Emergency — up to ₱30,000\n• Hospitalization — up to ₱50,000\n\n**SC Members:** Salary Loan only\n\n**Non-Members:** Salary Loan, Multi-Purpose, Emergency — up to ₱30,000 each", 'keywords' => ['loan types', 'kinds', 'available', 'consolidated', 'multi-purpose', 'emergency', 'hospitalization', 'salary loan']],
-            ['question' => 'What are the interest rates?', 'answer' => "PMBF uses **flat interest rates**:\n• **SC Members:** 1.50% per month\n• **Permanent Members:** 1.00% per month\n• **Non-Members:** 2.00% per month\n\nFormula: Total Interest = Principal × Rate × Term Months", 'keywords' => ['interest', 'rate', 'percent', 'monthly', 'flat', 'how much']],
-            ['question' => 'What loan terms are available?', 'answer' => "• **Permanent:** 3, 6, 12, 18, 24, 36, 48, 60 months\n• **SC:** 3, 6, 12 months (limited by contract)\n• **Non-Member:** 3, 6, 12, 18, 24 months\n\nMaximum: **60 months**", 'keywords' => ['term', 'months', 'duration', 'how long', 'repayment']],
+            ['question' => 'What loan types are available?', 'answer' => "**Permanent Members:**\n• Consolidated — up to ₱200,000\n• Multi-Purpose — up to ₱100,000\n• Emergency — up to ₱30,000\n• Hospitalization — up to ₱50,000\n\n**SC Members:** Salary Loan only", 'keywords' => ['loan types', 'kinds', 'available', 'consolidated', 'multi-purpose', 'emergency', 'hospitalization', 'salary loan']],
+            ['question' => 'What are the interest rates?', 'answer' => "PMBF uses **flat interest rates**:\n• **SC Members:** 1.50% per month\n• **Permanent Members:** 1.00% per month\n\nFormula: Total Interest = Principal × Rate × Term Months", 'keywords' => ['interest', 'rate', 'percent', 'monthly', 'flat', 'how much']],
+            ['question' => 'What loan terms are available?', 'answer' => "• **Permanent:** 3, 6, 12, 18, 24, 36, 48, 60 months\n• **SC:** 3, 6, 12 months (limited by contract)\n\nMaximum: **60 months**", 'keywords' => ['term', 'months', 'duration', 'how long', 'repayment']],
             ['question' => 'How is amortization calculated?', 'answer' => "**Flat Interest Formula:**\n• Total Interest = Loan Amount × Monthly Rate × Term\n• Monthly Amortization = (Loan Amount + Total Interest) ÷ Term\n\n**Example:** ₱50,000 at 1% for 12 months:\n• Interest = ₱6,000\n• Monthly = ₱4,666.67\n• Total Payable = ₱56,000", 'keywords' => ['amortization', 'monthly payment', 'compute', 'calculate', 'formula']],
             ['question' => 'How to apply for a loan?', 'answer' => "1. Go to **Loans → Apply for a Loan**\n2. Select loan type, amount, term, and purpose\n3. SC members: select a **co-maker**\n4. Review the computed interest\n5. Verify with **email OTP**\n6. Submit your application", 'keywords' => ['apply', 'application', 'process', 'steps', 'new loan']],
             ['question' => 'Eligibility requirements?', 'answer' => "To be eligible:\n1. **Minimum take-home pay:** ₱5,000\n2. **No pending loans** awaiting approval\n3. **No active loan** of the same type\n4. **Active employee** in HRIS\n\nIf you don't meet minimum pay, apply for an **exemption**.", 'keywords' => ['eligibility', 'requirements', 'qualify', 'eligible', 'minimum pay', 'can i apply']],
@@ -368,28 +367,25 @@ PMBF stands for PhilRice Mutual Benefit Fund, a cooperative-style financial syst
 ## Member Types
 1. Permanent Employees — full access to all loan types (Consolidated, Multi-Purpose, Emergency, Hospitalization)
 2. SC (Service Contract) — Salary Loan only, terms limited by contract duration, co-maker required
-3. Non-Members — limited access (Salary Loan, Multi-Purpose, Emergency), max ₱30,000
 
 ## Loan Types & Limits
 - Consolidated (Permanent only): up to ₱200,000
-- Multi-Purpose (Permanent & Non-Member): up to ₱100,000 / ₱30,000
-- Emergency (Permanent & Non-Member): up to ₱30,000
+- Multi-Purpose (Permanent only): up to ₱100,000
+- Emergency (Permanent only): up to ₱30,000
 - Hospitalization (Permanent only): up to ₱50,000
-- Salary Loan (SC & Non-Member): SC max = monthly salary × contract months, max ₱50,000; Non-Member max = ₱30,000
+- Salary Loan (SC only): max = monthly salary × contract months, max ₱50,000
 - Permanent loan limits are also capped by net take-home pay (whichever is lower)
 - Minimum loan amount: ₱1,000
 
 ## Interest Rates (Flat, Monthly)
 - SC Members: 1.50% per month
 - Permanent Members: 1.00% per month
-- Non-Members: 2.00% per month
 - Formula: Total Interest = Principal × Monthly Rate × Term Months
 - Monthly Amortization = (Principal + Total Interest) ÷ Term Months
 
 ## Loan Terms
 - Permanent: 3, 6, 12, 18, 24, 36, 48, 60 months
 - SC: 3, 6, 12 months (limited by remaining contract)
-- Non-Member: 3, 6, 12, 18, 24 months
 - Maximum: 60 months
 
 ## Eligibility Requirements

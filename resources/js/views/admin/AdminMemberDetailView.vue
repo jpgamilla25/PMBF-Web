@@ -159,7 +159,6 @@ const hasPayroll = computed(
 const typeVariants = {
   Permanent: 'success',
   'Contract of Service': 'warning',
-  'Non-Member': 'secondary',
   [PMBF_EMPLOYEE]: 'info',
 }
 

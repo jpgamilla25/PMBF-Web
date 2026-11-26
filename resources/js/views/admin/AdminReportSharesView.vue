@@ -27,7 +27,6 @@
             <option value="">All</option>
             <option value="Permanent">Permanent</option>
             <option value="Contract of Service">Contract of Service</option>
-            <option value="Non-Member">Non-Member</option>
           </select>
         </div>
         <div class="col-md-3 d-flex gap-2 align-items-end">

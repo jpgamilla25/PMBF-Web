@@ -2,9 +2,13 @@ import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 
 export const useAdminContextStore = defineStore('adminContext', {
-  state: () => ({
-    memberType: sessionStorage.getItem('pmbf_admin_type') || null,
-  }),
+  state: () => {
+    // COS-Non Enrolled is no longer an admin view; a session still holding
+    // it goes back to the type picker.
+    const saved = sessionStorage.getItem('pmbf_admin_type')
+    if (saved === 'Non-Member') sessionStorage.removeItem('pmbf_admin_type')
+    return { memberType: saved && saved !== 'Non-Member' ? saved : null }
+  },
 
   getters: {
     /** Has the admin selected a type this session? */

@@ -295,7 +295,6 @@ const memberTypeOptions = [
   { value: 'all', label: 'All Members', short: 'All', icon: 'bi bi-grid-3x3-gap', color: 'ctx-all' },
   { value: 'Permanent', label: 'Permanent', short: 'Perm', icon: 'bi bi-building', color: 'ctx-perm' },
   { value: 'Contract of Service', label: 'COS-Enrolled', short: 'Enrolled', icon: 'bi bi-file-earmark-text', color: 'ctx-sc' },
-  { value: 'Non-Member', label: 'COS-Non Enrolled', short: 'Non-Enr', icon: 'bi bi-person-dash', color: 'ctx-non' },
   { value: 'PMBF Employee', label: 'PMBF Employee', short: 'PMBF', icon: 'bi bi-person-badge', color: 'ctx-pmbf' },
 ]
 

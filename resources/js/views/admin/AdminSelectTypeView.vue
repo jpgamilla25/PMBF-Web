@@ -8,7 +8,7 @@
       </div>
 
       <div class="row g-4 justify-content-center">
-        <div class="col-sm-6 col-lg-3" v-for="opt in options" :key="opt.value">
+        <div class="col-sm-6 col-lg-4" v-for="opt in options" :key="opt.value">
           <!-- The card stays a div (it holds a heading and a paragraph, which
                a <button> may not contain) and the Manage button is stretched
                over it. That makes the whole card clickable while the control is
@@ -79,16 +79,6 @@ const options = [
     iconBg: 'icon-orange',
     cardClass: 'card-orange',
     count: (s) => s?.by_type?.['Contract of Service'] ?? 0,
-  },
-  {
-    value: 'Non-Member',
-    label: 'COS-Non Enrolled',
-    description: 'Manage non-enrolled Contract of Service registrations, separate interest rates & loan limits',
-    icon: 'bi bi-person-dash fs-1',
-    iconBg: 'icon-gray',
-    cardClass: 'card-gray',
-    btnClass: 'btn-secondary',
-    count: (s) => s?.by_type?.['Non-Member'] ?? 0,
   },
   {
     value: 'PMBF Employee',

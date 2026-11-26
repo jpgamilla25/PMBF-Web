@@ -260,7 +260,7 @@ const emit = defineEmits(['posted'])
 const { confirm } = useConfirm()
 const adminContext = useAdminContextStore()
 
-// COS (Enrolled and Non-Enrolled) are paid and deducted twice a month.
+// COS employees are paid and deducted twice a month.
 const QUINCENA_TYPES = ['Contract of Service', 'Non-Member']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const usesQuincena = computed(() => {

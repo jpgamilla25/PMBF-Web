@@ -98,8 +98,8 @@
           </div>
         </div>
 
-        <!-- Shares row for admin (premiums in COS-Enrolled; COS-Non Enrolled pay neither) -->
-        <div v-if="adminContext.memberType !== 'Non-Member'" class="row g-3 mb-4">
+        <!-- Shares row for admin (premiums in COS-Enrolled) -->
+        <div class="row g-3 mb-4">
           <div class="col-sm-6 col-xl-3">
             <AppStatCard :title="adminIsCos ? 'Total Premium Contributions' : 'Total Share Capital'" :value="adminData.shares?.total_this_year ?? 0" icon="bi bi-pie-chart" color="primary" prefix="₱" />
           </div>

@@ -46,6 +46,14 @@ class PaymentImportService
      */
     public const QUINCENA_TYPES = ['Contract of Service'];
 
+    /**
+     * COS wording on the worklist: the name column reads "name_of_cos" and a
+     * Salary Loan is shown as "SC Loan". Both are read back on import.
+     */
+    public const COS_NAME_COLUMN = 'name_of_cos';
+
+    public const LOAN_TYPE_LABELS = ['Salary Loan' => 'SC Loan'];
+
     public const COLUMNS = [
         'loan_ref',
         'employee_id',
@@ -307,9 +315,9 @@ class PaymentImportService
             $entry = [
                 'row' => $rowNumber,
                 'employee_id' => (string) ($row['employee_id'] ?? ''),
-                'member_name' => (string) ($row['member_name'] ?? ''),
+                'member_name' => (string) ($row['member_name'] ?? $row[self::COS_NAME_COLUMN] ?? ''),
                 'loan_ref' => (string) ($row['loan_ref'] ?? ''),
-                'loan_type' => (string) ($row['loan_type'] ?? ''),
+                'loan_type' => $this->loanTypeFromLabel((string) ($row['loan_type'] ?? '')),
                 'amount' => 0.0,
                 'or_number' => (string) ($row['or_number'] ?? ''),
                 'payment_method' => strtolower((string) ($row['payment_method'] ?? '')) ?: self::DEFAULT_METHOD,
@@ -423,6 +431,20 @@ class PaymentImportService
      * loan_ref names the loan outright; without it we fall back to
      * (employee id, loan type) and refuse to guess when that is ambiguous.
      */
+    /**
+     * Worklist label back to the stored loan type ("SC Loan" -> "Salary Loan").
+     */
+    private function loanTypeFromLabel(string $label): string
+    {
+        foreach (self::LOAN_TYPE_LABELS as $type => $shown) {
+            if (strcasecmp($label, $shown) === 0) {
+                return $type;
+            }
+        }
+
+        return $label;
+    }
+
     private function matchLoan(array $entry, ?string &$message): ?Loan
     {
         $message = null;

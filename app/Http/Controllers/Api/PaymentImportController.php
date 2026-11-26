@@ -62,7 +62,12 @@ class PaymentImportController extends Controller
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Payments');
 
+        // A COS-only worklist uses the office's COS wording.
+        $cosOnly = in_array($type, PaymentImportService::QUINCENA_TYPES, true);
         $headers = PaymentImportService::COLUMNS;
+        if ($cosOnly) {
+            $headers[array_search('member_name', $headers, true)] = PaymentImportService::COS_NAME_COLUMN;
+        }
         $sheet->fromArray($headers, null, 'A1');
 
         $row = 2;
@@ -79,7 +84,7 @@ class PaymentImportController extends Controller
                 $loan->id,
                 $loan->user->employee_id ?? '',
                 trim(($loan->user->first_name ?? '') . ' ' . ($loan->user->last_name ?? '')),
-                $loan->loan_type,
+                $isCos ? (PaymentImportService::LOAN_TYPE_LABELS[$loan->loan_type] ?? $loan->loan_type) : $loan->loan_type,
                 round($loan->monthly_amortization, 2),
                 $isCos ? round($loan->monthly_amortization / 2, 2) : null,
                 round($loan->remaining_balance, 2),
@@ -130,7 +135,7 @@ class PaymentImportController extends Controller
             ['3.', 'Add "or_number" where there is one. It makes duplicate detection exact.'],
             ['4.', 'payment_method must be one of: ' . implode(', ', PaymentImportService::PAYMENT_METHODS) . '.'],
             [''],
-            ['Do not edit', 'loan_ref, employee_id, member_name, loan_type — these identify the loan being paid.'],
+            ['Do not edit', 'loan_ref, employee_id, ' . ($cosOnly ? PaymentImportService::COS_NAME_COLUMN : 'member_name') . ', loan_type — these identify the loan being paid.'],
             [''],
             ['COS (quincena)', 'COS loans are deducted per quincena: 1st = 1st-15th (paid on the 15th), 2nd = 16th-end of month (paid on the last day).'],
             ['', 'This worklist is for the ' . $quincenaLabel . ' quincena: quincena_amortization is half the monthly amortization, and payment_date is pre-filled with the cutoff date.'],

@@ -356,9 +356,6 @@ Route::prefix('v1')->group(function () {
             // Import
             Route::post('import/shares', [ImportController::class, 'importShares']);
             Route::get('import/template/shares', [ImportController::class, 'downloadShareTemplate']);
-            // COS-Enrolled premium contributions, per quincena
-            Route::post('import/premiums', [ImportController::class, 'importPremiums']);
-            Route::get('import/template/premiums', [ImportController::class, 'downloadPremiumTemplate']);
 
             // Bulk loans — template out, preview, then proceed. Replaces the
             // old single-shot import/loans, which created rows with no review

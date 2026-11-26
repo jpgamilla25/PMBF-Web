@@ -7,15 +7,34 @@
         <i class="bi bi-cash-stack me-2 text-primary"></i>Bulk Payments
       </h5>
       <span v-else></span>
-      <AppButton variant="outline-primary" size="sm" :loading="downloading" @click="downloadWorklist">
-        <i class="bi bi-download me-1"></i>Download Worklist
-      </AppButton>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <!-- COS loans are deducted per quincena: pick the payroll cutoff -->
+        <template v-if="usesQuincena">
+          <select v-model.number="cutoff.quincena" class="form-select form-select-sm w-auto" aria-label="Quincena">
+            <option :value="1">1st quincena (1–15)</option>
+            <option :value="2">2nd quincena (16–end)</option>
+          </select>
+          <select v-model.number="cutoff.month" class="form-select form-select-sm w-auto" aria-label="Month">
+            <option v-for="(m, i) in MONTHS" :key="m" :value="i + 1">{{ m }}</option>
+          </select>
+          <select v-model.number="cutoff.year" class="form-select form-select-sm w-auto" aria-label="Year">
+            <option v-for="y in years" :key="y" :value="y">{{ y }}</option>
+          </select>
+        </template>
+        <AppButton variant="outline-primary" size="sm" :loading="downloading" @click="downloadWorklist">
+          <i class="bi bi-download me-1"></i>Download Worklist
+        </AppButton>
+      </div>
     </div>
 
     <p class="text-muted small mb-3">
       Download the worklist — every loan with a balance, one row each, already carrying its reference.
       Fill in <code>amount</code> and <code>payment_date</code>, then upload it back. You will see exactly
       what will be posted before anything is written, and the same payment can never be posted twice.
+      <template v-if="usesQuincena">
+        <br />COS loans are deducted per <strong>quincena</strong>: their rows show the half-month amortization and come
+        with <code>payment_date</code> set to the cutoff (the 15th, or the last day of the month). Download one worklist per quincena.
+      </template>
     </p>
 
     <!-- Step 1: upload -->
@@ -226,6 +245,7 @@
 import { computed, onMounted, ref } from 'vue'
 import admin from '@/services/admin'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAdminContextStore } from '@/stores/adminContext'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 
@@ -238,6 +258,18 @@ defineProps({
 const emit = defineEmits(['posted'])
 
 const { confirm } = useConfirm()
+const adminContext = useAdminContextStore()
+
+// COS (Enrolled and Non-Enrolled) are paid and deducted twice a month.
+const QUINCENA_TYPES = ['Contract of Service', 'Non-Member']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const usesQuincena = computed(() => {
+  const t = adminContext.memberType || 'all'
+  return t === 'all' || QUINCENA_TYPES.includes(t)
+})
+const now = new Date()
+const cutoff = ref({ year: now.getFullYear(), month: now.getMonth() + 1, quincena: now.getDate() <= 15 ? 1 : 2 })
+const years = [now.getFullYear() + 1, now.getFullYear(), now.getFullYear() - 1]
 
 const file = ref(null)
 const dragOver = ref(false)
@@ -300,11 +332,14 @@ function reset() {
 async function downloadWorklist() {
   downloading.value = true
   try {
-    const response = await admin.downloadPaymentWorklist()
+    const response = await admin.downloadPaymentWorklist({ ...adminContext.filterParam, ...cutoff.value })
+    // The server names quincena worklists by cutoff; use its name when given.
+    const disposition = response.headers?.['content-disposition'] ?? ''
+    const serverName = /filename="?([^";]+)"?/i.exec(disposition)?.[1]
     const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `payment_worklist_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    link.setAttribute('download', serverName || `payment_worklist_${new Date().toISOString().slice(0, 10)}.xlsx`)
     document.body.appendChild(link)
     link.click()
     link.remove()

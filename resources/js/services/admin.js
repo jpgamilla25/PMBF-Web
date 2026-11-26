@@ -139,16 +139,6 @@ export default {
     return api.post(`/admin/import/loans/batches/${batchId}/rollback`)
   },
 
-  importPremiums(formData) {
-    return api.post('/admin/import/premiums', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-  },
-
-  downloadPremiumTemplate() {
-    return api.get('/admin/import/template/premiums', { responseType: 'blob' })
-  },
-
   downloadShareTemplate() {
     return api.get('/admin/import/template/shares', { responseType: 'blob' })
   },
@@ -170,8 +160,8 @@ export default {
 
   // Bulk payments: worklist out, preview, then commit. Nothing posts until
   // commitPayments() — previewPayments() only reports what would happen.
-  downloadPaymentWorklist() {
-    return api.get('/admin/import/payments/worklist', { responseType: 'blob' })
+  downloadPaymentWorklist(params = {}) {
+    return api.get('/admin/import/payments/worklist', { params, responseType: 'blob' })
   },
 
   previewPayments(formData) {

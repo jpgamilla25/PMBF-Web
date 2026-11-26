@@ -31,9 +31,32 @@ class PaymentImportController extends Controller
      * The worklist: every outstanding loan, one row each, already carrying
      * its loan_ref so the returned file needs no guessing to match.
      */
-    public function downloadWorklist(): StreamedResponse
+    public function downloadWorklist(Request $request): StreamedResponse
     {
-        $loans = $this->service->outstandingLoans();
+        $type = $request->input('employment_type');
+        $type = ($type && $type !== 'all') ? (string) $type : null;
+        $loans = $this->service->outstandingLoans($type);
+
+        // The payroll cutoff COS rows are cut for: 1st quincena = 1st-15th
+        // (paid on the 15th), 2nd = 16th-end (paid on the last day).
+        $today = now();
+        $year = (int) $request->input('year', $today->year);
+        $month = (int) $request->input('month', $today->month);
+        $quincena = (int) $request->input('quincena', $today->day <= 15 ? 1 : 2);
+        if ($year < 2000 || $year > 2100) {
+            $year = $today->year;
+        }
+        if ($month < 1 || $month > 12) {
+            $month = $today->month;
+        }
+        if (!in_array($quincena, [1, 2], true)) {
+            $quincena = 1;
+        }
+
+        $periodStart = \Carbon\Carbon::create($year, $month, 1);
+        $cutoffDate = $quincena === 1 ? $periodStart->copy()->day(15) : $periodStart->copy()->endOfMonth();
+        $quincenaLabel = ($quincena === 1 ? '1st' : '2nd') . ' (' . $periodStart->format('M') . ' '
+            . ($quincena === 1 ? '1-15' : '16-' . $cutoffDate->day) . ', ' . $year . ')';
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -44,17 +67,26 @@ class PaymentImportController extends Controller
 
         $row = 2;
 
+        $hasQuincena = false;
+
         foreach ($loans as $loan) {
+            // COS rows carry the half-month figure and the cutoff date; the
+            // operator still types the amount actually deducted.
+            $isCos = in_array($loan->user->employment_type ?? null, PaymentImportService::QUINCENA_TYPES, true);
+            $hasQuincena = $hasQuincena || $isCos;
+
             $sheet->fromArray([
                 $loan->id,
                 $loan->user->employee_id ?? '',
                 trim(($loan->user->first_name ?? '') . ' ' . ($loan->user->last_name ?? '')),
                 $loan->loan_type,
                 round($loan->monthly_amortization, 2),
+                $isCos ? round($loan->monthly_amortization / 2, 2) : null,
                 round($loan->remaining_balance, 2),
+                $isCos ? $quincenaLabel : null,
                 null, // amount — the operator fills this in
                 null, // or_number
-                null, // payment_date
+                $isCos ? $cutoffDate->toDateString() : null, // payment_date
                 PaymentImportService::DEFAULT_METHOD,
                 null, // remarks
                 null, // allow_duplicate
@@ -64,11 +96,11 @@ class PaymentImportController extends Controller
 
         $lastRow = $row - 1;
 
-        $sheet->getStyle('A1:L1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:L1')->getFill()
+        $sheet->getStyle('A1:N1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:N1')->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setRGB('D9E2F3');
-        $sheet->getStyle('A1:L1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle('A1:N1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->freezePane('A2');
 
         // With no outstanding loans there is no data range to style, and
@@ -76,14 +108,15 @@ class PaymentImportController extends Controller
         if ($lastRow >= 2) {
             // Reference columns shaded, entry columns left white, so it is
             // obvious at a glance which cells are meant to be typed in.
-            $sheet->getStyle("A2:F{$lastRow}")->getFill()
+            $sheet->getStyle("A2:H{$lastRow}")->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->getStartColor()->setRGB('F2F2F2');
             $sheet->getStyle("E2:G{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
-            $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+            $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('#,##0.00');
+            $sheet->getStyle("K2:K{$lastRow}")->getNumberFormat()->setFormatCode('yyyy-mm-dd');
         }
 
-        foreach (range('A', 'L') as $column) {
+        foreach (range('A', 'N') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
 
@@ -99,6 +132,10 @@ class PaymentImportController extends Controller
             [''],
             ['Do not edit', 'loan_ref, employee_id, member_name, loan_type — these identify the loan being paid.'],
             [''],
+            ['COS (quincena)', 'COS loans are deducted per quincena: 1st = 1st-15th (paid on the 15th), 2nd = 16th-end of month (paid on the last day).'],
+            ['', 'This worklist is for the ' . $quincenaLabel . ' quincena: quincena_amortization is half the monthly amortization, and payment_date is pre-filled with the cutoff date.'],
+            ['', 'Type the amount actually deducted in "amount". Download a new worklist for each quincena — the 1st and 2nd are posted separately, never twice.'],
+            [''],
             ['Duplicates', 'The same loan + date + amount + OR number is only ever posted once, and re-uploading the same file is blocked.'],
             ['', 'If a member genuinely paid twice on one day for the same amount, type "yes" in "allow_duplicate" on the second row.'],
         ], null, 'A1');
@@ -108,7 +145,9 @@ class PaymentImportController extends Controller
 
         $spreadsheet->setActiveSheetIndex(0);
 
-        $filename = 'payment_worklist_' . now()->format('Y-m-d') . '.xlsx';
+        $filename = $hasQuincena
+            ? sprintf('payment_worklist_%d-%02d_%s_quincena.xlsx', $year, $month, $quincena === 1 ? '1st' : '2nd')
+            : 'payment_worklist_' . now()->format('Y-m-d') . '.xlsx';
 
         return response()->streamDownload(function () use ($spreadsheet) {
             (new Xlsx($spreadsheet))->save('php://output');

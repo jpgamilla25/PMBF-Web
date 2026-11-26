@@ -40,13 +40,21 @@ class PaymentImportService
 
     private const STAGING_DIR = 'payment-imports';
 
+    /**
+     * COS employees are paid — and deducted — per quincena (twice a month),
+     * so their worklist rows are cut per payroll half-month.
+     */
+    public const QUINCENA_TYPES = ['Contract of Service', 'Non-Member'];
+
     public const COLUMNS = [
         'loan_ref',
         'employee_id',
         'member_name',
         'loan_type',
         'monthly_amortization',
+        'quincena_amortization',
         'outstanding_balance',
+        'quincena',
         'amount',
         'or_number',
         'payment_date',
@@ -59,13 +67,14 @@ class PaymentImportService
      * Every loan that can still receive a payment, newest first, with the
      * figures the operator needs to fill the sheet.
      */
-    public function outstandingLoans(): \Illuminate\Support\Collection
+    public function outstandingLoans(?string $employmentType = null): \Illuminate\Support\Collection
     {
         // Payments are eager-loaded (not withSum) because Loan::total_paid
         // sums the loaded relation when it has one — that keeps the balance
         // column to two queries instead of one per loan.
-        return Loan::with(['user:id,employee_id,first_name,last_name', 'payments:id,loan_id,amount'])
+        return Loan::with(['user:id,employee_id,first_name,last_name,employment_type', 'payments:id,loan_id,amount'])
             ->whereIn('status', self::POSTABLE_STATUSES)
+            ->when($employmentType, fn ($q) => $q->whereHas('user', fn ($u) => $u->where('employment_type', $employmentType)))
             ->orderBy('user_id')
             ->orderBy('id')
             ->get()

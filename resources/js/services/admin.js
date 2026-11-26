@@ -139,6 +139,16 @@ export default {
     return api.post(`/admin/import/loans/batches/${batchId}/rollback`)
   },
 
+  importPremiums(formData) {
+    return api.post('/admin/import/premiums', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  downloadPremiumTemplate() {
+    return api.get('/admin/import/template/premiums', { responseType: 'blob' })
+  },
+
   downloadShareTemplate() {
     return api.get('/admin/import/template/shares', { responseType: 'blob' })
   },

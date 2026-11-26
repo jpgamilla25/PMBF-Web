@@ -9,22 +9,38 @@
 
     <BulkLoanImport />
 
-    <!-- Import Shares -->
-    <AppCard>
+    <!-- Import Shares (Permanent) / Premium Contributions per quincena (COS-Enrolled) -->
+    <AppCard v-if="kinds.length">
       <template #header>
-        <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
           <h5 class="mb-0 fw-semibold">
-            <i class="bi bi-pie-chart me-2 text-primary"></i>Import Shares
+            <i :class="cfg.icon" class="me-2 text-primary"></i>{{ cfg.title }}
           </h5>
-          <AppButton variant="outline-primary" size="sm" @click="downloadTemplate" :loading="downloadingBenefits">
-            <i class="bi bi-download me-1"></i>Download Template
-          </AppButton>
+          <div class="d-flex gap-2 align-items-center">
+            <!-- "All Members" context offers both imports -->
+            <div v-if="kinds.length > 1" class="btn-group btn-group-sm" role="group" aria-label="Import type">
+              <button
+                v-for="k in kinds" :key="k" type="button"
+                class="btn" :class="kind === k ? 'btn-primary' : 'btn-outline-primary'"
+                @click="switchKind(k)"
+              >{{ KINDS[k].short }}</button>
+            </div>
+            <AppButton variant="outline-primary" size="sm" @click="downloadTemplate" :loading="downloadingBenefits">
+              <i class="bi bi-download me-1"></i>Download Template
+            </AppButton>
+          </div>
         </div>
       </template>
 
       <p class="text-muted small mb-3">
-        Upload a CSV with one row per Permanent member per month. Required columns: employee_id, year, month, members_contribution.
-        Optional: philrice_counterpart (members contribution + counterpart = Total Equity). Shows on each member's Shares page; re-importing a month replaces it.
+        <template v-if="kind === 'shares'">
+          Upload a CSV with one row per Permanent member per month. Required columns: employee_id, year, month, members_contribution.
+          Optional: philrice_counterpart. The total_equity column is just a guide (members contribution + counterpart) — the system computes it, so it's ignored on import. Shows on each member's Shares page; re-importing a month replaces it.
+        </template>
+        <template v-else>
+          Upload a CSV with one row per COS-Enrolled member per <strong>quincena</strong>. Required columns: employee_id, year, month, quincena, premium_contribution.
+          Quincena is <strong>1</strong> (1st–15th) or <strong>2</strong> (16th–end of month). The month's premium is the sum of both quincenas, so each cutoff can be imported on its own; re-importing a quincena replaces it.
+        </template>
       </p>
 
       <!-- Dropzone -->
@@ -74,7 +90,7 @@
         :disabled="!benefitsFile || benefitsUploading"
         @click="importFile"
       >
-        <i class="bi bi-upload me-1"></i>Import Shares
+        <i class="bi bi-upload me-1"></i>{{ cfg.title }}
       </AppButton>
 
       <!-- Results -->
@@ -115,15 +131,57 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import admin from '@/services/admin'
+import { useAdminContextStore } from '@/stores/adminContext'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import BulkPaymentImport from '@/components/admin/BulkPaymentImport.vue'
 import BulkLoanImport from '@/components/admin/BulkLoanImport.vue'
 
-// Shares state — loans and payments each live in their own component now.
+const adminContext = useAdminContextStore()
+
+// Which contribution import the current member-type context offers.
+const KINDS = {
+  shares: {
+    short: 'Shares',
+    title: 'Import Shares',
+    icon: 'bi bi-pie-chart',
+    upload: (fd) => admin.importShares(fd),
+    template: () => admin.downloadShareTemplate(),
+    filename: 'share_import_template.csv',
+  },
+  premiums: {
+    short: 'COS Premiums',
+    title: 'Import Premium Contributions',
+    icon: 'bi bi-shield-check',
+    upload: (fd) => admin.importPremiums(fd),
+    template: () => admin.downloadPremiumTemplate(),
+    filename: 'premium_quincena_import_template.csv',
+  },
+}
+
+const kinds = computed(() => {
+  switch (adminContext.memberType || 'all') {
+    case 'all': return ['shares', 'premiums']
+    case 'Permanent': return ['shares']
+    case 'Contract of Service': return ['premiums']
+    default: return [] // COS-Non Enrolled / PMBF Employee have neither
+  }
+})
+const kind = ref(kinds.value[0] ?? 'shares')
+const cfg = computed(() => KINDS[kind.value])
+
+function switchKind(k) {
+  kind.value = k
+  benefitsFile.value = null
+  benefitsResult.value = null
+}
+
+watch(kinds, (list) => { if (!list.includes(kind.value) && list.length) switchKind(list[0]) })
+
+// Upload state — loans and payments each live in their own component now.
 const benefitsFile = ref(null)
 const benefitsDragOver = ref(false)
 const benefitsUploading = ref(false)
@@ -174,7 +232,7 @@ async function importFile() {
 
   try {
     benefitsProgress.value = 60
-    const response = await admin.importShares(formData)
+    const response = await cfg.value.upload(formData)
     benefitsProgress.value = 100
     benefitsResult.value = response.data.data
     benefitsFile.value = null
@@ -189,8 +247,8 @@ async function importFile() {
 async function downloadTemplate() {
   downloadingBenefits.value = true
   try {
-    const response = await admin.downloadShareTemplate()
-    triggerDownload(response.data, 'share_import_template.csv')
+    const response = await cfg.value.template()
+    triggerDownload(response.data, cfg.value.filename)
   } catch (error) {
     console.error('Template download failed:', error)
   } finally {

@@ -98,8 +98,8 @@
           </div>
         </div>
 
-        <!-- Shares row for admin -->
-        <div class="row g-3 mb-4">
+        <!-- Shares row for admin (premiums in COS-Enrolled; COS-Non Enrolled pay neither) -->
+        <div v-if="adminContext.memberType !== 'Non-Member'" class="row g-3 mb-4">
           <div class="col-sm-6 col-xl-3">
             <AppStatCard :title="adminIsCos ? 'Total Premium Contributions' : 'Total Share Capital'" :value="adminData.shares?.total_this_year ?? 0" icon="bi bi-pie-chart" color="primary" prefix="₱" />
           </div>
@@ -419,9 +419,8 @@ const { loading, withLoading } = useLoading()
 
 const currentYear = new Date().getFullYear()
 
-// COS-Enrolled / COS-Non Enrolled admin contexts call shares "Premium Contributions".
-const COS_TYPES = ['Contract of Service', 'Non-Member']
-const adminIsCos = computed(() => COS_TYPES.includes(adminContext.memberType))
+// COS-Enrolled calls shares "Premium Contributions".
+const adminIsCos = computed(() => adminContext.memberType === 'Contract of Service')
 
 // ── Member / Staff data ──
 const stats = ref({})
